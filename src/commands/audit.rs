@@ -80,6 +80,13 @@ fn resolve_target(target: Option<&str>) -> Result<(PathBuf, Option<TempClone>)> 
     if !status.success() {
         bail!("git clone failed for {url}");
     }
+    // `git clone` does not fetch notes; git-ai authorship logs live under
+    // refs/notes/ai. Best effort: most repositories simply do not have it.
+    let _ = Command::new("git")
+        .args(["fetch", "--quiet", "origin", "+refs/notes/ai:refs/notes/ai"])
+        .current_dir(&dest)
+        .stderr(std::process::Stdio::null())
+        .status();
     Ok((dest.clone(), Some(TempClone(dest))))
 }
 

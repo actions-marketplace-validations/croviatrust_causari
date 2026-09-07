@@ -41,6 +41,72 @@ pub struct CommitMeta {
     pub author_email: String,
     /// Full commit message including trailers.
     pub message: String,
+    /// Git notes attached under `refs/notes/ai` (git-ai authorship logs),
+    /// empty when absent.
+    pub notes: String,
+}
+
+/// Map a free-form agent/model hint (trailer value, tool name, `~handle`) to
+/// Causari's canonical agent names. Unknown hints keep their first token.
+pub fn canonical_agent(hint: &str) -> String {
+    let h = hint.trim().trim_start_matches('~').to_lowercase();
+    if h.contains("claude") || h.contains("anthropic") {
+        "claude-code".into()
+    } else if h.contains("copilot") {
+        "github-copilot".into()
+    } else if h.contains("cursor") {
+        "cursor".into()
+    } else if h.contains("aider") {
+        "aider".into()
+    } else if h.contains("codex")
+        || h.contains("chatgpt")
+        || h.contains("gpt")
+        || h.contains("openai")
+    {
+        "openai-codex".into()
+    } else if h.contains("gemini") {
+        "gemini".into()
+    } else if h.contains("devin") {
+        "devin".into()
+    } else if h.contains("openhands") {
+        "openhands".into()
+    } else if h.contains("jules") {
+        "jules".into()
+    } else {
+        let token: String = h
+            .split(|c: char| c.is_whitespace() || c == '<' || c == '(' || c == '/')
+            .next()
+            .unwrap_or("ai")
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_' || *c == '.')
+            .collect();
+        if token.is_empty() { "ai".into() } else { token }
+    }
+}
+
+/// Agent named in a git-ai authorship log (`refs/notes/ai`, schema
+/// `authorship/x.y.z`): the metadata JSON after the `---` divider carries
+/// `sessions.*.agent_id.tool` (v3) or `prompts.*.agent_id.tool` (legacy).
+fn git_ai_agent(notes: &str) -> Option<String> {
+    if !notes.contains("schema_version") {
+        return None;
+    }
+    let json = notes.split_once("\n---\n").map(|(_, j)| j).unwrap_or(notes);
+    let v: serde_json::Value = serde_json::from_str(json.trim()).ok()?;
+    for map in ["sessions", "prompts"] {
+        if let Some(obj) = v.get(map).and_then(|m| m.as_object()) {
+            for rec in obj.values() {
+                let tool = rec
+                    .get("agent_id")
+                    .and_then(|a| a.get("tool"))
+                    .and_then(|t| t.as_str());
+                if let Some(t) = tool {
+                    return Some(canonical_agent(t));
+                }
+            }
+        }
+    }
+    Some("ai".into())
 }
 
 /// Classify a commit as AI-authored (or not) from its metadata alone.
@@ -55,6 +121,54 @@ pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
     let msg_lower = commit.message.to_lowercase();
     let author_lower = commit.author_name.to_lowercase();
     let email_lower = commit.author_email.to_lowercase();
+
+    // git-ai authorship log attached as a note: line-level, machine-written.
+    if let Some(agent) = git_ai_agent(&commit.notes) {
+        return Some(Detection {
+            agent,
+            confidence: 1.0,
+            evidence: vec!["git-ai authorship note (refs/notes/ai)".into()],
+        });
+    }
+
+    // Structured provenance trailers from emerging standards:
+    // IETF draft-morrison identity-attributed commits (`Drafted-With`,
+    // `Executed-By`) and the `AI-*` trailer family (`AI-Model`, `AI-Agent`,
+    // `AI-Session-ID`, `AI-Provenance`).
+    let mut ai_marker: Option<String> = None;
+    for line in commit.message.lines() {
+        let trimmed = line.trim();
+        let Some((key, value)) = trimmed.split_once(':') else {
+            continue;
+        };
+        let key = key.trim().to_lowercase();
+        let value = value.trim();
+        if value.is_empty() {
+            continue;
+        }
+        match key.as_str() {
+            "drafted-with" | "executed-by" | "ai-model" | "ai-agent" | "ai-tool" => {
+                return Some(Detection {
+                    agent: canonical_agent(value),
+                    confidence: 1.0,
+                    evidence: vec![format!("trailer: {}", trimmed)],
+                });
+            }
+            "ai-session-id" | "ai-provenance" | "ai-generated" | "ai-assisted"
+                if ai_marker.is_none() =>
+            {
+                ai_marker = Some(trimmed.to_string());
+            }
+            _ => {}
+        }
+    }
+    if let Some(marker) = ai_marker {
+        return Some(Detection {
+            agent: "ai".into(),
+            confidence: 1.0,
+            evidence: vec![format!("trailer: {}", marker)],
+        });
+    }
 
     // Trailer-based detection: scan message lines for co-author trailers.
     for line in commit.message.lines() {
@@ -438,7 +552,8 @@ pub fn read_commits(dir: &Path) -> Result<Vec<CommitMeta>> {
             "log",
             "--reverse",
             "--no-merges",
-            "--pretty=format:%x00%H%x1f%an%x1f%ae%x1f%B",
+            "--notes=ai",
+            "--pretty=format:%x00%H%x1f%an%x1f%ae%x1f%B%x1f%N",
         ],
     )?;
     let mut commits = Vec::new();
@@ -446,11 +561,12 @@ pub fn read_commits(dir: &Path) -> Result<Vec<CommitMeta>> {
         if record.trim().is_empty() {
             continue;
         }
-        let mut fields = record.splitn(4, '\u{1f}');
+        let mut fields = record.splitn(5, '\u{1f}');
         let hash = fields.next().unwrap_or("").trim().to_string();
         let author_name = fields.next().unwrap_or("").to_string();
         let author_email = fields.next().unwrap_or("").to_string();
         let message = fields.next().unwrap_or("").to_string();
+        let notes = fields.next().unwrap_or("").trim().to_string();
         if hash.is_empty() {
             continue;
         }
@@ -459,6 +575,7 @@ pub fn read_commits(dir: &Path) -> Result<Vec<CommitMeta>> {
             author_name,
             author_email,
             message,
+            notes,
         });
     }
     Ok(commits)
@@ -590,7 +707,61 @@ mod tests {
             author_name: author.into(),
             author_email: email.into(),
             message: message.into(),
+            notes: String::new(),
         }
+    }
+
+    #[test]
+    fn detects_git_ai_authorship_note_as_verified() {
+        let mut c = meta(
+            "1".repeat(40).as_str(),
+            "Dev",
+            "dev@example.com",
+            "add parser",
+        );
+        c.notes = concat!(
+            "src/lib.rs\ns_0123456789abcd::t_0123456789abcd 1-40\n---\n",
+            "{\"schema_version\":\"authorship/3.0.0\",\"base_commit_sha\":\"x\",",
+            "\"prompts\":{},\"sessions\":{\"s_0123456789abcd\":{\"agent_id\":",
+            "{\"tool\":\"claude\",\"id\":\"a\",\"model\":\"claude-opus-4\"}}}}"
+        )
+        .into();
+        let d = detect_ai(&c).expect("git-ai note should be detected");
+        assert_eq!(d.agent, "claude-code");
+        assert_eq!(classify(Some(&d)), EvidenceClass::Verified);
+        assert!(d.evidence[0].contains("refs/notes/ai"));
+    }
+
+    #[test]
+    fn detects_ietf_and_ai_trailers_as_verified() {
+        for (trailer, agent) in [
+            ("Drafted-With: ~claude-opus-4", "claude-code"),
+            ("Executed-By: ~devin-bot", "devin"),
+            ("AI-Model: openai-codex/gpt-5", "openai-codex"),
+            ("AI-Agent: SomeNewTool v2", "somenewtool"),
+            ("AI-Session-ID: abc12", "ai"),
+        ] {
+            let c = meta(
+                "2".repeat(40).as_str(),
+                "Dev",
+                "dev@example.com",
+                &format!("fix\n\n{trailer}"),
+            );
+            let d = detect_ai(&c).unwrap_or_else(|| panic!("{trailer} not detected"));
+            assert_eq!(d.agent, agent, "{trailer}");
+            assert_eq!(classify(Some(&d)), EvidenceClass::Verified);
+        }
+    }
+
+    #[test]
+    fn plain_message_with_colon_is_not_ai() {
+        let c = meta(
+            "3".repeat(40).as_str(),
+            "Dev",
+            "dev@example.com",
+            "fix: handle timeout\n\nNote: see issue #12",
+        );
+        assert!(detect_ai(&c).is_none());
     }
 
     // -- detection ----------------------------------------------------------
