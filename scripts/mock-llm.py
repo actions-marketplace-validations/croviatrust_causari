@@ -19,6 +19,7 @@ join without real API keys. The wire shape follows the path and the request:
 """
 
 import json
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 CODE = (
@@ -59,7 +60,7 @@ def openai_json(tools):
     }
 
 
-def openai_sse(tools, include_usage):
+def openai_sse(tools, include_usage, repeat=1):
     base = {"id": "chatcmpl-mock", "object": "chat.completion.chunk", "model": "gpt-4o-2024-08-06"}
     out = []
 
@@ -74,7 +75,7 @@ def openai_sse(tools, include_usage):
         chunk({}, "tool_calls")
     else:
         chunk({"role": "assistant", "content": ""})
-        for piece in chunks(COMPLETION):
+        for piece in chunks(COMPLETION * repeat):
             chunk({"content": piece})
         chunk({}, "stop")
     if include_usage:
@@ -161,6 +162,9 @@ def responses_sse():
 
 
 class Handler(BaseHTTPRequestHandler):
+    # Chunked transfer encoding (used for SSE) only exists in HTTP/1.1.
+    protocol_version = "HTTP/1.1"
+
     def do_POST(self):
         length = int(self.headers.get("content-length", 0))
         raw = self.rfile.read(length)
@@ -169,13 +173,19 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             req = {}
         stream = bool(req.get("stream"))
-        path = self.path.split("?", 1)[0].rstrip("/")
+        path, _, query = self.path.partition("?")
+        path = path.rstrip("/")
+        # `?delay_ms=N` paces SSE events and `?repeat=N` lengthens the text
+        # completion, to exercise long streams and mid-stream disconnects.
+        params = dict(p.split("=", 1) for p in query.split("&") if "=" in p)
+        self.delay = int(params.get("delay_ms", 0)) / 1000
+        repeat = int(params.get("repeat", 1))
 
         if path.endswith("/chat/completions"):
             tools = bool(req.get("tools"))
             include_usage = bool((req.get("stream_options") or {}).get("include_usage"))
             if stream:
-                return self.send_sse(openai_sse(tools, include_usage))
+                return self.send_sse(openai_sse(tools, include_usage, repeat))
             return self.send_json(openai_json(tools))
         if path.endswith("/messages"):
             return self.send_sse(anthropic_sse()) if stream else self.send_json(anthropic_json())
@@ -203,6 +213,9 @@ class Handler(BaseHTTPRequestHandler):
             payload = data if isinstance(data, str) else json.dumps(data)
             frame = (f"event: {name}\n" if name else "") + f"data: {payload}\n\n"
             self.write_chunk(frame.encode())
+            self.wfile.flush()
+            if self.delay:
+                time.sleep(self.delay)
         self.wfile.write(b"0\r\n\r\n")
 
     def write_chunk(self, b):

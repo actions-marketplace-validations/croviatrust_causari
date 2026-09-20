@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow};
 use colored::Colorize;
 use std::io::Read;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tiny_http::{Header, Method, Response, Server, StatusCode};
@@ -197,18 +198,24 @@ fn with_stream_usage(body: &serde_json::Value, path: &str) -> Option<serde_json:
 /// A reader that copies every byte it serves into a shared buffer.
 /// This is what lets the proxy stream upstream bytes to the client in real
 /// time while still owning a full copy for parsing afterwards.
+///
+/// `complete` flips when upstream reaches EOF. `tiny_http` swallows the
+/// client-side write errors (`BrokenPipe`, `ConnectionReset`) inside
+/// `respond`, so a client that hangs up mid-stream is invisible there; the
+/// only reliable sign is that the copy stopped before upstream was drained.
 struct Tee<R: Read> {
     inner: R,
     buf: Arc<Mutex<Vec<u8>>>,
+    complete: Arc<AtomicBool>,
 }
 
 impl<R: Read> Read for Tee<R> {
     fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
         let n = self.inner.read(out)?;
-        if n > 0 {
-            if let Ok(mut b) = self.buf.lock() {
-                b.extend_from_slice(&out[..n]);
-            }
+        if n == 0 {
+            self.complete.store(true, Ordering::SeqCst);
+        } else if let Ok(mut b) = self.buf.lock() {
+            b.extend_from_slice(&out[..n]);
         }
         Ok(n)
     }
@@ -264,12 +271,6 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
         body = serde_json::to_vec(&patched)?;
         body_json = Some(patched);
     }
-    let requested_model = body_json
-        .as_ref()
-        .and_then(|v| v.get("model"))
-        .and_then(|m| m.as_str())
-        .map(String::from);
-    let prompt = body_json.as_ref().and_then(extract_prompt);
     let user_agent = request
         .headers()
         .iter()
@@ -341,14 +342,19 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
 
     // Tee-stream the response: client gets bytes live, we keep a copy.
     let captured = Arc::new(Mutex::new(Vec::new()));
+    let complete = Arc::new(AtomicBool::new(false));
     let tee = Tee {
         inner: upstream.into_body().into_reader(),
         buf: Arc::clone(&captured),
+        complete: Arc::clone(&complete),
     };
     let response = Response::new(StatusCode(status), headers, tee, None, None);
-    request.respond(response)?;
+    // When the client hangs up (or upstream breaks) part way through, the
+    // provider has billed the call anyway and the bytes seen so far are
+    // still evidence: the exchange is recorded as truncated, not dropped.
+    let respond_failed = request.respond(response).is_err();
+    let truncated = respond_failed || !complete.load(Ordering::SeqCst);
 
-    // Response fully streamed — now parse the copy and write the exchange.
     if !is_completion_request(&method, &upstream_path) || status >= 400 {
         return Ok(());
     }
@@ -356,10 +362,48 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
         .lock()
         .map_err(|_| anyhow!("capture buffer poisoned"))?
         .clone();
-    let parsed = if content_type.contains("event-stream") {
-        parse_sse(&String::from_utf8_lossy(&bytes))
+    let exchange = record_exchange(
+        repo,
+        cfg,
+        Captured {
+            request_body: &body,
+            request_json: body_json.as_ref(),
+            response_bytes: &bytes,
+            content_type: &content_type,
+            user_agent,
+            truncated,
+        },
+    )?;
+    print_exchange(&exchange);
+    Ok(())
+}
+
+/// One completion as it crossed the wire, ready to be turned into an
+/// `Exchange`. `response_bytes` is everything relayed to the client; when
+/// `truncated`, that is a prefix of what upstream sent.
+struct Captured<'a> {
+    request_body: &'a [u8],
+    request_json: Option<&'a serde_json::Value>,
+    response_bytes: &'a [u8],
+    content_type: &'a str,
+    user_agent: Option<String>,
+    truncated: bool,
+}
+
+/// Parse the captured completion, optionally seal it, and append it to
+/// `exchanges.jsonl`.
+fn record_exchange(repo: &Repo, cfg: &ProxyConfig, c: Captured<'_>) -> Result<Exchange> {
+    let requested_model = c
+        .request_json
+        .and_then(|v| v.get("model"))
+        .and_then(|m| m.as_str())
+        .map(String::from);
+    let prompt = c.request_json.and_then(extract_prompt);
+
+    let parsed = if c.content_type.contains("event-stream") {
+        parse_sse(&String::from_utf8_lossy(c.response_bytes))
     } else {
-        serde_json::from_slice::<serde_json::Value>(&bytes)
+        serde_json::from_slice::<serde_json::Value>(c.response_bytes)
             .map(|v| parse_response_json(&v))
             .unwrap_or_default()
     };
@@ -382,14 +426,14 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
         let mut issuer = sealer.lock().map_err(|_| anyhow!("seal issuer poisoned"))?;
         let seal = issuer.emit(
             SealSubject {
-                input: &body,
-                output: &bytes,
+                input: c.request_body,
+                output: c.response_bytes,
                 modality: "text",
             },
             SealGenerator {
                 id: model.as_deref().unwrap_or("unknown"),
                 version: None,
-                params: seal_params(body_json.as_ref()),
+                params: seal_params(c.request_json),
             },
         )?;
         seal["seal_id"].as_str().map(String::from)
@@ -400,20 +444,25 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
     let exchange = Exchange {
         id: Some(crate::capture::new_exchange_id()?),
         ts_ms: now_ms(),
-        agent: user_agent,
-        model: model.clone(),
-        prompt: prompt.clone(),
+        agent: c.user_agent,
+        model,
+        prompt,
         response_text: text,
         tokens_in,
         tokens_out,
         cost_usd,
-        request_sha256: Some(crate::seal::sha256_hex(&body)),
-        response_sha256: Some(crate::seal::sha256_hex(&bytes)),
-        seal_id: seal_id.clone(),
+        request_sha256: Some(crate::seal::sha256_hex(c.request_body)),
+        response_sha256: Some(crate::seal::sha256_hex(c.response_bytes)),
+        seal_id,
+        truncated: c.truncated,
     };
     append_jsonl(&exchanges_path(repo), &exchange)?;
+    Ok(exchange)
+}
 
-    let prompt_preview = prompt
+fn print_exchange(e: &Exchange) {
+    let prompt_preview = e
+        .prompt
         .as_deref()
         .map(|p| {
             let first = p.lines().next().unwrap_or("");
@@ -425,21 +474,26 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
         })
         .unwrap_or_else(|| "(no prompt)".to_string());
     println!(
-        "  {} {}  {}{}  {}{}",
+        "  {} {}  {}{}  {}{}{}",
         "•".green(),
-        model.as_deref().unwrap_or("unknown-model").cyan(),
-        format_tokens(tokens_in, tokens_out).bright_black(),
-        cost_usd
+        e.model.as_deref().unwrap_or("unknown-model").cyan(),
+        format_tokens(e.tokens_in, e.tokens_out).bright_black(),
+        e.cost_usd
             .map(|c| format!("  ${:.4}", c))
             .unwrap_or_default()
             .bright_black(),
         format!("\"{}\"", prompt_preview).italic(),
-        seal_id
+        e.seal_id
+            .as_deref()
             .map(|id| format!("  🔏 {}", id))
             .unwrap_or_default()
-            .bright_black()
+            .bright_black(),
+        if e.truncated {
+            "  (client disconnected; partial)".yellow()
+        } else {
+            "".normal()
+        }
     );
-    Ok(())
 }
 
 fn format_tokens(tin: Option<u64>, tout: Option<u64>) -> String {
@@ -529,5 +583,94 @@ mod tests {
         assert!(with_stream_usage(&json!({"stream": true}), "/v1/responses").is_none());
         assert!(with_stream_usage(&json!({"stream": true}), "/v1/messages").is_none());
         assert!(with_stream_usage(&json!([1, 2]), path).is_none());
+    }
+
+    #[test]
+    fn tee_reports_completion_only_at_upstream_eof() {
+        let upstream: &[u8] = b"data: one\n\ndata: two\n\n";
+        let buf = Arc::new(Mutex::new(Vec::new()));
+        let complete = Arc::new(AtomicBool::new(false));
+        let mut tee = Tee {
+            inner: upstream,
+            buf: Arc::clone(&buf),
+            complete: Arc::clone(&complete),
+        };
+        // The client-side copy stops after the first read: what a hung-up
+        // client looks like from here.
+        let mut out = [0u8; 11];
+        tee.read_exact(&mut out).unwrap();
+        assert_eq!(&out[..], b"data: one\n\n");
+        assert!(!complete.load(Ordering::SeqCst));
+        assert_eq!(buf.lock().unwrap().as_slice(), b"data: one\n\n");
+
+        // Draining upstream flips the flag and the copy is whole.
+        let mut rest = Vec::new();
+        tee.read_to_end(&mut rest).unwrap();
+        assert!(complete.load(Ordering::SeqCst));
+        assert_eq!(buf.lock().unwrap().as_slice(), upstream);
+    }
+
+    #[test]
+    fn a_stream_cut_by_the_client_is_still_recorded_as_truncated() {
+        use serde_json::json;
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let cfg = ProxyConfig {
+            openai: String::new(),
+            anthropic: String::new(),
+            sealer: None,
+        };
+        let request = json!({"model": "gpt-4o", "stream": true,
+            "messages": [{"role": "user", "content": "add the helper"}]});
+        let request_body = serde_json::to_vec(&request).unwrap();
+        // The client hung up after two chunks: no finish_reason, no usage.
+        let partial = "data: {\"model\":\"gpt-4o-2024-08-06\",\"choices\":[{\"delta\":{\"content\":\"def helper():\\n\"}}]}\n\n\
+                       data: {\"model\":\"gpt-4o-2024-08-06\",\"choices\":[{\"delta\":{\"content\":\"    return 4\"}}]}\n\n\
+                       data: {\"model\":\"gpt-4o-2024-08-06\",\"choi";
+
+        let e = record_exchange(
+            &repo,
+            &cfg,
+            Captured {
+                request_body: &request_body,
+                request_json: Some(&request),
+                response_bytes: partial.as_bytes(),
+                content_type: "text/event-stream",
+                user_agent: Some("aider/0.86".into()),
+                truncated: true,
+            },
+        )
+        .unwrap();
+        assert!(e.truncated);
+        assert_eq!(e.response_text, "def helper():\n    return 4");
+        assert_eq!(e.model.as_deref(), Some("gpt-4o-2024-08-06"));
+        assert_eq!(e.prompt.as_deref(), Some("add the helper"));
+        assert_eq!((e.tokens_in, e.tokens_out, e.cost_usd), (None, None, None));
+
+        // Persisted with the flag, and loadable by the join.
+        let raw = std::fs::read_to_string(exchanges_path(&repo)).unwrap();
+        assert!(raw.contains("\"truncated\":true"), "{raw}");
+        let loaded = crate::capture::load_exchanges_since(&repo, 0).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert!(loaded[0].truncated);
+
+        // A complete exchange carries no flag at all, so older readers and
+        // legacy lines (no field) mean the same thing: not truncated.
+        let full = record_exchange(
+            &repo,
+            &cfg,
+            Captured {
+                request_body: &request_body,
+                request_json: Some(&request),
+                response_bytes: br#"{"model":"gpt-4o-2024-08-06","choices":[{"message":{"content":"ok"}}],"usage":{"prompt_tokens":3,"completion_tokens":1}}"#,
+                content_type: "application/json",
+                user_agent: None,
+                truncated: false,
+            },
+        )
+        .unwrap();
+        assert!(!full.truncated);
+        let last = std::fs::read_to_string(exchanges_path(&repo)).unwrap();
+        assert!(!last.lines().last().unwrap().contains("truncated"));
     }
 }

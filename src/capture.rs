@@ -60,6 +60,11 @@ pub struct Exchange {
     /// to its receipt; without it seals are orphans.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub seal_id: Option<String>,
+    /// The client went away before the response was fully relayed.
+    /// `response_text`, tokens and cost cover only the bytes captured up to
+    /// that point; the provider still billed the whole completion.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub truncated: bool,
 }
 
 /// A user prompt reported by an agent-side hook (e.g. Claude Code).
@@ -714,6 +719,7 @@ mod tests {
             request_sha256: None,
             response_sha256: None,
             seal_id: None,
+            truncated: false,
         }
     }
 
