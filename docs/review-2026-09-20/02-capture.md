@@ -8,28 +8,34 @@
 thread per request. Upstream via `ureq` + rustls, 15 s connect timeout, no
 read timeout; no `HTTPS_PROXY`, no system CA store. Routing: `/anthropic/*`,
 `/openai/*`, bare `/v1/messages*` → Anthropic, else OpenAI; upstreams
-overridable. Capture predicate: path *contains* `/chat/completions`,
-`/messages` or `/responses` and status < 400 (also matches
-`/v1/messages/count_tokens`, `GET /v1/responses/{id}`).
+overridable. Capture predicate (`p1-proxy`): `POST` and path *ends with*
+`/chat/completions`, `/messages` or `/responses` (trailing slash / query
+allowed) and status < 400. `/v1/messages/count_tokens` and
+`GET /v1/responses/{id}` are relayed but not recorded.
 
 Request headers allow-listed; response headers forwarded minus hop-by-hop.
-Body tee-streamed, parsed after `respond()`.
+Body tee-copied while relayed, parsed after `respond()`. `tiny_http` frames
+chunked bodies through an 8 KB buffer, so streamed tokens reach the client
+in 8 KB bursts; short answers arrive whole at completion. A client that
+hangs up mid-stream (observable only past 8 KB) yields an exchange with
+`truncated: true` over the bytes seen so far. OpenAI chat requests with
+`stream: true` get `stream_options.include_usage` injected upstream.
 
 | Wire shape | Text | Tokens |
 |---|---|---|
 | OpenAI chat non-stream `choices[].message.content` | yes | yes |
-| OpenAI chat SSE `delta.content` | yes | only with `stream_options.include_usage` |
+| OpenAI chat SSE `delta.content` | yes | yes (usage injected) |
 | Anthropic messages non-stream `content[].text` | yes | yes |
 | Anthropic SSE `content_block_delta.delta.text` | yes | yes |
-| **OpenAI `tool_calls` arguments** | **no → `""`** | yes |
-| **Anthropic `tool_use` / `input_json_delta`** | **no → `""`** | yes |
-| **Responses API `output[].content[].output_text`** | **no → `""`** | yes |
-| **Responses SSE `response.output_text.delta`** | **no** | — |
+| OpenAI `tool_calls` arguments (non-stream + SSE per index) | yes: string leaves of the parsed JSON, raw if unparseable | yes |
+| Anthropic `tool_use.input` / `input_json_delta` per block | yes: string leaves | yes |
+| Responses `output[]`: `output_text`, `function_call.arguments`, `custom_tool_call.input` | yes | yes |
+| Responses SSE `response.output_text.delta`, `response.function_call_arguments.delta/.done` | yes | yes (`response.completed`) |
 | reasoning/thinking, images, audio | no | — |
 
-Probe: four exchanges (OpenAI tool call, Anthropic tool use, Responses,
-SSE tool call) all stored with `"response_text":""`. Every modern coding
-agent emits code inside tool-call arguments.
+Plain text comes first in `response_text`, tool payloads after it, newline
+separated. `model` is the response's `model` when present (the served
+snapshot), else the requested one.
 
 Prompt = last `role:"user"` text message; system prompt, earlier turns, tool
 results not stored. Agent identity = raw `User-Agent`. Cost: static per-MTok
@@ -65,7 +71,11 @@ Edits the shared `.claude/settings.json` adding `UserPromptSubmit`,
 `post-tool`: `tool_input.file_path` (NotebookEdit uses `notebook_path` →
 empty `writes`, verified), whole-tree snapshot, skip if unchanged, prompt =
 last for `session_id` **falling back to any session** (`hook.rs:208-210`),
-`agent:"claude-code"`, no model/tokens/cost, always committed to HEAD.
+`agent:"claude-code"`, always committed to HEAD. Model/tokens/cost: taken
+from the one unclaimed exchange of the last 120 s whose `agent` contains
+`claude` and whose `response_text` contains the lines inserted into the
+declared file (`correlate` bar, or one line plus the basename); that
+exchange is then claimed. Zero or several candidates → none.
 `session-start` prints `re brief`. Not covered: `Bash` edits, model id,
 token usage.
 
@@ -113,11 +123,11 @@ watch never set `exit_code`, so hook skills become `verified` immediately;
 
 | Agent | Zero-friction today | Env var | Join viable |
 |---|---|---|---|
-| Claude Code | hooks, MCP | `ANTHROPIC_BASE_URL` | **no** (edits in `tool_use`); hook path has no cost, proxy path has cost but no join; nothing merges them |
+| Claude Code | hooks, MCP | `ANTHROPIC_BASE_URL` | yes: `tool_use` input is parsed, so `re watch` can correlate; with hooks installed the post-tool event inherits model/tokens/cost from the matching exchange (content match, not session id — Claude Code sends none to the proxy). Untested against a live Claude Code session |
 | Cursor | MCP only | none usable; has its own `hooks.json` (`afterFileEdit`, `beforeSubmitPrompt`) with no `re hook cursor` | no |
-| Codex CLI | MCP | `OPENAI_BASE_URL` | **no** (Responses text not parsed; `apply_patch` tool) |
-| OpenAI Agents SDK | — | `OPENAI_BASE_URL` | no |
-| Aider | — | `OPENAI_API_BASE`/`ANTHROPIC_API_BASE` (README names the wrong variable) | **yes** |
+| Codex CLI | MCP | `OPENAI_BASE_URL` | yes, for `apply_patch` payloads: Responses `function_call.arguments` / `custom_tool_call.input` are parsed and `+`-prefixed patch lines contain the inserted lines; untested against a live Codex session |
+| OpenAI Agents SDK | — | `OPENAI_BASE_URL` | yes for Responses and chat `tool_calls` shapes, provided the app's tools write the code they receive verbatim; untested against a live SDK app |
+| Aider | — | `OPENAI_API_BASE`/`ANTHROPIC_API_BASE` (README names the wrong variable) | **yes**; streamed OpenAI calls now carry tokens/cost |
 | Cline / Roo | MCP | provider base URL | only with text-embedded tool protocol |
 | Copilot | MCP | none | impossible |
 | Windsurf | MCP | none | impossible |
@@ -147,16 +157,21 @@ traversal guard.
    snapshot opens every file → new batch → … Idle repo: 24 events / 4 s. No
    tree-unchanged check in `record_change`. RESULTS.md was produced on Windows.
 2. Tool-call / Responses payloads → `response_text: ""` → no join, cost never
-   claimed.
+   claimed. *Fixed on `p1-proxy`.*
 3. Hook path absorbs foreign changes (`hook.rs:192`).
 4. Cross-session prompt fallback (`hook.rs:208-210`).
 5. `NotebookEdit` `notebook_path` unread (`hook.rs:183-187`).
 6. Watch dies on lock contention (`watch.rs:91`, `repo.rs:359-364`).
-7. Client disconnect mid-stream drops the exchange (`proxy.rs:278`).
-8. OpenAI streaming cost usually `None`.
+7. Client disconnect mid-stream drops the exchange (`proxy.rs:278`). *Fixed
+   on `p1-proxy`: recorded with `truncated: true`; `tiny_http` swallows the
+   write error, so detection relies on upstream not having reached EOF and
+   is only possible past its 8 KB chunk buffer.*
+8. OpenAI streaming cost usually `None`. *Fixed on `p1-proxy` by injecting
+   `stream_options.include_usage`.*
 9. Per-edit full-tree snapshot (`snapshot.rs:42-84`).
 10. `added_lines_between` 400-line cap in path order.
-11. `is_completion_path` false positives.
+11. `is_completion_path` false positives. *Fixed on `p1-proxy` (POST +
+    suffix match).*
 12. Substring join with no time ordering.
 13. Confidence not persisted.
 14. MCP: fixed protocol version, `-32601` for tool errors, no HTTP transport.
