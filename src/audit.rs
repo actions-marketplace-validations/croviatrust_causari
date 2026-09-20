@@ -143,7 +143,7 @@ pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
         };
         let key = key.trim().to_lowercase();
         let value = value.trim();
-        if value.is_empty() {
+        if value.is_empty() || is_negative_disclosure(value) {
             continue;
         }
         match key.as_str() {
@@ -190,7 +190,11 @@ pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
                     evidence: vec![format!("trailer: {}", trimmed)],
                 });
             }
-            if rest.contains("cursor") {
+            // Names below collide with common human names (Devin, Jules,
+            // Gemini as a handle, "precursor"): only attribute when the
+            // identity is a vendor or bot address.
+            let vendor = coauthor_is_vendor_identity(rest);
+            if vendor && rest.contains("cursor") {
                 return Some(Detection {
                     agent: "cursor".into(),
                     confidence: 1.0,
@@ -211,7 +215,7 @@ pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
                     evidence: vec![format!("trailer: {}", trimmed)],
                 });
             }
-            if rest.contains("gemini") {
+            if vendor && rest.contains("gemini") {
                 return Some(Detection {
                     agent: "gemini".into(),
                     confidence: 1.0,
@@ -225,14 +229,14 @@ pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
                     evidence: vec![format!("trailer: {}", trimmed)],
                 });
             }
-            if rest.contains("devin") {
+            if vendor && rest.contains("devin") {
                 return Some(Detection {
                     agent: "devin".into(),
                     confidence: 1.0,
                     evidence: vec![format!("trailer: {}", trimmed)],
                 });
             }
-            if rest.starts_with("jules") || rest.contains("jules@google") {
+            if vendor && rest.contains("jules") {
                 return Some(Detection {
                     agent: "jules".into(),
                     confidence: 1.0,
@@ -323,6 +327,50 @@ pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
     }
 
     None
+}
+
+/// Values of an `AI-*` / `Drafted-With` / `Executed-By` trailer that
+/// explicitly deny AI involvement. Projects with a disclosure policy write
+/// `AI-Assisted: no` on every human commit; that must never count as AI.
+fn is_negative_disclosure(value: &str) -> bool {
+    let v = value.trim().trim_end_matches('.').to_lowercase();
+    matches!(
+        v.as_str(),
+        "no" | "none" | "false" | "0" | "n/a" | "na" | "human" | "manual" | "not used"
+    )
+}
+
+/// True when a lowercased `Co-authored-by` value (`name <email>`) points at
+/// an AI vendor or a GitHub bot account rather than a person. Used to gate
+/// agents whose product names double as human names.
+fn coauthor_is_vendor_identity(rest: &str) -> bool {
+    let email = rest
+        .rsplit_once('<')
+        .map(|(_, e)| e.trim_end_matches('>').trim())
+        .unwrap_or("");
+    if email.contains("[bot]") || rest.contains("[bot]") {
+        return true;
+    }
+    const BOT_IDS: [&str; 4] = [
+        "devin-ai-integration",
+        "labs-jules",
+        "cursoragent",
+        "gemini-code-assist",
+    ];
+    if BOT_IDS.iter().any(|id| email.contains(id)) {
+        return true;
+    }
+    const VENDOR_DOMAINS: [&str; 8] = [
+        "@google.com",
+        "@cursor.com",
+        "@cursor.sh",
+        "@cognition.ai",
+        "@cognition-labs.com",
+        "@devin.ai",
+        "@openai.com",
+        "@anthropic.com",
+    ];
+    VENDOR_DOMAINS.iter().any(|d| email.ends_with(d))
 }
 
 /// Evidence class of a detection.
@@ -927,6 +975,81 @@ mod tests {
             "pair session\n\nCo-Authored-By: Alice <alice@example.com>",
         );
         assert!(detect_ai(&c).is_none());
+    }
+
+    #[test]
+    fn coauthor_humans_named_like_agents_are_not_misdetected() {
+        // Devin, Jules and Gemini are people's names; "precursor" contains
+        // "cursor". Without a vendor/bot address these are humans.
+        for trailer in [
+            "Co-Authored-By: Devin Jones <devin@example.com>",
+            "Co-Authored-By: Jules Verne <jules.verne@nautilus.fr>",
+            "Co-Authored-By: Gemini Rivera <gemini@example.org>",
+            "Co-Authored-By: Precursor Team <team@precursor.dev>",
+        ] {
+            let c = meta(
+                "1".repeat(40).as_str(),
+                "Tarik",
+                "tarik@example.com",
+                &format!("pair session\n\n{trailer}"),
+            );
+            assert!(detect_ai(&c).is_none(), "misdetected: {trailer}");
+        }
+    }
+
+    #[test]
+    fn coauthor_bot_identities_still_detected() {
+        for (trailer, agent) in [
+            (
+                "Co-Authored-By: google-labs-jules[bot] <161369871+google-labs-jules[bot]@users.noreply.github.com>",
+                "jules",
+            ),
+            (
+                "Co-Authored-By: Cursor Agent <cursoragent@cursor.com>",
+                "cursor",
+            ),
+            (
+                "Co-Authored-By: gemini-code-assist[bot] <176961590+gemini-code-assist[bot]@users.noreply.github.com>",
+                "gemini",
+            ),
+        ] {
+            let c = meta(
+                "2".repeat(40).as_str(),
+                "Dev",
+                "dev@example.com",
+                &format!("change\n\n{trailer}"),
+            );
+            let d = detect_ai(&c).unwrap_or_else(|| panic!("should detect: {trailer}"));
+            assert_eq!(d.agent, agent);
+        }
+    }
+
+    #[test]
+    fn negative_disclosure_trailers_are_not_ai() {
+        // Projects with a disclosure policy stamp every human commit.
+        for trailer in [
+            "AI-Assisted: no",
+            "AI-Generated: false",
+            "Drafted-With: none",
+            "Executed-By: human",
+            "AI-Model: N/A",
+        ] {
+            let c = meta(
+                "4".repeat(40).as_str(),
+                "Dev",
+                "dev@example.com",
+                &format!("fix typo\n\n{trailer}"),
+            );
+            assert!(detect_ai(&c).is_none(), "misdetected: {trailer}");
+        }
+        // ...while positive values still count.
+        let c = meta(
+            "4".repeat(40).as_str(),
+            "Dev",
+            "dev@example.com",
+            "fix typo\n\nAI-Assisted: yes",
+        );
+        assert_eq!(detect_ai(&c).map(|d| d.agent), Some("ai".to_string()));
     }
 
     // -- numstat parsing ------------------------------------------------------
