@@ -44,14 +44,8 @@ pub fn run(args: ForkArgs) -> Result<()> {
         .with_context(|| "fork source failed preflight; nothing changed".to_string())?;
     let report = restore_workspace(&repo, &snap.tree)?;
 
-    if let Some(parent) = new_ref.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&new_ref, format!("{}\n", from_id))?;
-    std::fs::write(
-        repo.head_path(),
-        format!("ref: refs/sessions/{}\n", args.name),
-    )?;
+    repo.update_session(&args.name, &from_id)?;
+    repo.set_head_to_session(&args.name)?;
 
     println!(
         "{} branch {} from event {}",

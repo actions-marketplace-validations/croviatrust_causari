@@ -41,6 +41,35 @@ pub struct TreeEntry {
     pub kind: String,
     /// hex BLAKE3 of the referenced object
     pub id: String,
+    /// Executable bit of a blob (git's 100755 vs 100644). Only the bit is
+    /// stored, never the full mode: full modes depend on the umask of the
+    /// machine that took the snapshot and would make identical content hash
+    /// to different trees. Absent when false, so trees written by older
+    /// binaries keep their ids and old readers ignore it.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub exec: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+impl TreeEntry {
+    pub fn blob(id: String, exec: bool) -> Self {
+        Self {
+            kind: "blob".to_string(),
+            id,
+            exec,
+        }
+    }
+
+    pub fn tree(id: String) -> Self {
+        Self {
+            kind: "tree".to_string(),
+            id,
+            exec: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

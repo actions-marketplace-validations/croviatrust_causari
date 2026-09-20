@@ -76,10 +76,7 @@ pub fn run(args: SwitchArgs) -> Result<()> {
         }
     };
 
-    std::fs::write(
-        repo.head_path(),
-        format!("ref: refs/sessions/{}\n", args.name),
-    )?;
+    repo.set_head_to_session(&args.name)?;
     println!(
         "{} session {}",
         "switched to".green().bold(),
