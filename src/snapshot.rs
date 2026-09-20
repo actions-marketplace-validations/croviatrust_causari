@@ -302,15 +302,128 @@ fn set_exec(_path: &Path, _exec: bool) -> Result<()> {
     Ok(())
 }
 
+/// Stat cache: `.causari/index/stat-cache.json`, workspace-relative path →
+/// (size, mtime, blob id) of the file as it was last hashed. Recording used
+/// to read and hash every file for every snapshot; with the cache a file
+/// whose size and mtime are unchanged reuses its blob id without being
+/// opened, so a snapshot costs one stat per file plus a read per *changed*
+/// file. This is git's index trick, with git's caveat and git's fix:
+///
+/// * Race: a file edited twice within the mtime granularity of the
+///   filesystem (one second on ext3, HFS+, FAT) and keeping its size would
+///   be missed. Mitigation ("racy git"): an entry whose mtime is within
+///   [`RACY_WINDOW`] of the time it was hashed is not stored at all, so the
+///   file is re-read on the next snapshot, by which time any second edit
+///   has moved its mtime past the window.
+/// * The cache is only a cache: unreadable, missing or a different version
+///   means start empty; it is rewritten atomically after each snapshot.
+/// * Like git, a deliberate `touch -d` that preserves size and mtime after
+///   an edit is not detected.
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+struct StatCache {
+    version: u32,
+    entries: BTreeMap<String, StatEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct StatEntry {
+    size: u64,
+    /// Seconds and nanoseconds of the mtime since the Unix epoch; two fields
+    /// because a single 128-bit integer is not portable JSON.
+    mtime_s: i64,
+    mtime_ns: u32,
+    blob: String,
+}
+
+const STAT_CACHE_VERSION: u32 = 1;
+const RACY_WINDOW: std::time::Duration = std::time::Duration::from_secs(2);
+
+fn stat_cache_path(repo: &Repo) -> PathBuf {
+    repo.dir.join("index").join("stat-cache.json")
+}
+
+fn mtime_parts(t: std::time::SystemTime) -> (i64, u32) {
+    match t.duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) => (d.as_secs() as i64, d.subsec_nanos()),
+        Err(e) => {
+            let d = e.duration();
+            (-(d.as_secs() as i64), d.subsec_nanos())
+        }
+    }
+}
+
+impl StatCache {
+    fn load(repo: &Repo) -> Self {
+        let Ok(raw) = std::fs::read(stat_cache_path(repo)) else {
+            return Self::default();
+        };
+        match serde_json::from_slice::<StatCache>(&raw) {
+            Ok(c) if c.version == STAT_CACHE_VERSION => c,
+            _ => Self::default(),
+        }
+    }
+
+    fn save(&self, repo: &Repo) -> Result<()> {
+        let path = stat_cache_path(repo);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        crate::keys::write_atomic(&path, &serde_json::to_vec(self)?)
+    }
+
+    /// Blob id recorded for `key` if the file still has that size and mtime.
+    fn lookup(&self, key: &str, size: u64, mtime: std::time::SystemTime) -> Option<&str> {
+        let e = self.entries.get(key)?;
+        let (s, ns) = mtime_parts(mtime);
+        (e.size == size && e.mtime_s == s && e.mtime_ns == ns).then_some(e.blob.as_str())
+    }
+}
+
+/// Per-snapshot working state: the cache read at the start, the cache to
+/// write at the end, and the racy cut-off.
+struct SnapshotCtx<'a> {
+    rules: &'a IgnoreRules,
+    old: &'a StatCache,
+    new: BTreeMap<String, StatEntry>,
+    /// Files modified at or after this instant are hashed but not cached.
+    racy_after: std::time::SystemTime,
+}
+
+impl SnapshotCtx<'_> {
+    fn remember(&mut self, key: String, size: u64, mtime: std::time::SystemTime, blob: &str) {
+        if mtime >= self.racy_after {
+            return;
+        }
+        let (mtime_s, mtime_ns) = mtime_parts(mtime);
+        self.new.insert(
+            key,
+            StatEntry {
+                size,
+                mtime_s,
+                mtime_ns,
+                blob: blob.to_string(),
+            },
+        );
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Files opened and hashed by build_tree on this thread; lets tests
+    /// prove that an unchanged tree costs zero reads.
+    static FILE_READS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Build a tree object recursively from a directory.
 /// Returns the tree id.
 fn build_tree(
     store: &Store,
-    rules: &IgnoreRules,
+    ctx: &mut SnapshotCtx<'_>,
     root: &Path,
     dir: &Path,
     stack: &mut Vec<Gitignore>,
 ) -> Result<String> {
+    let rules = ctx.rules;
     let pushed = dir != root && rules.push_dir(dir, stack);
     let mut entries = BTreeMap::new();
     for entry in std::fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
@@ -334,15 +447,29 @@ fn build_tree(
             continue;
         }
         if ft.is_dir() {
-            let child_id = build_tree(store, rules, root, &path, stack)?;
+            let child_id = build_tree(store, ctx, root, &path, stack)?;
             entries.insert(name, TreeEntry::tree(child_id));
         } else if ft.is_file() {
             let meta = entry
                 .metadata()
                 .with_context(|| format!("stat {}", path.display()))?;
-            let bytes =
-                std::fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
-            let blob_id = store.write_blob(&bytes)?;
+            let key = rel.to_string_lossy().replace('\\', "/");
+            let size = meta.len();
+            let mtime = meta.modified().ok();
+            let cached = mtime.and_then(|m| ctx.old.lookup(&key, size, m));
+            let blob_id = match cached {
+                Some(id) => id.to_string(),
+                None => {
+                    #[cfg(test)]
+                    FILE_READS.with(|c| c.set(c.get() + 1));
+                    let bytes = std::fs::read(&path)
+                        .with_context(|| format!("reading {}", path.display()))?;
+                    store.write_blob(&bytes)?
+                }
+            };
+            if let Some(m) = mtime {
+                ctx.remember(key, size, m, &blob_id);
+            }
             entries.insert(name, TreeEntry::blob(blob_id, is_executable(&meta)));
         }
     }
@@ -357,8 +484,24 @@ fn build_tree(
 pub fn snapshot_workspace(repo: &Repo) -> Result<String> {
     let store = Store::new(repo);
     let rules = IgnoreRules::for_root(&repo.root);
+    let old = StatCache::load(repo);
+    let mut ctx = SnapshotCtx {
+        rules: &rules,
+        old: &old,
+        new: BTreeMap::new(),
+        racy_after: std::time::SystemTime::now() - RACY_WINDOW,
+    };
     let mut stack = rules.root_stack(&repo.root);
-    build_tree(&store, &rules, &repo.root, &repo.root, &mut stack)
+    let tree = build_tree(&store, &mut ctx, &repo.root, &repo.root, &mut stack)?;
+    if ctx.new != old.entries {
+        // A cache: failing to persist it must not fail the snapshot.
+        let _ = StatCache {
+            version: STAT_CACHE_VERSION,
+            entries: ctx.new,
+        }
+        .save(repo);
+    }
+    Ok(tree)
 }
 
 /// Restore the working tree to match the given root tree id.
@@ -1156,6 +1299,119 @@ mod tests {
         ] {
             assert!(!is_ignored(Path::new(no)), "{no}");
         }
+    }
+
+    fn reads_during<T>(f: impl FnOnce() -> T) -> usize {
+        let before = FILE_READS.with(|c| c.get());
+        let _ = f();
+        FILE_READS.with(|c| c.get()) - before
+    }
+
+    fn age(path: &Path, secs: u64) {
+        let old = std::time::SystemTime::now() - Duration::from_secs(secs);
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+    }
+
+    fn cache_entries(repo: &Repo) -> BTreeMap<String, StatEntry> {
+        StatCache::load(repo).entries
+    }
+
+    use std::time::Duration;
+
+    #[test]
+    fn stat_cache_makes_snapshots_cost_only_the_changed_files() {
+        let (_tmp, repo) = test_repo();
+        for i in 0..200 {
+            let rel = format!("d{}/f{i}.txt", i % 10);
+            write(&repo, &rel, &format!("content {i}"));
+            age(&repo.root.join(&rel), 10);
+        }
+
+        let mut first = None;
+        let reads = reads_during(|| first = Some(snapshot_workspace(&repo).unwrap()));
+        assert_eq!(reads, 200);
+        let before = cache_entries(&repo);
+        assert_eq!(before.len(), 200);
+
+        // Unchanged tree: not a single file is opened, same tree id.
+        let mut second = None;
+        let reads = reads_during(|| second = Some(snapshot_workspace(&repo).unwrap()));
+        assert_eq!(reads, 0);
+        assert_eq!(first, second);
+
+        // One edit (different size): exactly one read, one cache entry moves.
+        write(&repo, "d3/f13.txt", "edited content, longer");
+        age(&repo.root.join("d3/f13.txt"), 5);
+        let mut third = None;
+        let reads = reads_during(|| third = Some(snapshot_workspace(&repo).unwrap()));
+        assert_eq!(reads, 1);
+        assert_ne!(third, second);
+        let after = cache_entries(&repo);
+        assert_eq!(after.len(), 200);
+        let changed: Vec<&String> = after
+            .iter()
+            .filter(|(k, v)| before.get(*k) != Some(v))
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(changed, vec!["d3/f13.txt"]);
+
+        // Same size, new mtime: still detected through the mtime.
+        write(&repo, "d3/f13.txt", "edited content, LONGER");
+        age(&repo.root.join("d3/f13.txt"), 4);
+        let mut fourth = None;
+        let reads = reads_during(|| fourth = Some(snapshot_workspace(&repo).unwrap()));
+        assert_eq!(reads, 1);
+        assert_ne!(fourth, third);
+
+        // A deleted file leaves the cache.
+        std::fs::remove_file(repo.root.join("d0/f0.txt")).unwrap();
+        snapshot_workspace(&repo).unwrap();
+        assert_eq!(cache_entries(&repo).len(), 199);
+    }
+
+    #[test]
+    fn freshly_modified_files_are_not_cached() {
+        // Racy-git rule: an mtime within RACY_WINDOW of the hash time is
+        // not trusted, so a second edit inside the filesystem's mtime
+        // granularity cannot be missed.
+        let (_tmp, repo) = test_repo();
+        write(&repo, "hot.txt", "just written");
+        assert_eq!(reads_during(|| snapshot_workspace(&repo).unwrap()), 1);
+        assert!(!cache_entries(&repo).contains_key("hot.txt"));
+        assert_eq!(reads_during(|| snapshot_workspace(&repo).unwrap()), 1);
+
+        age(&repo.root.join("hot.txt"), 10);
+        assert_eq!(reads_during(|| snapshot_workspace(&repo).unwrap()), 1);
+        assert!(cache_entries(&repo).contains_key("hot.txt"));
+        assert_eq!(reads_during(|| snapshot_workspace(&repo).unwrap()), 0);
+    }
+
+    #[test]
+    fn corrupt_or_foreign_stat_cache_is_ignored_and_rebuilt() {
+        let (_tmp, repo) = test_repo();
+        write(&repo, "a.txt", "a");
+        age(&repo.root.join("a.txt"), 10);
+        let tree = snapshot_workspace(&repo).unwrap();
+
+        for junk in ["", "{", "[1,2]", r#"{"version":99,"entries":{}}"#] {
+            std::fs::write(stat_cache_path(&repo), junk).unwrap();
+            assert_eq!(
+                reads_during(|| assert_eq!(snapshot_workspace(&repo).unwrap(), tree)),
+                1
+            );
+            let rebuilt = StatCache::load(&repo);
+            assert_eq!(rebuilt.version, STAT_CACHE_VERSION);
+            assert_eq!(rebuilt.entries.len(), 1);
+        }
+        // A tree written from the cache is byte-identical to one hashed
+        // from scratch: the cache only ever short-circuits the read.
+        std::fs::remove_file(stat_cache_path(&repo)).unwrap();
+        assert_eq!(snapshot_workspace(&repo).unwrap(), tree);
     }
 
     #[test]
