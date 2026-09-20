@@ -19,6 +19,10 @@ on:
         description: "Deposit on Zenodo (needs ZENODO_TOKEN; ZENODO_SANDBOX=1 for the sandbox)"
         type: boolean
         default: true
+      deposit_only:
+        description: "Skip the measurement: deposit the latest published report (for a report built before ZENODO_TOKEN existed)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -38,6 +42,7 @@ jobs:
           ref: main
 
       - name: install latest causari release
+        if: ${{ !inputs.deposit_only }}
         run: |
           set -euo pipefail
           TAG="$(gh release list --repo croviatrust/causari --limit 20 \
@@ -56,12 +61,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: python dependencies (card.png)
+        if: ${{ !inputs.deposit_only }}
         run: python3 -m pip install --quiet pillow
 
       # Full clone per repository (never shallow), one `re audit --json`
       # each, the exact bytes kept for the report. Opt-outs are skipped here
       # and dropped again by the generator, so the list is honoured either way.
       - name: audit repositories
+        if: ${{ !inputs.deposit_only }}
         run: |
           set -uo pipefail
           RUN=/tmp/run; mkdir -p "$RUN"
@@ -106,12 +113,11 @@ jobs:
       # Report number = existing report directories + 1; the generator refuses
       # to overwrite a directory that already holds a different report.
       - name: build the report
-        id: build
+        if: ${{ !inputs.deposit_only }}
         run: |
           set -euo pipefail
           python3 scripts/survival_report.py build --run /tmp/run
           DIR="site/reports/survival/$(jq -r .id site/reports/survival/latest.json)"
-          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
           python3 scripts/audit_surfaces.py --gate --quiet
           {
             echo "## $(jq -r .title "$DIR/report.json") · $(jq -r .date "$DIR/report.json")"
@@ -119,10 +125,17 @@ jobs:
             sed -n '/^## Aggregate/,/^## Repositories/p' "$DIR/report.md" | sed '$d'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # The report to publish and deposit: the one latest.json names, whether
+      # it was built just now or in an earlier run.
+      - name: locate the latest report
+        id: build
+        run: echo "dir=site/reports/survival/$(jq -r .id site/reports/survival/latest.json)" >> "$GITHUB_OUTPUT"
+
       # main is append-only for reports: a plain commit and push, never a
       # force-push. If the branch protection rejects the bot, allow the
       # GitHub Actions app to bypass it or use a PAT in secrets.
       - name: commit the report to main
+        if: ${{ !inputs.deposit_only }}
         run: |
           set -euo pipefail
           git config user.name "causari-report[bot]"
@@ -147,6 +160,8 @@ jobs:
             exit 0
           fi
           python3 scripts/zenodo_deposit.py "${{ steps.build.outputs.dir }}" | tee /tmp/zenodo.log
+          git config user.name "causari-report[bot]"
+          git config user.email "noreply@causari.dev"
           git add site/reports/survival site/_redirects site/sitemap.xml
           if git diff --cached --quiet; then echo "nothing to write back"; exit 0; fi
           git commit -s -m "report: DOI $(jq -r '.doi // "n/a"' /tmp/zenodo.log) for $(jq -r .title "${{ steps.build.outputs.dir }}/report.json")"
