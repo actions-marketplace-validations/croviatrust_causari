@@ -60,13 +60,15 @@
       "site/index.html",
       "site/survival.html",
       "site/method.html",
+      "site/verify/index.html",
       "site/llms.txt",
       "site/README.md"
     ],
     "html": [
       "site/index.html",
       "site/survival.html",
-      "site/method.html"
+      "site/method.html",
+      "site/verify/index.html"
     ],
     "required_files": [
       "site/assets/mark.svg",
@@ -80,7 +82,10 @@
       "site/sitemap.xml",
       "site/install.sh",
       "site/install.ps1",
-      "site/survival-data.json"
+      "site/survival-data.json",
+      "site/verify/index.html",
+      "site/verify/verify.js",
+      "site/verify/seal-core.js"
     ],
     "identical_pairs": [
       [
@@ -151,7 +156,8 @@
       "README.md": [
         "not a grade",
         "What it cannot see",
-        "causari.dev/method"
+        "causari.dev/method",
+        "re seal verify"
       ],
       "site/index.html": [
         "not a grade",
@@ -170,10 +176,17 @@
       ],
       "site/llms.txt": [
         "counts, not grades",
-        "causari.dev/method"
+        "causari.dev/method",
+        "causari.dev/verify"
       ],
       "action.yml": [
         "--summary"
+      ],
+      "site/verify/index.html": [
+        "does not prove",
+        "no network request",
+        "re seal verify",
+        "/method"
       ]
     }
   },
@@ -218,18 +231,23 @@
       "/method": "Reproduce or contest",
       "/llms.txt": "not grades",
       "/robots.txt": "Sitemap",
-      "/sitemap.xml": "causari.dev/method",
+      "/sitemap.xml": "causari.dev/verify/",
       "/install.sh": "SHA256SUMS.txt",
       "/install.ps1": "SHA256SUMS.txt",
       "/assets/favicon.svg": "<svg",
       "/assets/mark.svg": "<svg",
-      "/survival-data.json": "{"
+      "/survival-data.json": "{",
+      "/verify/": "does not prove",
+      "/verify/seal-core.js": "CROVIA-SEAL-v1",
+      "/verify/verify.js": "causari.audit-seal.v1"
     },
     "redirects": {
       "/repo": "/survival",
       "/assets/icon.svg": "/assets/favicon.svg",
       "/assets/og-card.png": "/assets/og.png",
-      "/cla": "DCO.md"
+      "/cla": "DCO.md",
+      "/verify": "/verify/",
+      "/seal": "/verify/"
     },
     "headers": {
       "/": {
@@ -238,6 +256,10 @@
       },
       "/install.sh": {
         "content-type": "text/x-shellscript"
+      },
+      "/verify/": {
+        "content-security-policy": "connect-src 'none'",
+        "x-frame-options": "DENY"
       }
     },
     "forbidden_live_words": [
@@ -247,7 +269,8 @@
       "/assets/icon.svg\"",
       "leaderboard.html",
       "🟢",
-      "🔴"
+      "🔴",
+      "re proof"
     ]
   }
 }

@@ -29,6 +29,8 @@
 /install        /install.sh                                                          302
 
 # Deep links into the site
+/verify         /verify/                                                             301
+/seal           /verify/                                                             301
 /mcp            /#install                                                            301
 /quickstart     /#install                                                            301
 /features       /#ledger                                                             301

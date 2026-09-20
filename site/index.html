@@ -95,8 +95,9 @@
       <a href="#audit" class="hide-sm">audit</a>
       <a href="/survival">measurements</a>
       <a href="#ledger" class="hide-sm">ledger</a>
-      <a href="#proof" class="hide-sm">proof</a>
+      <a href="#proof" class="hide-sm">seal</a>
       <a href="/method">method</a>
+      <a href="/verify/" class="hide-sm">verify</a>
       <a href="https://github.com/croviatrust/causari" rel="noopener">source</a>
       <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
     </nav>
@@ -272,30 +273,33 @@ src/legacy.ts:7  ⊢  introduced by event 8f21c0aa19 <span class="dim">(root)</s
 <section id="proof" class="section">
   <div class="container">
     <div class="section-head">
-      <p class="eyebrow">⊢ proof · verifiable offline</p>
+      <p class="eyebrow">⊢ seal · verifiable offline</p>
       <h2>A measurement nobody can check is an opinion.</h2>
-      <p class="lede"><code>re proof generate</code> signs a manifest of the ledger — event count, sessions, agents, models, the content digest of the ledger itself — with a dedicated Ed25519 key, domain-separated from every other key the ledger owns. <code>re proof verify</code> needs the public key and nothing else: no server, no account, no trust in us. A modified manifest is rejected; unknown fields are rejected; a proof from an older schema is rejected by name.</p>
+      <p class="lede"><code>re audit --seal</code> runs the audit and issues a <a href="https://croviatrust.com/registry/seal/" rel="noopener">Crovia Seal</a> (<code>crovia.seal.v1</code>) over the exact JSON it printed: the audit bytes as the sealed output, the commit, method version and options as the sealed input, both committed by SHA-256 and length, signed with the repository's Ed25519 issuer key and chained with every other seal the repository issues. <code>re seal verify audit.seal.json</code> needs the file and nothing else: no server, no account, no trust in us. The same check runs in a browser at <a href="/verify/">causari.dev/verify</a> without a network request. A modified number is rejected; a swapped commit is rejected; a field the signer did not sign is rejected.</p>
     </div>
     <div class="grid grid-2">
       <div class="cmd">
-<pre><code><span class="dim">$</span> re proof generate
-proof: causari-proof.json
-  128 events · 4 sessions · 36 files
-  agents: claude-code, cursor
-  badge:  causari-proof.svg
+<pre><code><span class="dim">$</span> re audit --seal
+<span class="dim">… the audit as usual, then:</span>
+✓ seal cs_2026_6X3TIUCUGIMGLH7ZQNXOMRREJ4 written to audit.seal.json
+  issuer   urn:crovia:seal-issuer:causari:c4b3b0a67b24  (sequence 0)
+  commit   5990442f31c267cdbaee9039a54e0cbf6a81ef57  method v2
+  verify   re seal verify audit.seal.json — or drop the file on https://causari.dev/verify
 
-<span class="dim">$</span> re proof verify --against-repo
-ok   signature valid (Ed25519, causari.proof.v0.2)
-     attests 128 events · 2 agents
-     fresh: matches the current ledger
+<span class="dim">$</span> re seal verify audit.seal.json
+✓ signature valid — cs_2026_6X3TIUCUGIMGLH7ZQNXOMRREJ4 (crovia.seal.v1, audit seal)
+  commit    5990442f31c267cdbaee9039a54e0cbf6a81ef57
+  method    v2
+  audit     36 commits · verified AI: 3 commits, 1773 introduced, 1773 survived
 
-<span class="dim">$ # someone edits the manifest…</span>
-INVALID  signature verification failed</code></pre>
+<span class="dim">$ # someone edits a number…</span>
+✗ invalid: audit JSON does not match subject.output_hash: the numbers were altered</code></pre>
       </div>
       <div class="card">
-        <h3>Where this is going</h3>
-        <p>The audit result itself will become a <a href="https://croviatrust.com/registry/seal/" rel="noopener">Crovia Seal</a> (<code>crovia.seal.v1</code>): the audit JSON as subject, bound to the commit it measured and the method version that produced it, verifiable at <code>causari.dev/verify</code> with a static page and no network. The proxy will gain a <a href="https://croviatrust.com/registry/tacet/pnx/" rel="noopener">PNX</a> witness mode: a signed run sheet per agent session proving that no secret from a given set left the machine in the agent's traffic.</p>
-        <p class="small muted">Those are Phase 2 of the roadmap and are not shipped yet. This page says "signed" only where something is signed today.</p>
+        <h3>What it proves, and what it does not</h3>
+        <p>A valid audit seal proves that this issuer key signed this exact audit JSON for this commit, produced with this method version, and that the numbers were not altered since. It does not prove the numbers are true: anyone reruns <code>re audit</code> on the commit and compares the bytes. It does not say who controls the key: the seal names it, you decide whether to trust it.</p>
+        <p>Every completion through <code>re proxy --seal</code> gets a seal of the same format, hash-chained with the audit seals, so one repository has one chain and one verifier. Next: a <a href="https://croviatrust.com/registry/tacet/pnx/" rel="noopener">PNX</a> witness mode in the proxy, a signed run sheet per agent session proving that no secret from a given set left the machine in the agent's traffic.</p>
+        <p class="small muted">PNX is Phase 2 of the roadmap and is not shipped yet. This page says "signed" only where something is signed today.</p>
       </div>
     </div>
   </div>

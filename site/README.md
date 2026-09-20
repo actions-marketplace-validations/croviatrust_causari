@@ -3,7 +3,8 @@
 Static, zero-build, deployed to Cloudflare Pages from `site/` of this repo.
 No framework, no bundler, no external fonts, no third-party requests on the
 landing page (the measurements page fetches its data from this repo's
-`leaderboard-data` branch and nothing else).
+`leaderboard-data` branch and nothing else; the verify page makes no request
+at all).
 
 ## Local preview
 
@@ -18,6 +19,7 @@ python3 -m http.server 8080 --directory site
 | `index.html` | landing: audit, ledger, proof, family, install |
 | `survival.html` + `survival.js` + `survival-data.json` | weekly measurements (unranked; see `/method`) |
 | `method.html` | how the numbers are made, what they cannot see, how to contest them |
+| `verify/` | offline verifier for audit seals: `index.html`, `verify.js` (bundle checks mirroring `src/audit_seal.rs`), `seal-core.js` (the family's crovia.seal.v1 verifier, WebCrypto only); served under a CSP with `connect-src 'none'`; driven from Node by `../scripts/check_verify.mjs` |
 | `styles.css` | the whole design system: four values (ink, paper, graphite, mist), system fonts |
 | `app.js` | theme toggle, copy buttons, year; nothing else |
 | `_headers` | security headers, CSP, caching |
