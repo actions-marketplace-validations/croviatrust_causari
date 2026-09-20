@@ -94,6 +94,33 @@ fn json_report_carries_compat_fields_and_method_v2_extras() {
     assert_eq!(v["coverage"]["shallow"], false);
     assert_eq!(v["coverage"]["sample_floor"], 5);
     assert_eq!(v["coverage"]["small_sample"], true);
+    assert_eq!(v["method"], "v2");
+}
+
+#[test]
+fn human_readable_outputs_name_the_method_version_and_no_verdict() {
+    let temp = repo_with_history();
+    let summary = re(temp.path(), &["audit", "--summary"]);
+    assert!(summary.status.success());
+    let text = String::from_utf8_lossy(&summary.stdout).into_owned();
+    let sub = text
+        .lines()
+        .find(|l| l.starts_with("<sub>"))
+        .expect("summary ends with a <sub> footer");
+    assert!(sub.contains("Method v2"), "{sub}");
+    assert!(text.contains("capped") && text.contains("median"), "{text}");
+
+    let terminal = re(temp.path(), &["audit"]);
+    assert!(terminal.status.success());
+    let text = String::from_utf8_lossy(&terminal.stdout).into_owned() + &text;
+    assert!(text.contains("method v2"), "{text}");
+    // Hard rule of the project: audit output measures, it does not grade.
+    for verdict in ["healthy", "churn", "waste", "🟢", "🟡", "🔴"] {
+        assert!(
+            !text.to_lowercase().contains(verdict),
+            "verdict word {verdict:?} in audit output"
+        );
+    }
 }
 
 #[test]

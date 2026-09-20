@@ -10,7 +10,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::audit::{
-    AuditOptions, CAP_CEILING_LINES, IGNORE_REVS_FILE, SurvivalReport, SurvivalStat, audit_repo,
+    AuditOptions, CAP_CEILING_LINES, IGNORE_REVS_FILE, METHOD_VERSION, SurvivalReport,
+    SurvivalStat, audit_repo,
 };
 use crate::cli::AuditArgs;
 
@@ -96,7 +97,9 @@ fn resolve_target(target: Option<&str>) -> Result<(PathBuf, Option<TempClone>)> 
 /// line-weighted rate and the robust figures; `coverage` says how it was
 /// measured.
 fn report_json(report: &SurvivalReport) -> Result<serde_json::Value> {
-    Ok(serde_json::to_value(report)?)
+    let mut value = serde_json::to_value(report)?;
+    value["method"] = serde_json::json!(METHOD_VERSION);
+    Ok(value)
 }
 
 pub fn run(args: AuditArgs) -> Result<()> {
@@ -236,7 +239,10 @@ fn print_terminal(report: &SurvivalReport) {
     if report.coverage.shallow {
         println!("  · Shallow clone: history is truncated, the figures above are partial");
     }
-    println!("  · A measurement, not a grade: method at https://causari.dev/method");
+    println!(
+        "  · A measurement, not a grade: method {} at https://causari.dev/method",
+        report.coverage.method
+    );
 }
 
 fn print_summary(report: &SurvivalReport) {
@@ -332,9 +338,10 @@ fn print_summary(report: &SurvivalReport) {
          inline completions leave no git trace and are not measured. \
          Capped: each commit weighs at most min(p95 of per-commit introduced lines, {} lines); \
          median: median of per-commit rates. \
-         Method: [causari.dev/method](https://causari.dev/method) · reproduce: `re audit`</sub>",
+         Method {}: [causari.dev/method](https://causari.dev/method) · reproduce: `re audit`</sub>",
         report.coverage.blame_flags.join(" "),
         CAP_CEILING_LINES,
+        report.coverage.method,
     );
 }
 
@@ -439,8 +446,8 @@ fn generate_svg_card(report: &SurvivalReport) -> String {
   <text x="40" y="110" fill="white" font-family="monospace" font-size="32" font-weight="bold">{verified}</text>
   <text x="40" y="150" fill="#94a3b8" font-family="monospace" font-size="12">Verified AI commits: {}</text>
   <text x="40" y="175" fill="#94a3b8" font-family="monospace" font-size="12">Probable AI commits: {}</text>
-  <text x="40" y="205" fill="#64748b" font-family="monospace" font-size="10">git metadata only · reproduce: re audit · causari.dev/method</text>
+  <text x="40" y="205" fill="#64748b" font-family="monospace" font-size="10">git metadata only · reproduce: re audit · method {} · causari.dev/method</text>
 </svg>"##,
-        v.commits, report.probable.commits
+        v.commits, report.probable.commits, report.coverage.method
     )
 }
