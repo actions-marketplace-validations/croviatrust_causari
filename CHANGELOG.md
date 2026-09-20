@@ -3,7 +3,7 @@
 Each section is the release note of the tag with the same number; the
 release workflow copies it verbatim. Counts, not adjectives.
 
-## 0.2.0 — unreleased
+## 0.2.0 — 2026-09-20
 
 The first release after the 2026-09-20 review (`docs/review-2026-09-20/`).
 Decisions in `ROADMAP.md`, thesis in `MANIFESTO.md`.
@@ -42,9 +42,32 @@ Decisions in `ROADMAP.md`, thesis in `MANIFESTO.md`.
 
 ### Prove
 
-- `re proof` hardened then retired: proofs are Crovia Seals now.
+- `re audit --seal` issues a Crovia Seal (`crovia.seal.v1`) over the audit
+  JSON, bound to the audited commit and the method version, hash-chained
+  with the proxy's completion seals under one issuer key per repository.
+  `re seal verify FILE` checks it offline; so does the static page
+  causari.dev/verify (no network request, no third-party code). A seal
+  proves the numbers were not altered after the run, not that they are
+  true, and the verifier says so.
+- `re proof` retired (exit 2 with the replacement named); `re audit
+  --seal` and `re seal verify` take its place.
+- `re proxy --pnx` witnesses the agent's traffic and writes a signed run
+  sheet per session (`crovia.pnx.v1`: winnowing fingerprints, sparse
+  Merkle map, Ed25519). `re pnx prove` shows offline that no asset from a
+  given set appeared in that traffic; `re pnx verify`, `sheet`, `list`.
+  Proofs verify under the Python reference `tacet-pnx` and vice versa; the
+  Action verifies a proof handed to it (`pnx-proof`, `pnx-assets`,
+  `pnx-fail-on-present`).
+- Action inputs `seal` and `seal-key`: the audit seal as an artifact, with
+  a persistent issuer identity when a key is passed.
 - Seal issuer: `deny_unknown_fields`, dedicated key, domain-separated
   payload, keys written `0600`, `seal_id` on exchanges.
+
+### Report
+
+- Weekly Survival Report at causari.dev/reports/survival/: counts per
+  agent across public repositories, archive, Atom feed, `latest.json`, one
+  DOI per issue on Zenodo. Method in `docs/survival-report.md`.
 
 ### Distribution and identity
 
