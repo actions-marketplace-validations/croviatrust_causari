@@ -89,17 +89,20 @@ one-file change in < 50 ms; the adversarial harness passes on Linux.
       conformance vectors (`pnx_002..004`, 21 proofs) run against
       `re pnx verify` in CI as the third runner beside Python and JS. Not yet:
       commit of the run root into a TACET epoch (PNX.md §6 step 5).
-- [~] **Weekly Survival Report** replaces the leaderboard: static page, card,
+- [x] **Weekly Survival Report** replaces the leaderboard: static page, card,
       Atom feed, JSON, Zenodo deposit with DOI, same pipeline as the Crovia
       Silence Report; counts and intervals, no ranks; positioned against
       arXiv 2601.16809 and GitClear (`docs/survival-report.md`). Report #1
-      published; the DOI waits for the `ZENODO_TOKEN` secret (owner ask).
+      published with DOI 10.5281/zenodo.22863966; the series has concept DOI
+      10.5281/zenodo.22863965 and every Monday's report becomes a version of
+      it.
 - [ ] Hook targets: Cursor `hooks.json`, Gemini CLI.
 - [ ] Ledger events optionally stored in `refs/notes/causari` so provenance
       travels with `git push`.
 
 Exit: a stranger verifies an audit seal and a PNX proof offline with the
-public key alone; the first report is deposited with a DOI.
+public key alone; the first report is deposited with a DOI. Reached on
+2026-09-20 with 0.2.0.
 
 ## Phase 3 — identity and distribution
 
@@ -133,4 +136,7 @@ signature; the first external contributor lands a PR without ceremony.
 
 - Hugging Face write token for the Crovia dataset mirror (family item).
 - Jurisdiction for the trademark line (the entity name is Crovia Trust).
-- `ZENODO_TOKEN` for the Survival Report DOI deposits.
+- `REPORT_PUSH_TOKEN` (fine-grained PAT of an admin, this repository only,
+  Contents: read and write) so the weekly workflow can push the report and
+  its DOI to `main` through branch protection. Without it the run still
+  measures and deposits, and leaves the tree as an artifact.
