@@ -1,0 +1,110 @@
+# Roadmap
+
+Decisions taken on 2026-09-20 from [`docs/review-2026-09-20/`](docs/review-2026-09-20/).
+Thesis in [`MANIFESTO.md`](MANIFESTO.md). Phases are sequential; a phase is
+closed when every exit criterion holds on `main` with green CI.
+
+Status legend: `[ ]` open · `[~]` in progress · `[x]` done.
+
+## Phase 0 — stop doing harm
+
+Nothing is promoted before this phase closes.
+
+- [ ] Leaderboard → measurements only: no rank, no colour class, no verdict
+      sentence, no third-party badge generator; per-commit cap and sample
+      floor; methodology page with known false positives; opt-out list; the
+      public "Audit: owner/repo" issue bot disabled; data branch appended,
+      never force-pushed.
+- [ ] `re audit --summary` and the Action: no 🟢/🟡/🔴, no "healthy".
+- [ ] `re proof`: `deny_unknown_fields`, dedicated key, domain-separated
+      payload, CSC-1; keys written `0600`; `seal_id` recorded on exchanges;
+      `re seal issuer` honours the configured issuer and does not create keys.
+- [ ] README and site aligned with the code: integration matrix from the
+      code (Claude Code = hooks without cost; Aider = proxy join; Codex = cost
+      only; Cursor/Copilot/Windsurf = MCP self-report), real binary size, one
+      version, "signed" only when signed, "10 seconds" qualified, "zero false
+      attribution" removed, "first production issuer" removed, Trust Plane
+      removed until purchasable.
+- [ ] Broken URLs: `/verify`, `/repo?r=`, favicon, sitemap, canonical,
+      `llms.txt` commands.
+- [ ] Skills / trust ladder / brief / mesh marked **experimental**, out of the
+      proof and out of the front page. Guard out of the README until it can
+      gate. `report` folded into `churn --html`.
+
+Exit: surface audit green (see Phase 3), no verdict anywhere on causari.dev,
+`re proof verify` rejects a modified manifest.
+
+## Phase 1 — foundations of the ledger
+
+No new feature until these hold.
+
+- [ ] `re watch`: ignore Access/Open notify kinds; notify paths filtered
+      through the ignore rules; "tree unchanged → skip" in `commit.rs` for
+      every recorder; watch survives lock contention.
+- [ ] One line-provenance engine used by `why`, `trace`, `lens`, `impact`,
+      MCP `causari_why`; root event handled once.
+- [ ] Evidence class on every event: `declared | correlated{score,
+      matched, considered, exchange_id} | self_reported`, shown by every
+      consumer.
+- [ ] Real pre-state: `re revert` records an event; hook events scope their
+      diff to the declared path and report incidental changes separately;
+      no cross-session prompt fallback.
+- [ ] Store: temp+rename(+fsync) for objects and refs; names, mode and
+      symlinks validated at snapshot time; `.gitignore` semantics; stat cache
+      so recording is O(changed files); path→writer index so queries are not
+      O(events × files).
+- [ ] Proxy: `tool_calls`, `tool_use`/`input_json_delta`, Responses API
+      output parsed; hook and proxy streams merged by `session_id` for Claude
+      Code (prompt + file from hooks, model + tokens + cost from the proxy);
+      raw request/response hashes persisted.
+- [ ] Audit: `git blame -w -M -C`; trailer block parsed with git semantics;
+      `Assisted-by:` and `copilot-swe-agent[bot]`; shallow clone refused;
+      coverage statement in every output.
+- [ ] CLI: no panic on closed pipe; `re show` shows prompt/model/cost;
+      `re audit` hands off to `re init`/`re hook`; `--json` and non-zero exit
+      codes for `audit`, `churn`, `guard`.
+
+Exit: `re watch` idle for 60 s on Linux records 0 events; `re why` and
+`re trace` agree on every line of the test corpus; a 20k-file repo records a
+one-file change in < 50 ms; the adversarial harness passes on Linux.
+
+## Phase 2 — interoperate, prove, report
+
+- [ ] `re audit` emits and reads **Agent Trace**; reads git-ai notes (kept).
+- [ ] The audit result **is a Seal**: `crovia.seal.v1` with the audit JSON as
+      subject, bound to commit hash and method version; `re proof` retired in
+      its favour; `causari.dev/verify` is a static, offline verifier.
+- [ ] **PNX witness mode**: `re proxy --pnx` produces a signed run sheet per
+      session; `re pnx prove/verify` via `crovia-tacet`; the GitHub Action
+      can attach a PNX proof to a PR.
+- [ ] **Weekly Survival Report** replaces the leaderboard: static page, card,
+      RSS, Zenodo deposit with DOI, same pipeline as the Crovia Silence
+      Report; counts and intervals, no ranks; technical report positioned
+      against arXiv 2601.16809 and GitClear.
+- [ ] Hook targets: Cursor `hooks.json`, Gemini CLI.
+- [ ] Ledger events optionally stored in `refs/notes/causari` so provenance
+      travels with `git push`.
+
+Exit: a stranger verifies an audit seal and a PNX proof offline with the
+public key alone; the first report is deposited with a DOI.
+
+## Phase 3 — identity and distribution
+
+- [ ] Identity: `∵` mark, monospace wordmark, monochrome palette, glyph set
+      (`∵`, `⊢`, `·`, `—`), OG images, audit card, badge, site restyle.
+- [ ] Binary `causari` with `re` as alias; `--help` grouped.
+- [ ] cargo-dist: signed attestations, Homebrew tap, Scoop, non-empty release
+      notes; Action verifies the checksum; crates.io publish.
+- [ ] DCO instead of CLA; one legal entity name in NOTICE/CLA/trademark.
+- [ ] MCP registry, Claude Code plugin, Cursor MCP directory, awesome lists.
+- [ ] Family canon: `canon.json` + surface audit extended to causari
+      (claims, versions, links, glyphs), run in CI.
+
+Exit: surface audit `critical=0 high=0`; every install path verifies a
+signature; the first external contributor lands a PR without ceremony.
+
+## Open asks (things only the owner can do)
+
+- crates.io API token (Trusted Publishing preferred) for `causari`.
+- Hugging Face write token for the Crovia dataset mirror (family item).
+- Legal entity name and jurisdiction for NOTICE/CLA/trademark.
