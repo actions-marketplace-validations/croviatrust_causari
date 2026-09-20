@@ -2,6 +2,9 @@ name: "Causari Survival Audit"
 description: >-
   Zero-setup audit of AI code survival: how much AI-written code is
   still alive at HEAD. Sticky PR comment + job summary.
+  Check out with full history (actions/checkout `fetch-depth: 0`): the
+  audit refuses shallow clones because a truncated history misstates
+  every count.
 author: "Croviatrust"
 branding:
   icon: "activity"
@@ -42,6 +45,8 @@ runs:
 
     - name: Run survival audit
       shell: bash
+      # Needs the full history: `actions/checkout` defaults to fetch-depth 1,
+      # which `re audit` refuses. Set `fetch-depth: 0` on the checkout step.
       run: |
         re audit --summary | tee causari-audit.md
         cat causari-audit.md >> "$GITHUB_STEP_SUMMARY"
