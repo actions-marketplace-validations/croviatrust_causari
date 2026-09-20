@@ -320,6 +320,11 @@ pub struct AuditArgs {
     /// Save this audit snapshot for trend comparison next time
     #[arg(long)]
     pub save: bool,
+
+    /// Measure a shallow clone anyway (history is truncated; the report
+    /// carries coverage.shallow = true). Prefer `git fetch --unshallow`.
+    #[arg(long)]
+    pub allow_shallow: bool,
 }
 
 #[derive(Args, Debug)]

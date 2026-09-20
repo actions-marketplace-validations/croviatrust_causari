@@ -46,42 +46,193 @@ pub struct CommitMeta {
     pub notes: String,
 }
 
-/// Map a free-form agent/model hint (trailer value, tool name, `~handle`) to
-/// Causari's canonical agent names. Unknown hints keep their first token.
-pub fn canonical_agent(hint: &str) -> String {
-    let h = hint.trim().trim_start_matches('~').to_lowercase();
+/// Canonical name of a vendor whose product name appears anywhere in the
+/// lowercased hint. Used for values the author chose to be about a tool
+/// (trailer values, tool ids), never for people's names.
+fn known_agent(h: &str) -> Option<&'static str> {
     if h.contains("claude") || h.contains("anthropic") {
-        "claude-code".into()
+        Some("claude-code")
     } else if h.contains("copilot") {
-        "github-copilot".into()
+        Some("github-copilot")
     } else if h.contains("cursor") {
-        "cursor".into()
+        Some("cursor")
     } else if h.contains("aider") {
-        "aider".into()
+        Some("aider")
     } else if h.contains("codex")
         || h.contains("chatgpt")
         || h.contains("gpt")
         || h.contains("openai")
     {
-        "openai-codex".into()
+        Some("openai-codex")
     } else if h.contains("gemini") {
-        "gemini".into()
+        Some("gemini")
     } else if h.contains("devin") {
-        "devin".into()
+        Some("devin")
     } else if h.contains("openhands") {
-        "openhands".into()
+        Some("openhands")
     } else if h.contains("jules") {
-        "jules".into()
+        Some("jules")
     } else {
-        let token: String = h
-            .split(|c: char| c.is_whitespace() || c == '<' || c == '(' || c == '/')
-            .next()
-            .unwrap_or("ai")
-            .chars()
-            .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_' || *c == '.')
-            .collect();
-        if token.is_empty() { "ai".into() } else { token }
+        None
     }
+}
+
+fn agent_slug_chars(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.'
+}
+
+/// Map a free-form agent/model hint (trailer value, tool name, `~handle`) to
+/// Causari's canonical agent names. Unknown hints keep their first token.
+pub fn canonical_agent(hint: &str) -> String {
+    let h = hint.trim().trim_start_matches('~').to_lowercase();
+    if let Some(agent) = known_agent(&h) {
+        return agent.into();
+    }
+    let token: String = h
+        .split(|c: char| c.is_whitespace() || c == '<' || c == '(' || c == '/')
+        .next()
+        .unwrap_or("ai")
+        .chars()
+        .filter(|c| agent_slug_chars(*c))
+        .collect();
+    if token.is_empty() { "ai".into() } else { token }
+}
+
+/// Agent named by an `Assisted-by:` trailer (Linux kernel, Fedora, LLVM,
+/// OpenTelemetry convention). The value is a tool name, optionally followed
+/// by a model in parentheses or after a colon: `Claude Code (claude-sonnet-4)`,
+/// `Claude:claude-3-5-sonnet`, `Cursor`. The tool's words, lowercased and
+/// hyphen-joined, form the agent; known vendors map to their canonical name.
+pub fn assisted_by_agent(value: &str) -> String {
+    let tool = value
+        .split(['(', ':', '<', ',', '/', '['])
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_lowercase();
+    if let Some(agent) = known_agent(&tool) {
+        return agent.into();
+    }
+    let words: Vec<String> = tool
+        .split_whitespace()
+        .map(|w| {
+            w.chars()
+                .filter(|c| agent_slug_chars(*c))
+                .collect::<String>()
+        })
+        .filter(|w| !w.is_empty())
+        // "v2", "2.1": a version suffix is not part of the tool's name.
+        .take_while(|w| !w.starts_with(|c: char| c.is_ascii_digit()) && !is_version_token(w))
+        .collect();
+    if words.is_empty() {
+        "ai".into()
+    } else {
+        words.join("-")
+    }
+}
+
+fn is_version_token(w: &str) -> bool {
+    let mut chars = w.chars();
+    chars.next() == Some('v') && chars.all(|c| c.is_ascii_digit() || c == '.')
+}
+
+/// One trailer of a commit message, key lowercased.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Trailer {
+    pub key: String,
+    pub value: String,
+    /// The trailer's first line as written, for evidence strings.
+    pub line: String,
+}
+
+/// `Token: value` with token `[A-Za-z0-9-]+`; the separator must be followed
+/// by whitespace or end the line, so `https://…` is prose, not a trailer.
+fn split_trailer_line(line: &str) -> Option<(&str, &str)> {
+    let (token, rest) = line.split_once(':')?;
+    let token = token.trim_end();
+    if token.is_empty()
+        || !token.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        || !(rest.is_empty() || rest.starts_with([' ', '\t']))
+    {
+        return None;
+    }
+    Some((token, rest.trim()))
+}
+
+/// Trailers of a commit message under git's own rules (`git
+/// interpret-trailers`): only the last paragraph is examined and the subject
+/// paragraph never is. Every line must be a trailer or an indented
+/// continuation of one, unless the paragraph carries a git-generated
+/// trailer (`Signed-off-by`, cherry-pick marker) and is at least one quarter
+/// trailers — then its non-trailer lines are skipped. `Executed-By: CI
+/// pipeline` in body prose is therefore not a trailer.
+pub fn parse_trailers(message: &str) -> Vec<Trailer> {
+    let lines: Vec<&str> = message.lines().map(|l| l.trim_end_matches('\r')).collect();
+    let end = lines
+        .iter()
+        .rposition(|l| !l.trim().is_empty())
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    // Paragraph boundary: the last blank line. None means the message is a
+    // single paragraph, i.e. subject only.
+    let Some(blank) = lines[..end].iter().rposition(|l| l.trim().is_empty()) else {
+        return Vec::new();
+    };
+    let block = &lines[blank + 1..end];
+
+    let mut trailers: Vec<Trailer> = Vec::new();
+    let mut non_trailer_lines = 0usize;
+    let mut git_generated = false;
+    for line in block {
+        if line.starts_with([' ', '\t']) {
+            match trailers.last_mut() {
+                Some(t) => {
+                    t.value.push(' ');
+                    t.value.push_str(line.trim());
+                }
+                None => non_trailer_lines += 1,
+            }
+            continue;
+        }
+        if line.starts_with("(cherry picked from commit ") {
+            git_generated = true;
+            non_trailer_lines += 1;
+            continue;
+        }
+        match split_trailer_line(line) {
+            Some((key, value)) => {
+                let key = key.to_lowercase();
+                git_generated |= key == "signed-off-by";
+                trailers.push(Trailer {
+                    key,
+                    value: value.to_string(),
+                    line: line.trim().to_string(),
+                });
+            }
+            None => non_trailer_lines += 1,
+        }
+    }
+
+    let is_block = !trailers.is_empty()
+        && (non_trailer_lines == 0 || (git_generated && trailers.len() * 3 >= non_trailer_lines));
+    if is_block { trailers } else { Vec::new() }
+}
+
+/// True when `word` occurs in `text` delimited by non-alphanumerics: "aider"
+/// matches "aider <aider@aider.chat>" but not "raider"; "cursor" matches
+/// "@cursor.com" but not "precursor".
+fn contains_word(text: &str, word: &str) -> bool {
+    text.match_indices(word).any(|(i, _)| {
+        let before = text[..i]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !c.is_alphanumeric());
+        let after = text[i + word.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !c.is_alphanumeric());
+        before && after
+    })
 }
 
 /// Agent named in a git-ai authorship log (`refs/notes/ai`, schema
@@ -111,12 +262,15 @@ fn git_ai_agent(notes: &str) -> Option<String> {
 
 /// Classify a commit as AI-authored (or not) from its metadata alone.
 ///
-/// Detectors are ordered strongest-first; the first match wins. Signals:
-/// - `Co-Authored-By: Claude`      -> claude-code, verified (1.0)
-/// - `Co-Authored-By: ... Copilot` -> github-copilot, verified (1.0)
-/// - aider author/committer marker -> aider, verified (0.95)
-/// - known bot author emails       -> named bot, verified (0.95)
-/// - `(aider)` suffix in message   -> aider, probable (0.7)
+/// Detectors are ordered strongest-first; the first match wins. Trailers are
+/// read from the git trailer block only (see [`parse_trailers`]). Signals:
+/// - git-ai note under `refs/notes/ai`         -> named tool, verified (1.0)
+/// - `Drafted-With`, `AI-Agent`, `Assisted-by`… -> named tool, verified (1.0)
+/// - `Co-Authored-By: Claude`                  -> claude-code, verified (1.0)
+/// - `Co-Authored-By: ... Copilot`             -> github-copilot, verified (1.0)
+/// - aider author/committer marker             -> aider, verified (0.95)
+/// - known bot authors (`copilot-swe-agent`…)  -> named bot, verified (0.95)
+/// - `(aider)` suffix in message               -> aider, probable (0.7)
 pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
     let msg_lower = commit.message.to_lowercase();
     let author_lower = commit.author_name.to_lowercase();
@@ -131,33 +285,38 @@ pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
         });
     }
 
+    // Only the trailer block counts: `Key: value` in body prose is prose.
+    let trailers = parse_trailers(&commit.message);
+
     // Structured provenance trailers from emerging standards:
     // IETF draft-morrison identity-attributed commits (`Drafted-With`,
-    // `Executed-By`) and the `AI-*` trailer family (`AI-Model`, `AI-Agent`,
-    // `AI-Session-ID`, `AI-Provenance`).
-    let mut ai_marker: Option<String> = None;
-    for line in commit.message.lines() {
-        let trimmed = line.trim();
-        let Some((key, value)) = trimmed.split_once(':') else {
-            continue;
-        };
-        let key = key.trim().to_lowercase();
-        let value = value.trim();
-        if value.is_empty() || is_negative_disclosure(value) {
+    // `Executed-By`), the `AI-*` trailer family (`AI-Model`, `AI-Agent`,
+    // `AI-Session-ID`, `AI-Provenance`) and `Assisted-by` (Linux kernel,
+    // Fedora, LLVM, OpenTelemetry).
+    let mut ai_marker: Option<&Trailer> = None;
+    for t in &trailers {
+        if t.value.is_empty() || is_negative_disclosure(&t.value) {
             continue;
         }
-        match key.as_str() {
+        match t.key.as_str() {
             "drafted-with" | "executed-by" | "ai-model" | "ai-agent" | "ai-tool" => {
                 return Some(Detection {
-                    agent: canonical_agent(value),
+                    agent: canonical_agent(&t.value),
                     confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
+                    evidence: vec![format!("trailer: {}", t.line)],
+                });
+            }
+            "assisted-by" => {
+                return Some(Detection {
+                    agent: assisted_by_agent(&t.value),
+                    confidence: 1.0,
+                    evidence: vec![format!("trailer: {}", t.line)],
                 });
             }
             "ai-session-id" | "ai-provenance" | "ai-generated" | "ai-assisted"
                 if ai_marker.is_none() =>
             {
-                ai_marker = Some(trimmed.to_string());
+                ai_marker = Some(t);
             }
             _ => {}
         }
@@ -166,88 +325,23 @@ pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
         return Some(Detection {
             agent: "ai".into(),
             confidence: 1.0,
-            evidence: vec![format!("trailer: {}", marker)],
+            evidence: vec![format!("trailer: {}", marker.line)],
         });
     }
 
-    // Trailer-based detection: scan message lines for co-author trailers.
-    for line in commit.message.lines() {
-        let trimmed = line.trim();
-        let lower = trimmed.to_lowercase();
-        if let Some(rest) = lower.strip_prefix("co-authored-by:") {
-            let rest = rest.trim();
-            if rest.starts_with("claude") || rest.contains("noreply@anthropic.com") {
-                return Some(Detection {
-                    agent: "claude-code".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if rest.contains("copilot") {
-                return Some(Detection {
-                    agent: "github-copilot".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            // Names below collide with common human names (Devin, Jules,
-            // Gemini as a handle, "precursor"): only attribute when the
-            // identity is a vendor or bot address.
-            let vendor = coauthor_is_vendor_identity(rest);
-            if vendor && rest.contains("cursor") {
-                return Some(Detection {
-                    agent: "cursor".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if rest.contains("aider") {
-                return Some(Detection {
-                    agent: "aider".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if rest.contains("codex") || rest.contains("chatgpt") {
-                return Some(Detection {
-                    agent: "openai-codex".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if vendor && rest.contains("gemini") {
-                return Some(Detection {
-                    agent: "gemini".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if rest.contains("openhands") {
-                return Some(Detection {
-                    agent: "openhands".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if vendor && rest.contains("devin") {
-                return Some(Detection {
-                    agent: "devin".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if vendor && rest.contains("jules") {
-                return Some(Detection {
-                    agent: "jules".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
+    // Co-author trailers naming an agent identity.
+    for t in trailers.iter().filter(|t| t.key == "co-authored-by") {
+        if let Some(agent) = coauthor_agent(&t.value.to_lowercase()) {
+            return Some(Detection {
+                agent: agent.into(),
+                confidence: 1.0,
+                evidence: vec![format!("trailer: {}", t.line)],
+            });
         }
     }
 
     // Author-identity detection.
-    if author_lower.contains("(aider)") || email_lower.contains("aider") {
+    if author_lower.contains("(aider)") || contains_word(&email_lower, "aider") {
         return Some(Detection {
             agent: "aider".into(),
             confidence: 0.95,
@@ -260,6 +354,17 @@ pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
     if email_lower == "noreply@anthropic.com" || author_lower == "claude" {
         return Some(Detection {
             agent: "claude-code".into(),
+            confidence: 0.95,
+            evidence: vec![format!(
+                "author: {} <{}>",
+                commit.author_name, commit.author_email
+            )],
+        });
+    }
+    // GitHub Copilot coding agent commits as its own bot account.
+    if author_lower.contains("copilot-swe-agent") || email_lower.contains("copilot-swe-agent") {
+        return Some(Detection {
+            agent: "copilot".into(),
             confidence: 0.95,
             evidence: vec![format!(
                 "author: {} <{}>",
@@ -338,6 +443,54 @@ fn is_negative_disclosure(value: &str) -> bool {
         v.as_str(),
         "no" | "none" | "false" | "0" | "n/a" | "na" | "human" | "manual" | "not used"
     )
+}
+
+/// Agent named by a lowercased `Co-authored-by` value (`name <email>`), if
+/// any. Product names are matched as whole words so "raider" and "precursor"
+/// are people. Names that double as human names (Devin, Jules, Gemini,
+/// Cursor, Claude) additionally need a vendor or bot address, or — for
+/// Claude — a display name that is the tool's ("Claude", "Claude Code",
+/// "Claude Opus 4"), not a person's.
+fn coauthor_agent(rest: &str) -> Option<&'static str> {
+    let name = rest.split('<').next().unwrap_or("").trim();
+    let vendor = coauthor_is_vendor_identity(rest);
+    let claude_name = name == "claude"
+        || [
+            "claude code",
+            "claude opus",
+            "claude sonnet",
+            "claude haiku",
+        ]
+        .iter()
+        .any(|p| name.starts_with(p));
+    if rest.contains("noreply@anthropic.com") || claude_name {
+        return Some("claude-code");
+    }
+    if contains_word(rest, "copilot") {
+        return Some("github-copilot");
+    }
+    if vendor && contains_word(rest, "cursor") {
+        return Some("cursor");
+    }
+    if contains_word(rest, "aider") {
+        return Some("aider");
+    }
+    if contains_word(rest, "codex") || contains_word(rest, "chatgpt") {
+        return Some("openai-codex");
+    }
+    if vendor && contains_word(rest, "gemini") {
+        return Some("gemini");
+    }
+    if contains_word(rest, "openhands") {
+        return Some("openhands");
+    }
+    if vendor && contains_word(rest, "devin") {
+        return Some("devin");
+    }
+    if vendor && contains_word(rest, "jules") {
+        return Some("jules");
+    }
+    None
 }
 
 /// True when a lowercased `Co-authored-by` value (`name <email>`) points at
@@ -491,15 +644,46 @@ pub fn parse_blame_owners(porcelain: &str) -> Vec<String> {
     owners
 }
 
-/// Aggregated survival numbers for one evidence class.
-#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+/// Version of the measurement method that produced a report. Bumped only
+/// when a number computed from the same repository can change.
+pub const METHOD_VERSION: &str = "v2";
+
+/// Below this many VERIFIED commits a ratio is reported but flagged: one
+/// commit can dominate it.
+pub const SAMPLE_FLOOR: u64 = 5;
+
+/// Per-commit weight cap rule for `capped_survival_rate`: a commit weighs at
+/// most the 95th percentile (nearest rank) of per-commit introduced line
+/// counts within its group, and never more than this many lines. With fewer
+/// than 20 commits the percentile is the largest commit, so only the
+/// absolute ceiling bites.
+pub const CAP_PERCENTILE: f64 = 0.95;
+pub const CAP_CEILING_LINES: u64 = 10_000;
+
+/// Aggregated survival numbers for one evidence class or one agent.
+///
+/// `commits`, `introduced` and `surviving` are plain sums. The per-commit
+/// pairs behind them are kept so the report can also state figures that one
+/// bulk commit cannot dominate: the median per-commit rate, a weight-capped
+/// rate and the share of the largest commit.
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct SurvivalStat {
     pub commits: u64,
     pub introduced: u64,
     pub surviving: u64,
+    /// `(introduced, surviving)` of every commit in this group.
+    pub per_commit: Vec<(u64, u64)>,
 }
 
 impl SurvivalStat {
+    pub fn record(&mut self, introduced: u64, surviving: u64) {
+        self.commits += 1;
+        self.introduced += introduced;
+        self.surviving += surviving;
+        self.per_commit.push((introduced, surviving));
+    }
+
+    /// Line-weighted ratio: Σ surviving / Σ introduced.
     pub fn survival_rate(&self) -> Option<f64> {
         if self.introduced == 0 {
             None
@@ -507,16 +691,135 @@ impl SurvivalStat {
             Some(self.surviving as f64 / self.introduced as f64)
         }
     }
+
+    fn measured(&self) -> impl Iterator<Item = (u64, u64)> + '_ {
+        self.per_commit.iter().copied().filter(|(i, _)| *i > 0)
+    }
+
+    /// Median of per-commit survival rates over commits that introduced at
+    /// least one line.
+    pub fn median_survival(&self) -> Option<f64> {
+        let mut rates: Vec<f64> = self.measured().map(|(i, s)| s as f64 / i as f64).collect();
+        if rates.is_empty() {
+            return None;
+        }
+        rates.sort_by(|a, b| a.total_cmp(b));
+        let n = rates.len();
+        Some(if n % 2 == 1 {
+            rates[n / 2]
+        } else {
+            (rates[n / 2 - 1] + rates[n / 2]) / 2.0
+        })
+    }
+
+    /// The per-commit weight cap in lines (see [`CAP_PERCENTILE`]).
+    pub fn cap_lines(&self) -> Option<u64> {
+        let mut sizes: Vec<u64> = self.measured().map(|(i, _)| i).collect();
+        if sizes.is_empty() {
+            return None;
+        }
+        sizes.sort_unstable();
+        let rank = ((sizes.len() as f64 * CAP_PERCENTILE).ceil() as usize).clamp(1, sizes.len());
+        Some(sizes[rank - 1].min(CAP_CEILING_LINES))
+    }
+
+    /// Line-weighted ratio where no commit weighs more than [`cap_lines`]:
+    /// a commit above the cap contributes `cap × its own rate`.
+    ///
+    /// [`cap_lines`]: SurvivalStat::cap_lines
+    pub fn capped_survival_rate(&self) -> Option<f64> {
+        let cap = self.cap_lines()? as f64;
+        let (num, den) = self.measured().fold((0.0, 0.0), |(num, den), (i, s)| {
+            let weight = (i as f64).min(cap);
+            (num + weight * (s as f64 / i as f64), den + weight)
+        });
+        if den == 0.0 { None } else { Some(num / den) }
+    }
+
+    /// Fraction of introduced lines that come from the single largest commit.
+    pub fn largest_commit_share(&self) -> Option<f64> {
+        if self.introduced == 0 {
+            return None;
+        }
+        let largest = self.measured().map(|(i, _)| i).max().unwrap_or(0);
+        Some(largest as f64 / self.introduced as f64)
+    }
+
+    /// Whether one commit holds at least half of the introduced lines: the
+    /// row then measures that commit rather than the group.
+    pub fn dominated_by_one_commit(&self) -> bool {
+        self.largest_commit_share().is_some_and(|s| s >= 0.5)
+    }
+}
+
+/// The serialized shape of a `SurvivalStat`: sums plus derived figures, so
+/// JSON, snapshots and the data workflow all see the same set of fields.
+#[derive(serde::Serialize)]
+struct SurvivalStatView {
+    commits: u64,
+    introduced: u64,
+    surviving: u64,
+    survival_rate: Option<f64>,
+    median_survival: Option<f64>,
+    capped_survival_rate: Option<f64>,
+    cap_lines: Option<u64>,
+    largest_commit_share: Option<f64>,
+}
+
+impl serde::Serialize for SurvivalStat {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        SurvivalStatView {
+            commits: self.commits,
+            introduced: self.introduced,
+            surviving: self.surviving,
+            survival_rate: self.survival_rate(),
+            median_survival: self.median_survival(),
+            capped_survival_rate: self.capped_survival_rate(),
+            cap_lines: self.cap_lines(),
+            largest_commit_share: self.largest_commit_share(),
+        }
+        .serialize(serializer)
+    }
+}
+
+/// What the measurement covered and how: printed next to every number so a
+/// reader can tell two runs apart before comparing them.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Coverage {
+    pub method: &'static str,
+    pub blame_flags: Vec<&'static str>,
+    /// A usable `.git-blame-ignore-revs` was passed to blame.
+    pub ignore_revs_file: bool,
+    /// The repository is a shallow clone: introduced counts are truncated
+    /// and blame stops at the shallow boundary.
+    pub shallow: bool,
+    pub sample_floor: u64,
+    /// Fewer VERIFIED commits than `sample_floor`.
+    pub small_sample: bool,
+}
+
+impl Default for Coverage {
+    fn default() -> Self {
+        Coverage {
+            method: METHOD_VERSION,
+            blame_flags: BLAME_FLAGS.to_vec(),
+            ignore_revs_file: false,
+            shallow: false,
+            sample_floor: SAMPLE_FLOOR,
+            small_sample: true,
+        }
+    }
 }
 
 /// The full audit result.
-#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Default, serde::Serialize)]
 pub struct SurvivalReport {
     pub total_commits: u64,
     pub verified: SurvivalStat,
     pub probable: SurvivalStat,
     /// Per-agent verified stats.
     pub by_agent: BTreeMap<String, SurvivalStat>,
+    pub coverage: Coverage,
 }
 
 /// Pure aggregation: given per-commit introduced counts, detections, and the
@@ -550,25 +853,21 @@ pub fn compute_survival(
 
         match class {
             EvidenceClass::Verified => {
-                report.verified.commits += 1;
-                report.verified.introduced += introduced;
-                report.verified.surviving += surviving;
+                report.verified.record(*introduced, surviving);
                 if let Some(d) = det {
-                    let entry = report.by_agent.entry(d.agent.clone()).or_default();
-                    entry.commits += 1;
-                    entry.introduced += introduced;
-                    entry.surviving += surviving;
+                    report
+                        .by_agent
+                        .entry(d.agent.clone())
+                        .or_default()
+                        .record(*introduced, surviving);
                 }
             }
-            EvidenceClass::Probable => {
-                report.probable.commits += 1;
-                report.probable.introduced += introduced;
-                report.probable.surviving += surviving;
-            }
+            EvidenceClass::Probable => report.probable.record(*introduced, surviving),
             EvidenceClass::Unknown => {}
         }
     }
 
+    report.coverage.small_sample = report.verified.commits < SAMPLE_FLOOR;
     report
 }
 
@@ -653,9 +952,69 @@ pub fn lines_added_all(dir: &Path) -> Result<HashMap<String, u64>> {
     Ok(parse_log_numstat(&raw))
 }
 
+/// Blame flags of method v2. `-w` ignores whitespace so a re-indent or a
+/// formatter pass does not re-attribute a line; `-M` follows lines moved
+/// within a file; `-C` follows lines moved or copied from another file
+/// touched by the same commit. Published in the report so a reader can
+/// reproduce the exact blame.
+pub const BLAME_FLAGS: [&str; 3] = ["-w", "-M", "-C"];
+
+/// Conventional name of the revision list that `git blame` should skip
+/// (mass reformats, renames-only commits). Honoured when present at the
+/// repository root, as GitHub's blame view does.
+pub const IGNORE_REVS_FILE: &str = ".git-blame-ignore-revs";
+
+/// The repository's `.git-blame-ignore-revs`, when present and usable.
+///
+/// `git blame` dies on any entry it cannot resolve to a commit. Because a
+/// per-file blame failure is tolerated (binary files), that would silently
+/// turn every line of the repository into "no owner" and report 0 %
+/// survival. A file with an unresolvable entry is therefore skipped with a
+/// warning rather than passed through.
+pub fn ignore_revs_file(dir: &Path) -> Option<std::path::PathBuf> {
+    let path = dir.join(IGNORE_REVS_FILE);
+    let text = std::fs::read_to_string(&path).ok()?;
+    let revs: Vec<&str> = text
+        .lines()
+        .map(|l| l.split('#').next().unwrap_or("").trim())
+        .filter(|l| !l.is_empty())
+        .collect();
+    for rev in revs {
+        let spec = format!("{rev}^{{commit}}");
+        if git(
+            dir,
+            &[
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                "--end-of-options",
+                &spec,
+            ],
+        )
+        .is_err()
+        {
+            eprintln!(
+                "warning: {IGNORE_REVS_FILE} lists '{rev}', which is not a commit here; \
+                 the file is ignored for this audit"
+            );
+            return None;
+        }
+    }
+    Some(path)
+}
+
 /// Blame every tracked text file at HEAD, returning the owning commit of each
-/// surviving line.
-pub fn blame_head(dir: &Path) -> Result<Vec<String>> {
+/// surviving line. `ignore_revs` is the resolved [`ignore_revs_file`].
+pub fn blame_head(dir: &Path, ignore_revs: Option<&Path>) -> Result<Vec<String>> {
+    let mut base_args: Vec<&str> = vec!["blame"];
+    base_args.extend(BLAME_FLAGS);
+    base_args.push("--line-porcelain");
+    let ignore_flag = ignore_revs.map(|p| format!("--ignore-revs-file={}", p.display()));
+    if let Some(flag) = ignore_flag.as_deref() {
+        base_args.push(flag);
+    }
+    base_args.extend(["HEAD", "--"]);
+
     let files = git(dir, &["ls-files"])?;
     let list: Vec<&str> = files
         .lines()
@@ -685,9 +1044,9 @@ pub fn blame_head(dir: &Path) -> Result<Vec<String>> {
                     }
                     // Skip files git cannot blame (e.g. binary): tolerate
                     // per-file errors.
-                    if let Ok(porcelain) =
-                        git(dir, &["blame", "--line-porcelain", "HEAD", "--", list[i]])
-                    {
+                    let mut args = base_args.clone();
+                    args.push(list[i]);
+                    if let Ok(porcelain) = git(dir, &args) {
                         local.extend(parse_blame_owners(&porcelain));
                     }
                     let d = done.fetch_add(1, Ordering::Relaxed) + 1;
@@ -706,8 +1065,44 @@ pub fn blame_head(dir: &Path) -> Result<Vec<String>> {
     Ok(owners)
 }
 
+/// True when the repository is a shallow clone. Its history is truncated:
+/// commits at the boundary appear to introduce every line of their tree and
+/// blame cannot look past them, so every figure would be wrong.
+pub fn is_shallow(dir: &Path) -> bool {
+    match git(dir, &["rev-parse", "--is-shallow-repository"]) {
+        Ok(out) => out.trim() == "true",
+        // git before 2.15 lacks the query; the marker file is the fallback.
+        Err(_) => git(dir, &["rev-parse", "--git-path", "shallow"])
+            .map(|p| dir.join(p.trim()).exists())
+            .unwrap_or_else(|_| dir.join(".git").join("shallow").exists()),
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct AuditOptions {
+    /// Measure a shallow clone anyway; the report then carries
+    /// `coverage.shallow = true`.
+    pub allow_shallow: bool,
+}
+
 /// Full Group-0 audit of a git repository: no ledger, no hooks, no proxy.
-pub fn audit_repo(dir: &Path) -> Result<SurvivalReport> {
+pub fn audit_repo(dir: &Path, opts: &AuditOptions) -> Result<SurvivalReport> {
+    let shallow = is_shallow(dir);
+    if shallow && !opts.allow_shallow {
+        anyhow::bail!(
+            "refusing to audit a shallow clone: its history is truncated, so introduced and \
+             surviving line counts would be wrong.\n  Fetch the full history first: \
+             `git fetch --unshallow` (in GitHub Actions: `fetch-depth: 0` on actions/checkout), \
+             or pass --allow-shallow to measure anyway and have the report say so."
+        );
+    }
+    if shallow {
+        eprintln!(
+            "warning: shallow clone; history is truncated and the figures below are partial \
+             (coverage.shallow = true)"
+        );
+    }
+
     let commits = read_commits(dir)?;
     let mut detections: HashMap<String, Detection> = HashMap::new();
     let mut with_intro: Vec<(CommitMeta, u64)> = Vec::new();
@@ -737,8 +1132,12 @@ pub fn audit_repo(dir: &Path) -> Result<SurvivalReport> {
         with_intro.push((c, introduced));
     }
 
-    let head_owners = blame_head(dir)?;
-    Ok(compute_survival(&with_intro, &detections, &head_owners))
+    let ignore_revs = ignore_revs_file(dir);
+    let head_owners = blame_head(dir, ignore_revs.as_deref())?;
+    let mut report = compute_survival(&with_intro, &detections, &head_owners);
+    report.coverage.ignore_revs_file = ignore_revs.is_some();
+    report.coverage.shallow = shallow;
+    Ok(report)
 }
 
 // ---------------------------------------------------------------------------
@@ -799,6 +1198,133 @@ mod tests {
             assert_eq!(d.agent, agent, "{trailer}");
             assert_eq!(classify(Some(&d)), EvidenceClass::Verified);
         }
+    }
+
+    #[test]
+    fn trailer_block_follows_git_rules() {
+        // Subject only: no trailer block.
+        assert!(parse_trailers("Co-Authored-By: Claude <noreply@anthropic.com>").is_empty());
+        // Last paragraph of trailers, with a folded continuation line.
+        let t =
+            parse_trailers("fix\n\nbody prose\n\nSigned-off-by: A <a@x>\nAI-Agent: Some\n  Tool\n");
+        assert_eq!(t.len(), 2);
+        assert_eq!(t[1].key, "ai-agent");
+        assert_eq!(t[1].value, "Some Tool");
+        // A prose line in the last paragraph disqualifies it...
+        assert!(parse_trailers("fix\n\nExecuted-By: CI pipeline\nruns nightly.").is_empty());
+        // ...unless git-generated trailers are present (≥ 25 % trailers).
+        let t = parse_trailers("fix\n\n(cherry picked from commit abc)\nSigned-off-by: A <a@x>\n");
+        assert_eq!(t.len(), 1);
+        // A URL is prose, not a `https:` trailer.
+        assert!(parse_trailers("fix\n\nhttps://example.com/issue/1").is_empty());
+        // Trailers followed by another paragraph are body text.
+        assert!(parse_trailers("fix\n\nAI-Agent: Cursor\n\nMore notes.").is_empty());
+    }
+
+    #[test]
+    fn key_value_in_body_prose_is_not_a_trailer() {
+        for message in [
+            "deploy\n\nExecuted-By: CI pipeline after every merge.\nSee the runbook.",
+            "deploy\n\nExecuted-By: CI pipeline\n\nRolled out to staging first.",
+            "deploy\nAI-Agent: Cursor",
+        ] {
+            let c = meta("3".repeat(40).as_str(), "Dev", "dev@example.com", message);
+            assert!(detect_ai(&c).is_none(), "misdetected: {message:?}");
+        }
+    }
+
+    #[test]
+    fn detects_assisted_by_trailer_as_verified() {
+        for (value, agent) in [
+            ("Claude Code (claude-sonnet-4)", "claude-code"),
+            ("Claude:claude-3-5-sonnet-20241022", "claude-code"),
+            ("Cursor", "cursor"),
+            ("GitHub Copilot", "github-copilot"),
+            ("Windsurf Cascade (gpt-5)", "windsurf-cascade"),
+            ("Windsurf Cascade v2", "windsurf-cascade"),
+        ] {
+            let c = meta(
+                "5".repeat(40).as_str(),
+                "Dev",
+                "dev@example.com",
+                &format!("fix\n\nAssisted-by: {value}\nSigned-off-by: Dev <dev@example.com>"),
+            );
+            let d = detect_ai(&c).unwrap_or_else(|| panic!("{value} not detected"));
+            assert_eq!(d.agent, agent, "{value}");
+            assert_eq!(classify(Some(&d)), EvidenceClass::Verified);
+            assert!(d.evidence[0].starts_with("trailer: Assisted-by:"));
+        }
+        let c = meta(
+            "5".repeat(40).as_str(),
+            "Dev",
+            "dev@example.com",
+            "fix\n\nAssisted-by: none",
+        );
+        assert!(detect_ai(&c).is_none());
+    }
+
+    #[test]
+    fn detects_copilot_coding_agent_author_as_verified() {
+        let c = meta(
+            "6".repeat(40).as_str(),
+            "copilot-swe-agent[bot]",
+            "198982749+Copilot@users.noreply.github.com",
+            "Fix flaky test\n\nCo-authored-by: Tarik <tarik@example.com>",
+        );
+        let d = detect_ai(&c).expect("should detect");
+        assert_eq!(d.agent, "copilot");
+        assert_eq!(classify(Some(&d)), EvidenceClass::Verified);
+        assert!(d.evidence[0].starts_with("author:"));
+    }
+
+    #[test]
+    fn coauthor_names_containing_agent_substrings_are_humans() {
+        for trailer in [
+            "Co-Authored-By: Raider Bot <raider@example.com>",
+            "Co-Authored-By: Precursor Team <team@precursor.dev>",
+            "Co-Authored-By: Claude Dupont <claude.dupont@example.fr>",
+            "Co-Authored-By: Codexia Ltd <ops@codexia.example>",
+        ] {
+            let c = meta(
+                "1".repeat(40).as_str(),
+                "Tarik",
+                "tarik@example.com",
+                &format!("pair session\n\n{trailer}"),
+            );
+            assert!(detect_ai(&c).is_none(), "misdetected: {trailer}");
+        }
+        // Whole-word product names still match, whatever surrounds them.
+        for (trailer, agent) in [
+            ("Co-Authored-By: aider (gpt-4o) <aider@aider.chat>", "aider"),
+            (
+                "Co-Authored-By: Copilot <175728472+Copilot@users.noreply.github.com>",
+                "github-copilot",
+            ),
+            (
+                "Co-Authored-By: Claude Opus 4.1 <noreply@anthropic.com>",
+                "claude-code",
+            ),
+        ] {
+            let c = meta(
+                "1".repeat(40).as_str(),
+                "Tarik",
+                "tarik@example.com",
+                &format!("pair session\n\n{trailer}"),
+            );
+            assert_eq!(
+                detect_ai(&c).map(|d| d.agent).as_deref(),
+                Some(agent),
+                "{trailer}"
+            );
+        }
+        // A person whose address merely contains "aider" is not the tool.
+        let c = meta(
+            "1".repeat(40).as_str(),
+            "Tarik",
+            "raider@example.com",
+            "manual fix",
+        );
+        assert!(detect_ai(&c).is_none());
     }
 
     #[test]
@@ -1209,13 +1735,115 @@ mod tests {
 
     #[test]
     fn survival_rate_is_none_when_nothing_introduced() {
-        assert_eq!(SurvivalStat::default().survival_rate(), None);
+        let stat = SurvivalStat::default();
+        assert_eq!(stat.survival_rate(), None);
+        assert_eq!(stat.median_survival(), None);
+        assert_eq!(stat.capped_survival_rate(), None);
+        assert_eq!(stat.cap_lines(), None);
+        assert_eq!(stat.largest_commit_share(), None);
+        // A commit with no text lines has no rate and does not enter the
+        // median or the cap.
+        let mut stat = SurvivalStat::default();
+        stat.record(0, 0);
+        assert_eq!(stat.commits, 1);
+        assert_eq!(stat.median_survival(), None);
+    }
+
+    fn approx(a: Option<f64>, b: f64) -> bool {
+        a.is_some_and(|a| (a - b).abs() < 1e-9)
+    }
+
+    #[test]
+    fn median_and_capped_rate_resist_one_bulk_commit() {
+        // 19 ordinary commits at 90 %, one 5,000-line drop at 1 %.
+        let mut stat = SurvivalStat::default();
+        for _ in 0..19 {
+            stat.record(100, 90);
+        }
+        stat.record(5000, 50);
+
+        assert!(approx(stat.survival_rate(), 1760.0 / 6900.0));
+        assert!(approx(stat.median_survival(), 0.9));
+        // p95 by nearest rank over 20 sizes is the 19th: 100 lines.
+        assert_eq!(stat.cap_lines(), Some(100));
+        assert!(approx(stat.capped_survival_rate(), 1711.0 / 2000.0));
+        assert!(approx(stat.largest_commit_share(), 5000.0 / 6900.0));
+        assert!(stat.dominated_by_one_commit());
+    }
+
+    #[test]
+    fn cap_falls_back_to_the_absolute_ceiling_on_small_samples() {
+        // With fewer than 20 commits the 95th percentile is the largest
+        // commit itself; only the 10,000-line ceiling limits its weight.
+        let mut stat = SurvivalStat::default();
+        for _ in 0..4 {
+            stat.record(100, 90);
+        }
+        stat.record(100_000, 1000);
+        assert_eq!(stat.cap_lines(), Some(CAP_CEILING_LINES));
+        assert!(approx(stat.capped_survival_rate(), 460.0 / 10_400.0));
+        // A group with only small commits: the cap is its largest commit and
+        // the capped rate equals the line-weighted one.
+        let mut small = SurvivalStat::default();
+        small.record(10, 5);
+        small.record(30, 30);
+        assert_eq!(small.cap_lines(), Some(30));
+        assert!(approx(
+            small.capped_survival_rate(),
+            small.survival_rate().unwrap()
+        ));
+        assert!(approx(small.median_survival(), 0.75));
+        assert!(small.dominated_by_one_commit());
+    }
+
+    #[test]
+    fn serialized_stat_carries_derived_fields() {
+        let mut stat = SurvivalStat::default();
+        stat.record(10, 5);
+        let v = serde_json::to_value(&stat).unwrap();
+        for key in [
+            "commits",
+            "introduced",
+            "surviving",
+            "survival_rate",
+            "median_survival",
+            "capped_survival_rate",
+            "cap_lines",
+            "largest_commit_share",
+        ] {
+            assert!(v.get(key).is_some(), "missing {key}");
+        }
+        assert_eq!(v["survival_rate"], 0.5);
+        assert!(v.get("per_commit").is_none());
+    }
+
+    #[test]
+    fn coverage_states_method_flags_and_sample_size() {
+        let c = meta(&"a".repeat(40), "x", "x@x", "m");
+        let mut detections = HashMap::new();
+        detections.insert(c.hash.clone(), detection("claude-code", 1.0));
+        let owners = vec![c.hash.clone()];
+        let report = compute_survival(&[(c, 3)], &detections, &owners);
+        assert_eq!(report.coverage.method, "v2");
+        assert_eq!(report.coverage.blame_flags, vec!["-w", "-M", "-C"]);
+        assert_eq!(report.coverage.sample_floor, 5);
+        assert!(report.coverage.small_sample);
+        assert!(!report.coverage.shallow);
+
+        let v = serde_json::to_value(&report).unwrap();
+        assert_eq!(v["coverage"]["method"], "v2");
+        assert_eq!(v["verified"]["survival_rate"], 1.0 / 3.0);
+        assert_eq!(v["by_agent"]["claude-code"]["median_survival"], 1.0 / 3.0);
     }
 
     // -- end-to-end on a real synthetic git repo -------------------------------
 
+    /// Git with a fixed identity and no commit signing: the user's global
+    /// signing setup (a slow or interactive signer) must not shape the
+    /// synthetic repositories these tests build.
     fn run_git(dir: &Path, args: &[&str]) {
         let ok = Command::new("git")
+            .args(["-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"])
             .args(args)
             .current_dir(dir)
             .env("GIT_AUTHOR_NAME", "Tarik")
@@ -1228,46 +1856,48 @@ mod tests {
         assert!(ok, "git {:?} failed", args);
     }
 
+    /// Empty repository on `main` with a human baseline commit.
+    fn synthetic_repo() -> tempfile::TempDir {
+        let tmp = tempfile::tempdir().unwrap();
+        run_git(tmp.path(), &["init", "-q", "-b", "main"]);
+        std::fs::write(tmp.path().join("main.py"), "print('hello')\n").unwrap();
+        commit_all(tmp.path(), "initial scaffold");
+        tmp
+    }
+
+    fn commit_all(dir: &Path, message: &str) {
+        run_git(dir, &["add", "-A", "."]);
+        run_git(dir, &["commit", "-q", "-m", message]);
+    }
+
+    const CLAUDE_TRAILER: &str = "\n\nCo-Authored-By: Claude <noreply@anthropic.com>";
+
+    fn head_hash(dir: &Path) -> String {
+        git(dir, &["rev-parse", "HEAD"]).unwrap().trim().to_string()
+    }
+
     #[test]
     fn audits_a_synthetic_repo_end_to_end() {
-        let tmp = std::env::temp_dir().join(format!("causari-audit-test-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        std::fs::create_dir_all(&tmp).unwrap();
-
-        run_git(&tmp, &["init", "-q", "-b", "main"]);
-
-        // Commit 1 (human): baseline.
-        std::fs::write(tmp.join("main.py"), "print('hello')\n").unwrap();
-        run_git(&tmp, &["add", "."]);
-        run_git(&tmp, &["commit", "-q", "-m", "initial scaffold"]);
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
 
         // Commit 2 (AI, Claude trailer): adds 3 lines.
         std::fs::write(
-            tmp.join("auth.py"),
+            dir.join("auth.py"),
             "def refresh(user):\n    token = rotate(user)\n    return token\n",
         )
         .unwrap();
-        run_git(&tmp, &["add", "."]);
-        run_git(
-            &tmp,
-            &[
-                "commit",
-                "-q",
-                "-m",
-                "add token refresh\n\nCo-Authored-By: Claude <noreply@anthropic.com>",
-            ],
-        );
+        commit_all(dir, &format!("add token refresh{CLAUDE_TRAILER}"));
 
         // Commit 3 (human): deletes one AI line -> 2 of 3 AI lines survive.
         std::fs::write(
-            tmp.join("auth.py"),
+            dir.join("auth.py"),
             "def refresh(user):\n    return rotate(user)\n",
         )
         .unwrap();
-        run_git(&tmp, &["add", "."]);
-        run_git(&tmp, &["commit", "-q", "-m", "simplify refresh by hand"]);
+        commit_all(dir, "simplify refresh by hand");
 
-        let report = audit_repo(&tmp).expect("audit must succeed");
+        let report = audit_repo(dir, &AuditOptions::default()).expect("audit must succeed");
 
         assert_eq!(report.total_commits, 3);
         assert_eq!(report.verified.commits, 1);
@@ -1276,7 +1906,107 @@ mod tests {
         // replaced. Exactly 1 original AI line remains attributable at HEAD.
         assert_eq!(report.verified.surviving, 1);
         assert!(report.by_agent.contains_key("claude-code"));
+    }
 
-        let _ = std::fs::remove_dir_all(&tmp);
+    #[test]
+    fn reindented_ai_line_still_survives() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+
+        std::fs::write(
+            dir.join("auth.py"),
+            "def refresh(user):\n    token = rotate(user)\n    return token\n",
+        )
+        .unwrap();
+        commit_all(dir, &format!("add token refresh{CLAUDE_TRAILER}"));
+
+        // A human wraps the body in a block: every AI line is re-indented,
+        // none is rewritten. Whitespace-insensitive blame keeps all three.
+        std::fs::write(
+            dir.join("auth.py"),
+            "def refresh(user):\n        token = rotate(user)\n        return token\n",
+        )
+        .unwrap();
+        commit_all(dir, "re-indent by hand");
+
+        let report = audit_repo(dir, &AuditOptions::default()).expect("audit must succeed");
+        assert_eq!(report.verified.introduced, 3);
+        assert_eq!(report.verified.surviving, 3);
+    }
+
+    #[test]
+    fn ai_block_moved_to_another_file_still_survives() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+
+        // Long enough for blame's -C heuristic (≥ 40 alphanumerics moved).
+        let block = "def rotate_credentials(user, issuer):\n    \
+                     material = issuer.derive_material(user.identifier)\n    \
+                     user.credentials = Credentials.from_material(material)\n    \
+                     return user.credentials\n";
+        std::fs::write(dir.join("auth.py"), block).unwrap();
+        commit_all(dir, &format!("add credential rotation{CLAUDE_TRAILER}"));
+
+        // Human moves the function to a new module in one commit.
+        std::fs::remove_file(dir.join("auth.py")).unwrap();
+        std::fs::write(
+            dir.join("credentials.py"),
+            format!("import issuers\n\n{block}"),
+        )
+        .unwrap();
+        commit_all(dir, "move rotation into credentials module");
+
+        let report = audit_repo(dir, &AuditOptions::default()).expect("audit must succeed");
+        assert_eq!(report.verified.introduced, 4);
+        assert_eq!(report.verified.surviving, 4);
+    }
+
+    #[test]
+    fn blame_ignore_revs_file_is_honoured() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+
+        std::fs::write(dir.join("config.py"), "NAME = 'causari'\nRETRIES = 3\n").unwrap();
+        commit_all(dir, &format!("add config{CLAUDE_TRAILER}"));
+
+        // Quote-style reformat: not whitespace, so only the ignore list can
+        // keep the attribution on the AI commit.
+        std::fs::write(dir.join("config.py"), "NAME = \"causari\"\nRETRIES = 3\n").unwrap();
+        commit_all(dir, "reformat quotes");
+        let reformat = head_hash(dir);
+
+        let without = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(without.verified.surviving, 1);
+
+        std::fs::write(
+            dir.join(IGNORE_REVS_FILE),
+            format!("# formatter passes\n{reformat}\n"),
+        )
+        .unwrap();
+        assert!(ignore_revs_file(dir).is_some());
+        let with = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(with.verified.introduced, 2);
+        assert_eq!(with.verified.surviving, 2);
+        assert!(with.coverage.ignore_revs_file);
+        assert!(!without.coverage.ignore_revs_file);
+    }
+
+    #[test]
+    fn unresolvable_ignore_revs_entry_disables_the_file() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+        std::fs::write(
+            dir.join(IGNORE_REVS_FILE),
+            format!("{}\n{}\n", head_hash(dir), "0".repeat(40)),
+        )
+        .unwrap();
+        assert!(ignore_revs_file(dir).is_none());
+        // The audit still runs and still attributes lines (the ignore file
+        // itself is part of this commit's introduced lines).
+        std::fs::write(dir.join("x.py"), "x = 1\n").unwrap();
+        commit_all(dir, &format!("add x{CLAUDE_TRAILER}"));
+        let report = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert!(report.verified.introduced > 0);
+        assert_eq!(report.verified.surviving, report.verified.introduced);
     }
 }
