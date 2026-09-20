@@ -99,12 +99,15 @@ public key alone; the first report is deposited with a DOI.
       area (record · ask · measure · prove · integrate).
 - [~] Signed SLSA attestations on every archive, non-empty release notes,
       Action verifies the checksum, Homebrew tap (`croviatrust/homebrew-tap`),
-      Scoop bucket (`croviatrust/scoop-bucket`) — done; crates.io publish
-      waits for the token (owner ask).
+      Scoop bucket (`croviatrust/scoop-bucket`) — done; crates.io via
+      Trusted Publishing (`publish-crate.yml`, OIDC, no token) — workflow
+      in place; the first version must be published by hand (owner ask).
 - [x] DCO instead of CLA.
 - [x] One legal entity name (Crovia Trust) in NOTICE, trademark line, Cargo
       authors, Action metadata and the canon; git author fixed.
-- [ ] MCP registry, Claude Code plugin, Cursor MCP directory, awesome lists.
+- [~] MCP registry: `server.json` validated, published by the release
+      workflow after the crate (GitHub OIDC). Open: Claude Code plugin,
+      Cursor MCP directory, awesome lists.
 - [x] Family canon: `canon/canon.json` + `scripts/audit_surfaces.py`
       (claims, versions, links, glyphs, installers vs release), in CI on every
       push; live site weekly.
@@ -114,7 +117,10 @@ signature; the first external contributor lands a PR without ceremony.
 
 ## Open asks (things only the owner can do)
 
-- crates.io API token (Trusted Publishing preferred) for `causari`.
+- First `cargo publish` of `causari` by hand (crates.io requires it), then
+  Settings → Trusted Publishing: repository `croviatrust/causari`, workflow
+  `publish-crate.yml`, environment `crates-io`; create that environment in
+  the GitHub repository settings.
 - Hugging Face write token for the Crovia dataset mirror (family item).
 - Jurisdiction for the trademark line (the entity name is Crovia Trust).
 - `ZENODO_TOKEN` for the Survival Report DOI deposits.

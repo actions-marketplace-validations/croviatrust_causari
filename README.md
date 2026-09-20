@@ -201,7 +201,10 @@ brew install croviatrust/tap/causari
 # Scoop (Windows)
 scoop bucket add causari https://github.com/croviatrust/scoop-bucket && scoop install causari
 
-# from source (Rust 1.85+)
+# crates.io (Rust 1.85+)
+cargo install causari --locked
+
+# from source
 cargo install --git https://github.com/croviatrust/causari --locked
 ```
 
@@ -231,7 +234,18 @@ sha256sum --ignore-missing -c SHA256SUMS.txt && tar -xzf "causari-$VERSION-$TARG
 The [Homebrew tap](https://github.com/croviatrust/homebrew-tap) and the
 [Scoop bucket](https://github.com/croviatrust/scoop-bucket) render their
 manifests from each release's `SHA256SUMS.txt` and re-render every six hours.
-crates.io is on the [roadmap](ROADMAP.md).
+The crate is published from the release tag through crates.io Trusted
+Publishing (`.github/workflows/publish-crate.yml`): no long-lived token exists.
+
+### As an MCP server
+
+`re mcp` speaks MCP over stdio and exposes `causari_record`, `causari_recall`
+and `causari_why`; `re mcp --install` prints the configuration block for
+Claude Desktop, Cursor, Windsurf and Cline. The server is listed in the
+[MCP Registry](https://registry.modelcontextprotocol.io) from
+[`server.json`](server.json):
+
+- MCP Registry name: mcp-name: io.github.croviatrust/causari
 
 Demos: `scripts/demo*.sh|ps1` (mock LLM included), `examples/real-session/`
 (the adversarial harness), `scripts/recovery_lab.py` (revert/bisect stress

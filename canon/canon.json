@@ -45,6 +45,14 @@
       {
         "path": "site/index.html",
         "pattern": "· v([0-9]+\\.[0-9]+\\.[0-9]+)</p>"
+      },
+      {
+        "path": "server.json",
+        "pattern": "^  \"version\": \"([0-9]+\\.[0-9]+\\.[0-9]+)\""
+      },
+      {
+        "path": "server.json",
+        "pattern": "^      \"version\": \"([0-9]+\\.[0-9]+\\.[0-9]+)\""
       }
     ]
   },

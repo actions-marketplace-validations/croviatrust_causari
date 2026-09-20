@@ -12,6 +12,26 @@ default-run = "causari"
 categories = ["development-tools", "command-line-utilities"]
 authors = ["Crovia Trust <info@croviatrust.com>"]
 rust-version = "1.85"
+# The crate is the program and its tests. Site, docs, CI and identity assets
+# ship from the repository, not from crates.io.
+exclude = [
+  "/site",
+  "/docs",
+  "/canon",
+  "/scripts",
+  "/.github",
+  "/.githooks",
+  "/action.yml",
+  "/wrangler.jsonc",
+  "/examples",
+  "/assets/*.png",
+  "/assets/mark-b*",
+  "/assets/mark-c*",
+  "/assets/*-white.svg",
+  "/*.md",
+  "!/README.md",
+  "!/CHANGELOG.md",
+]
 
 # One program, two names. `causari` is the binary; `re` is the short alias every
 # example uses. Both are built from the same main and shipped in every release.
