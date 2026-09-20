@@ -178,9 +178,11 @@ above. They are out of the proof and out of the front page until they are.
   of past work; the trust ladder (recorded → verified → proven) currently
   measures file existence and recall counts, not correctness.
 - `re brief`: a Markdown briefing of past work for a model's context.
-- `re guard`: substring rules over recent changes; never gates a build.
+- `re guard`: substring rules over recent changes; gates a build only when
+  asked (`--fail-on alert|warning`); `--json` for machines.
 - `re churn`, `re report`: survival measured over the ledger instead of git,
-  with cost extrapolated from a static price table.
+  with cost extrapolated from a static price table; `re churn --json`, and
+  `--fail-below <percent>` when a team wants a floor of its own choosing.
 - `re mcp`: stdio MCP server with `causari_record`, `causari_recall`,
   `causari_why`; `re mcp --install` prints the client config.
 

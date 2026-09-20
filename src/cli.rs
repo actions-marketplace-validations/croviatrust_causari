@@ -150,6 +150,11 @@ pub struct LogArgs {
 pub struct ShowArgs {
     /// Event id (full or short prefix)
     pub id: String,
+
+    /// Print the event as JSON (every recorded field, including prompt,
+    /// model, tokens, cost and evidence class)
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Args, Debug)]
@@ -271,6 +276,16 @@ pub struct ChurnArgs {
     /// Emit a Markdown summary (for CI / PR comments)
     #[arg(long)]
     pub summary: bool,
+
+    /// Emit the analysis as JSON (per-agent and overall counts)
+    #[arg(long, conflicts_with = "summary")]
+    pub json: bool,
+
+    /// Exit 1 when the overall survival rate of AI-attributed lines is
+    /// below this percentage (0-100). Without it the command never fails
+    /// on the numbers; exit 3 means there is nothing to measure yet.
+    #[arg(long, value_name = "PERCENT")]
+    pub fail_below: Option<f64>,
 }
 
 #[derive(Args, Debug)]
@@ -340,6 +355,15 @@ pub struct GuardArgs {
     /// Emit Markdown summary to stdout (for CI / PR comments)
     #[arg(long)]
     pub summary: bool,
+
+    /// Emit findings as JSON
+    #[arg(long, conflicts_with_all = ["summary", "badge"])]
+    pub json: bool,
+
+    /// Exit 1 when at least one finding of this severity or higher exists
+    /// (`alert` or `warning`). Without it the exit code only reports errors.
+    #[arg(long, value_name = "SEVERITY", value_parser = ["alert", "warning"])]
+    pub fail_on: Option<String>,
 }
 
 #[derive(Args, Debug)]

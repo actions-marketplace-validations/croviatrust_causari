@@ -109,8 +109,18 @@ pub fn run(args: GuardArgs) -> Result<()> {
         return Ok(());
     }
 
+    if args.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&to_json(&items, changes.len(), &source))?
+        );
+        exit_for(&args.fail_on, alerts, warnings);
+        return Ok(());
+    }
+
     if args.summary {
         print_summary(&items, alerts, warnings, &source);
+        exit_for(&args.fail_on, alerts, warnings);
         return Ok(());
     }
 
@@ -168,7 +178,44 @@ pub fn run(args: GuardArgs) -> Result<()> {
         }
     }
 
+    exit_for(&args.fail_on, alerts, warnings);
     Ok(())
+}
+
+/// Honour `--fail-on`: exit 1 when findings reach the requested severity.
+/// Returns normally when the threshold is not met or not requested.
+fn exit_for(fail_on: &Option<String>, alerts: usize, warnings: usize) {
+    let fail = match fail_on.as_deref() {
+        Some("alert") => alerts > 0,
+        Some("warning") => alerts > 0 || warnings > 0,
+        _ => false,
+    };
+    if fail {
+        std::process::exit(1);
+    }
+}
+
+fn to_json(items: &[AlertItem], scanned: usize, source: &Source) -> serde_json::Value {
+    let findings: Vec<serde_json::Value> = items
+        .iter()
+        .map(|i| {
+            serde_json::json!({
+                "id": i.id,
+                "rule": i.rule,
+                "severity": match i.severity { Severity::Alert => "alert", Severity::Warning => "warning" },
+                "detail": i.detail,
+                "agent": i.agent,
+                "message": i.message,
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "source": match source { Source::Causari => "causari", Source::Git => "git" },
+        "scanned": scanned,
+        "alerts": items.iter().filter(|i| matches!(i.severity, Severity::Alert)).count(),
+        "warnings": items.iter().filter(|i| matches!(i.severity, Severity::Warning)).count(),
+        "findings": findings,
+    })
 }
 
 /// Truncate an id for display (handles both long causari ids and short git SHAs).
@@ -501,13 +548,7 @@ fn generate_badge(alerts: usize, warnings: usize) -> String {
 }
 
 fn print_summary(items: &[AlertItem], alerts: usize, warnings: usize, source: &Source) {
-    let status = if alerts > 0 {
-        "❌ failing"
-    } else if warnings > 0 {
-        "⚠️ warnings"
-    } else {
-        "✅ passing"
-    };
+    let status = format!("{alerts} alert(s), {warnings} warning(s)");
     let id_col = match source {
         Source::Causari => "Event",
         Source::Git => "Commit",
@@ -520,11 +561,11 @@ fn print_summary(items: &[AlertItem], alerts: usize, warnings: usize, source: &S
         let short = short_id(&item.id);
         let agent = item.agent.as_deref().unwrap_or("—");
         let sev = match item.severity {
-            Severity::Alert => "🔴",
-            Severity::Warning => "🟡",
+            Severity::Alert => "alert",
+            Severity::Warning => "warning",
         };
         println!(
-            "| `{}` | {} | {} {} | {} |",
+            "| `{}` | {} | {} · {} | {} |",
             short, agent, sev, item.rule, item.detail
         );
     }

@@ -103,7 +103,7 @@ fn report_json(report: &SurvivalReport) -> Result<serde_json::Value> {
 }
 
 pub fn run(args: AuditArgs) -> Result<()> {
-    let (dir, _tmp) = resolve_target(args.target.as_deref())?;
+    let (dir, tmp_clone) = resolve_target(args.target.as_deref())?;
     let opts = AuditOptions {
         allow_shallow: args.allow_shallow,
     };
@@ -119,6 +119,18 @@ pub fn run(args: AuditArgs) -> Result<()> {
         print_summary(&report);
     } else {
         print_terminal(&report);
+        // The audit reads git metadata only. Recording causes from here on
+        // is a different command; say so once, only for the working repo.
+        if tmp_clone.is_none() && !dir.join(".causari").is_dir() {
+            println!();
+            println!(
+                "  {} git metadata says who tagged a commit, not why a line exists.",
+                "next:".bright_black()
+            );
+            println!(
+                "        `re init` starts the ledger here; `re hook claude-code` records Claude Code sessions."
+            );
+        }
     }
 
     if args.badge {
