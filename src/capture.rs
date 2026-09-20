@@ -239,23 +239,13 @@ const MIN_SCORE: f64 = 0.25;
 /// disk almost always appeared first in a model response — that overlap is
 /// the causal fingerprint.
 pub fn correlate(added_lines: &[String], exchanges: &[Exchange]) -> Option<Correlation> {
-    let considered: Vec<&str> = added_lines
-        .iter()
-        .map(|l| l.trim())
-        .filter(|l| l.len() >= MIN_SIGNIFICANT_LEN)
-        .collect();
+    let considered = significant_lines(added_lines);
     if considered.is_empty() {
         return None;
     }
     let mut best: Option<Correlation> = None;
     for ex in exchanges {
-        if ex.response_text.is_empty() {
-            continue;
-        }
-        let matched = considered
-            .iter()
-            .filter(|l| ex.response_text.contains(**l))
-            .count();
+        let matched = count_contained(&considered, &ex.response_text);
         if matched == 0 {
             continue;
         }
@@ -274,6 +264,29 @@ pub fn correlate(added_lines: &[String], exchanges: &[Exchange]) -> Option<Corre
         }
     }
     best.filter(|b| b.score >= MIN_SCORE)
+}
+
+/// The inserted lines worth matching: trimmed and long enough not to occur
+/// in any completion by accident.
+pub fn significant_lines(added_lines: &[String]) -> Vec<&str> {
+    added_lines
+        .iter()
+        .map(|l| l.trim())
+        .filter(|l| l.len() >= MIN_SIGNIFICANT_LEN)
+        .collect()
+}
+
+/// How many of `lines` occur verbatim inside `text`.
+pub fn count_contained(lines: &[&str], text: &str) -> usize {
+    if text.is_empty() {
+        return 0;
+    }
+    lines.iter().filter(|l| text.contains(**l)).count()
+}
+
+/// Does the overlap clear the same bar `correlate` applies?
+pub fn overlap_is_significant(matched: usize, considered: usize) -> bool {
+    considered > 0 && matched as f64 / considered as f64 >= MIN_SCORE
 }
 
 // ---------------------------------------------------------------------------
