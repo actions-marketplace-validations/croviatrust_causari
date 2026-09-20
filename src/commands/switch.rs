@@ -3,7 +3,7 @@ use colored::Colorize;
 
 use crate::cli::SwitchArgs;
 use crate::repo::Repo;
-use crate::snapshot::restore_workspace;
+use crate::snapshot::{plan_restore, restore_workspace};
 use crate::store::Store;
 
 /// `re switch <session> [--no-sync]`
@@ -62,10 +62,11 @@ pub fn run(args: SwitchArgs) -> Result<()> {
                         args.name
                     )
                 })?;
-                // Fail before touching disk if the tree itself is missing.
-                store.read_tree(&snap.tree).with_context(|| {
+                // Fail before touching disk if ANY tree or blob in the graph
+                // is missing/corrupt or a destination path is unsafe.
+                plan_restore(&repo, &snap.tree).with_context(|| {
                     format!(
-                        "tree of session '{}' tip is unreadable; HEAD not moved",
+                        "snapshot of session '{}' tip failed preflight; HEAD not moved, workspace untouched",
                         args.name
                     )
                 })?;

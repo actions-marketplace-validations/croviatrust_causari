@@ -1,10 +1,10 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use colored::Colorize;
 
 use crate::cli::ForkArgs;
 use crate::object::resolve_id;
 use crate::repo::Repo;
-use crate::snapshot::restore_workspace;
+use crate::snapshot::{plan_restore, restore_workspace};
 use crate::store::Store;
 
 /// `re fork <branch-name> [--from <event-id>]`
@@ -38,7 +38,10 @@ pub fn run(args: ForkArgs) -> Result<()> {
     let _lock = repo.lock()?;
     let ev = store.read_event(&from_id)?;
     let snap = store.read_snapshot(&ev.post_snapshot)?;
-    store.read_tree(&snap.tree)?;
+    // Whole-graph preflight: no file is touched and no ref is written if
+    // any object is missing/corrupt or a destination is unsafe.
+    plan_restore(&repo, &snap.tree)
+        .with_context(|| "fork source failed preflight; nothing changed".to_string())?;
     let report = restore_workspace(&repo, &snap.tree)?;
 
     if let Some(parent) = new_ref.parent() {

@@ -30,7 +30,7 @@ pub fn validate_session_name(name: &str) -> Result<()> {
             MAX_SESSION_NAME_LEN
         ));
     }
-    if name == "HEAD" || name == "." || name == ".." {
+    if name == "HEAD" || name == "." || name == ".." || name.ends_with(CAS_GUARD_SUFFIX) {
         return Err(anyhow!("'{}' is a reserved session name", name));
     }
     if name.starts_with('.') || name.starts_with('-') {
@@ -284,6 +284,7 @@ impl Repo {
         expected: Option<&str>,
         event_id: &str,
     ) -> Result<()> {
+        let _cas = RefCasGuard::acquire(&self.session_ref_path(name)?)?;
         let current = self.session_head(name)?;
         if current.as_deref() != expected {
             return Err(anyhow!(
@@ -302,6 +303,13 @@ impl Repo {
 
     /// Compare-and-swap on the current HEAD ref. See [`Self::update_session_if`].
     pub fn update_head_if(&self, expected: Option<&str>, event_id: &str) -> Result<()> {
+        // Guard the file HEAD resolves to, so a CAS through HEAD and a CAS
+        // on the same session by name serialize on the same micro-lock.
+        let target = match self.current_session()? {
+            Some(name) => self.session_ref_path(&name)?,
+            None => self.head_path(),
+        };
+        let _cas = RefCasGuard::acquire(&target)?;
         let current = self.head_event()?;
         if current.as_deref() != expected {
             return Err(anyhow!(
@@ -445,9 +453,131 @@ impl Drop for RepoLock {
     }
 }
 
+/// How long a CAS micro-lock may exist before it is considered abandoned.
+/// The guarded section is a read + compare + write of a 65-byte file; a
+/// guard older than this belongs to a process that died mid-section.
+const CAS_GUARD_EXPIRY: Duration = Duration::from_secs(5);
+/// File-name suffix of a CAS guard; reserved, no session may end with it.
+pub const CAS_GUARD_SUFFIX: &str = ".cas";
+/// Maximum time a CAS caller waits for a contended micro-lock.
+const CAS_GUARD_WAIT: Duration = Duration::from_secs(2);
+
+/// Atomic section for compare-and-swap ref updates.
+///
+/// The repository lock is advisory and can be broken (dead owner, hard
+/// expiry). If that happens while the owner is still alive, two recorders
+/// can both read the same expected tip and both pass the comparison; the
+/// later write then orphans the earlier event. This guard closes that hole:
+/// `<ref>.cas` is created with `create_new` (O_EXCL), which the OS
+/// guarantees to succeed for exactly one caller at a time, and it is held
+/// across compare *and* write. It is deliberately not a replacement for the
+/// repo lock: it only makes the last step atomic.
+#[derive(Debug)]
+struct RefCasGuard {
+    path: PathBuf,
+}
+
+impl RefCasGuard {
+    fn acquire(target: &Path) -> Result<Self> {
+        let mut name = target
+            .file_name()
+            .map(|n| n.to_os_string())
+            .unwrap_or_default();
+        name.push(CAS_GUARD_SUFFIX);
+        let path = target.with_file_name(name);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let start = Instant::now();
+        loop {
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
+                Ok(_) => return Ok(Self { path }),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                    let abandoned = std::fs::metadata(&path)
+                        .and_then(|m| m.modified())
+                        .ok()
+                        .and_then(|m| m.elapsed().ok())
+                        .map(|age| age > CAS_GUARD_EXPIRY)
+                        .unwrap_or(false);
+                    if abandoned {
+                        let _ = std::fs::remove_file(&path);
+                        continue;
+                    }
+                    if start.elapsed() > CAS_GUARD_WAIT {
+                        return Err(anyhow!(
+                            "could not enter compare-and-swap section for {} (guard {} held by another writer)",
+                            target.display(),
+                            path.display()
+                        ));
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(e) => {
+                    return Err(e).with_context(|| format!("creating {}", path.display()));
+                }
+            }
+        }
+    }
+}
+
+impl Drop for RefCasGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cas_guard_is_exclusive_and_released_on_drop() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let target = repo.session_ref_path("main").unwrap();
+        let g1 = RefCasGuard::acquire(&target).unwrap();
+        let err = RefCasGuard::acquire(&target).unwrap_err();
+        assert!(err.to_string().contains("compare-and-swap"), "{}", err);
+        drop(g1);
+        RefCasGuard::acquire(&target).unwrap();
+        assert!(!target.with_file_name("main.cas").exists());
+    }
+
+    #[test]
+    fn cas_serializes_even_without_the_repo_lock() {
+        // Two writers that both bypassed / lost the advisory lock race on
+        // the same session. Exactly one CAS must win; the loser must fail
+        // rather than overwrite.
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        repo.update_session("main", "a".repeat(64).as_str())
+            .unwrap();
+        let expected = "a".repeat(64);
+
+        let ok = std::sync::atomic::AtomicUsize::new(0);
+        let failed = std::sync::atomic::AtomicUsize::new(0);
+        std::thread::scope(|s| {
+            for i in 0..8u8 {
+                let repo = &repo;
+                let expected = expected.as_str();
+                let ok = &ok;
+                let failed = &failed;
+                s.spawn(move || {
+                    let new_id = format!("{:0>64}", i);
+                    match repo.update_session_if("main", Some(expected), &new_id) {
+                        Ok(()) => ok.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
+                        Err(_) => failed.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
+                    };
+                });
+            }
+        });
+        assert_eq!(ok.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(failed.load(std::sync::atomic::Ordering::SeqCst), 7);
+    }
 
     #[test]
     fn init_creates_layout_and_refuses_double_init() {
