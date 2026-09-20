@@ -9,7 +9,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::audit::{SurvivalReport, SurvivalStat, audit_repo};
+use crate::audit::{CAP_CEILING_LINES, IGNORE_REVS_FILE, SurvivalReport, SurvivalStat, audit_repo};
 use crate::cli::AuditArgs;
 
 /// Best-effort temp-clone guard: removes the checkout when the audit is done.
@@ -90,30 +90,19 @@ fn resolve_target(target: Option<&str>) -> Result<(PathBuf, Option<TempClone>)> 
     Ok((dest.clone(), Some(TempClone(dest))))
 }
 
+/// The machine-readable report: every class and agent carries the sums, the
+/// line-weighted rate and the robust figures; `coverage` says how it was
+/// measured.
+fn report_json(report: &SurvivalReport) -> Result<serde_json::Value> {
+    Ok(serde_json::to_value(report)?)
+}
+
 pub fn run(args: AuditArgs) -> Result<()> {
     let (dir, _tmp) = resolve_target(args.target.as_deref())?;
     let report = audit_repo(&dir).context("audit failed")?;
 
     if args.json {
-        serde_json::to_writer_pretty(
-            std::io::stdout(),
-            &serde_json::json!({
-                "total_commits": report.total_commits,
-                "verified": {
-                    "commits": report.verified.commits,
-                    "introduced": report.verified.introduced,
-                    "surviving": report.verified.surviving,
-                    "survival_rate": report.verified.survival_rate(),
-                },
-                "probable": {
-                    "commits": report.probable.commits,
-                    "introduced": report.probable.introduced,
-                    "surviving": report.probable.surviving,
-                    "survival_rate": report.probable.survival_rate(),
-                },
-                "by_agent": report.by_agent,
-            }),
-        )?;
+        serde_json::to_writer_pretty(std::io::stdout(), &report_json(&report)?)?;
         println!();
         return Ok(());
     }
@@ -148,23 +137,8 @@ pub fn run(args: AuditArgs) -> Result<()> {
     }
 
     if args.save {
-        let snapshot = serde_json::json!({
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-            "total_commits": report.total_commits,
-            "verified": {
-                "commits": report.verified.commits,
-                "introduced": report.verified.introduced,
-                "surviving": report.verified.surviving,
-                "survival_rate": report.verified.survival_rate(),
-            },
-            "probable": {
-                "commits": report.probable.commits,
-                "introduced": report.probable.introduced,
-                "surviving": report.probable.surviving,
-                "survival_rate": report.probable.survival_rate(),
-            },
-            "by_agent": report.by_agent,
-        });
+        let mut snapshot = report_json(&report)?;
+        snapshot["timestamp"] = serde_json::json!(chrono::Utc::now().to_rfc3339());
         let path = Path::new(".causari/survival-snapshots.jsonl");
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -203,14 +177,24 @@ fn print_terminal(report: &SurvivalReport) {
 
     if !report.by_agent.is_empty() {
         println!("{}", "By agent (verified only)".bold());
+        println!(
+            "  {:20} {:>7} {:>10} {:>9} {:>8} {:>8} {:>8}",
+            "agent", "commits", "introduced", "survived", "line-wt", "capped", "median"
+        );
         for (agent, stat) in &report.by_agent {
             println!(
-                "  {:20} {:>6} lines, {:>6} survived ({:>5.1}%)",
+                "  {:20} {:>7} {:>10} {:>9} {:>8} {:>8} {:>8}",
                 agent.cyan(),
+                stat.commits,
                 stat.introduced,
                 stat.surviving,
-                stat.survival_rate().unwrap_or(0.0) * 100.0
+                pct(stat.survival_rate()),
+                pct(stat.capped_survival_rate()),
+                pct(stat.median_survival()),
             );
+            if let Some(sentence) = dominance_sentence(stat) {
+                println!("    {sentence}");
+            }
         }
     }
 
@@ -219,14 +203,36 @@ fn print_terminal(report: &SurvivalReport) {
     println!("  · VERIFIED = explicit metadata (trailers, bot author, etc.)");
     println!("  · PROBABLE = weak heuristic; may include human-assisted commits");
     println!("  · UNKNOWN commits are excluded from headline numbers");
+    println!("  · line-wt = Σ surviving / Σ introduced; capped = same, with each commit");
+    println!(
+        "    weighing at most min(p95 of per-commit introduced lines, {} lines);",
+        CAP_CEILING_LINES
+    );
+    println!("    median = median of per-commit rates");
+    if report.coverage.small_sample {
+        println!(
+            "  · Small sample: {} verified commit{} (floor {}). Read the figures as counts.",
+            report.verified.commits,
+            plural(report.verified.commits),
+            report.coverage.sample_floor
+        );
+    }
     println!("  · Only lines from AI-tagged commits are measured; inline completions");
     println!("    (Copilot, Cursor Tab, …) leave no git trace and are invisible here");
+    println!(
+        "  · blame {}{}",
+        report.coverage.blame_flags.join(" "),
+        if report.coverage.ignore_revs_file {
+            format!(" --ignore-revs-file={IGNORE_REVS_FILE}")
+        } else {
+            String::new()
+        }
+    );
     println!("  · A measurement, not a grade: method at https://causari.dev/method");
 }
 
 fn print_summary(report: &SurvivalReport) {
     let v = &report.verified;
-    let rate = v.survival_rate();
 
     // A measurement, not a grade: no colour, no verdict. The reader judges.
     println!("## ∵ causari · AI code survival");
@@ -239,54 +245,81 @@ fn print_summary(report: &SurvivalReport) {
 
     if v.commits > 0 {
         println!(
-            "**Verified AI survival: {:.1}%** ({} of {} lines still at HEAD, {} commit{})",
-            rate.unwrap_or(0.0) * 100.0,
+            "**Verified AI survival: {}** line-weighted ({} of {} lines still at HEAD, {} commit{}) · {} capped · median {}",
+            pct(v.survival_rate()),
             v.surviving,
             v.introduced,
             v.commits,
-            if v.commits == 1 { "" } else { "s" }
+            plural(v.commits),
+            pct(v.capped_survival_rate()),
+            pct(v.median_survival()),
         );
-        if v.commits < 5 {
+        if let Some(sentence) = dominance_sentence(v) {
+            println!();
+            println!("_{sentence}._");
+        }
+        if report.coverage.small_sample {
             println!();
             println!(
-                "_Small sample: {} AI-tagged commit{}. A single commit can dominate this figure; read it as a count, not a rate._",
+                "_Small sample: {} AI-tagged commit{} (floor {}). Read the figures as counts, not rates._",
                 v.commits,
-                if v.commits == 1 { "" } else { "s" }
+                plural(v.commits),
+                report.coverage.sample_floor
             );
         }
         println!();
     }
     if report.probable.commits > 0 {
         println!(
-            "Probable AI-assisted: {} commits, {} introduced, {} survived ({:.1}%).",
+            "Probable AI-assisted: {} commits, {} introduced, {} survived ({} line-weighted · {} capped · median {}).",
             report.probable.commits,
             report.probable.introduced,
             report.probable.surviving,
-            report.probable.survival_rate().unwrap_or(0.0) * 100.0
+            pct(report.probable.survival_rate()),
+            pct(report.probable.capped_survival_rate()),
+            pct(report.probable.median_survival()),
         );
         println!();
     }
 
     if !report.by_agent.is_empty() {
-        println!("| Agent | Introduced | Survived | Survival |");
-        println!("|---|---:|---:|---:|");
+        println!("| Agent | Commits | Introduced | Survived | Line-weighted | Capped | Median |");
+        println!("|---|---:|---:|---:|---:|---:|---:|");
         for (agent, stat) in &report.by_agent {
             println!(
-                "| {} | {} | {} | {:.1}% |",
+                "| {} | {} | {} | {} | {} | {} | {} |",
                 agent,
+                stat.commits,
                 stat.introduced,
                 stat.surviving,
-                stat.survival_rate().unwrap_or(0.0) * 100.0
+                pct(stat.survival_rate()),
+                pct(stat.capped_survival_rate()),
+                pct(stat.median_survival()),
             );
+        }
+        let dominated: Vec<String> = report
+            .by_agent
+            .iter()
+            .filter_map(|(agent, stat)| dominance_sentence(stat).map(|s| format!("{agent}: {s}")))
+            .collect();
+        if !dominated.is_empty() {
+            println!();
+            for line in dominated {
+                println!("_{line}._  ");
+            }
         }
         println!();
     }
 
     println!(
         "<sub>VERIFIED = explicit commit metadata; PROBABLE = heuristic. \
-         Counts lines from AI-tagged commits still attributed to them by `git blame`; \
+         Counts lines from AI-tagged commits still attributed to them by `git blame {}`; \
          inline completions leave no git trace and are not measured. \
-         Method: [causari.dev/method](https://causari.dev/method) · reproduce: `re audit`</sub>"
+         Capped: each commit weighs at most min(p95 of per-commit introduced lines, {} lines); \
+         median: median of per-commit rates. \
+         Method: [causari.dev/method](https://causari.dev/method) · reproduce: `re audit`</sub>",
+        report.coverage.blame_flags.join(" "),
+        CAP_CEILING_LINES,
     );
 }
 
@@ -295,15 +328,47 @@ fn print_class(label: &str, stat: &SurvivalStat) {
         println!("{}: {}", label.bold(), "none detected".bright_black());
         return;
     }
-    let pct = stat.survival_rate().unwrap_or(0.0) * 100.0;
     println!(
-        "{}: {} commits, {} introduced, {} survived ({:.1}%)",
+        "{}: {} commits, {} introduced, {} survived",
         label.bold(),
         stat.commits,
         stat.introduced,
         stat.surviving,
-        pct
     );
+    println!(
+        "  survival {} line-weighted · {} capped · median {}",
+        pct(stat.survival_rate()),
+        pct(stat.capped_survival_rate()),
+        pct(stat.median_survival()),
+    );
+    if let Some(sentence) = dominance_sentence(stat) {
+        println!("  {sentence}");
+    }
+}
+
+/// One plain sentence when a single commit holds at least half of a row's
+/// introduced lines: the row then measures that commit, and the reader
+/// should know before comparing it with anything.
+fn dominance_sentence(stat: &SurvivalStat) -> Option<String> {
+    if !stat.dominated_by_one_commit() {
+        return None;
+    }
+    let share = stat.largest_commit_share()?;
+    Some(format!(
+        "one commit accounts for {:.0}% of introduced lines; this row measures that commit",
+        share * 100.0
+    ))
+}
+
+fn pct(rate: Option<f64>) -> String {
+    match rate {
+        Some(r) => format!("{:.1}%", r * 100.0),
+        None => "n/a".into(),
+    }
+}
+
+fn plural(n: u64) -> &'static str {
+    if n == 1 { "" } else { "s" }
 }
 
 /// Shields-style flat badge: `AI survival | NN.N%`.

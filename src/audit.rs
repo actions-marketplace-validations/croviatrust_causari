@@ -644,15 +644,46 @@ pub fn parse_blame_owners(porcelain: &str) -> Vec<String> {
     owners
 }
 
-/// Aggregated survival numbers for one evidence class.
-#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+/// Version of the measurement method that produced a report. Bumped only
+/// when a number computed from the same repository can change.
+pub const METHOD_VERSION: &str = "v2";
+
+/// Below this many VERIFIED commits a ratio is reported but flagged: one
+/// commit can dominate it.
+pub const SAMPLE_FLOOR: u64 = 5;
+
+/// Per-commit weight cap rule for `capped_survival_rate`: a commit weighs at
+/// most the 95th percentile (nearest rank) of per-commit introduced line
+/// counts within its group, and never more than this many lines. With fewer
+/// than 20 commits the percentile is the largest commit, so only the
+/// absolute ceiling bites.
+pub const CAP_PERCENTILE: f64 = 0.95;
+pub const CAP_CEILING_LINES: u64 = 10_000;
+
+/// Aggregated survival numbers for one evidence class or one agent.
+///
+/// `commits`, `introduced` and `surviving` are plain sums. The per-commit
+/// pairs behind them are kept so the report can also state figures that one
+/// bulk commit cannot dominate: the median per-commit rate, a weight-capped
+/// rate and the share of the largest commit.
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct SurvivalStat {
     pub commits: u64,
     pub introduced: u64,
     pub surviving: u64,
+    /// `(introduced, surviving)` of every commit in this group.
+    pub per_commit: Vec<(u64, u64)>,
 }
 
 impl SurvivalStat {
+    pub fn record(&mut self, introduced: u64, surviving: u64) {
+        self.commits += 1;
+        self.introduced += introduced;
+        self.surviving += surviving;
+        self.per_commit.push((introduced, surviving));
+    }
+
+    /// Line-weighted ratio: Σ surviving / Σ introduced.
     pub fn survival_rate(&self) -> Option<f64> {
         if self.introduced == 0 {
             None
@@ -660,16 +691,135 @@ impl SurvivalStat {
             Some(self.surviving as f64 / self.introduced as f64)
         }
     }
+
+    fn measured(&self) -> impl Iterator<Item = (u64, u64)> + '_ {
+        self.per_commit.iter().copied().filter(|(i, _)| *i > 0)
+    }
+
+    /// Median of per-commit survival rates over commits that introduced at
+    /// least one line.
+    pub fn median_survival(&self) -> Option<f64> {
+        let mut rates: Vec<f64> = self.measured().map(|(i, s)| s as f64 / i as f64).collect();
+        if rates.is_empty() {
+            return None;
+        }
+        rates.sort_by(|a, b| a.total_cmp(b));
+        let n = rates.len();
+        Some(if n % 2 == 1 {
+            rates[n / 2]
+        } else {
+            (rates[n / 2 - 1] + rates[n / 2]) / 2.0
+        })
+    }
+
+    /// The per-commit weight cap in lines (see [`CAP_PERCENTILE`]).
+    pub fn cap_lines(&self) -> Option<u64> {
+        let mut sizes: Vec<u64> = self.measured().map(|(i, _)| i).collect();
+        if sizes.is_empty() {
+            return None;
+        }
+        sizes.sort_unstable();
+        let rank = ((sizes.len() as f64 * CAP_PERCENTILE).ceil() as usize).clamp(1, sizes.len());
+        Some(sizes[rank - 1].min(CAP_CEILING_LINES))
+    }
+
+    /// Line-weighted ratio where no commit weighs more than [`cap_lines`]:
+    /// a commit above the cap contributes `cap × its own rate`.
+    ///
+    /// [`cap_lines`]: SurvivalStat::cap_lines
+    pub fn capped_survival_rate(&self) -> Option<f64> {
+        let cap = self.cap_lines()? as f64;
+        let (num, den) = self.measured().fold((0.0, 0.0), |(num, den), (i, s)| {
+            let weight = (i as f64).min(cap);
+            (num + weight * (s as f64 / i as f64), den + weight)
+        });
+        if den == 0.0 { None } else { Some(num / den) }
+    }
+
+    /// Fraction of introduced lines that come from the single largest commit.
+    pub fn largest_commit_share(&self) -> Option<f64> {
+        if self.introduced == 0 {
+            return None;
+        }
+        let largest = self.measured().map(|(i, _)| i).max().unwrap_or(0);
+        Some(largest as f64 / self.introduced as f64)
+    }
+
+    /// Whether one commit holds at least half of the introduced lines: the
+    /// row then measures that commit rather than the group.
+    pub fn dominated_by_one_commit(&self) -> bool {
+        self.largest_commit_share().is_some_and(|s| s >= 0.5)
+    }
+}
+
+/// The serialized shape of a `SurvivalStat`: sums plus derived figures, so
+/// JSON, snapshots and the data workflow all see the same set of fields.
+#[derive(serde::Serialize)]
+struct SurvivalStatView {
+    commits: u64,
+    introduced: u64,
+    surviving: u64,
+    survival_rate: Option<f64>,
+    median_survival: Option<f64>,
+    capped_survival_rate: Option<f64>,
+    cap_lines: Option<u64>,
+    largest_commit_share: Option<f64>,
+}
+
+impl serde::Serialize for SurvivalStat {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        SurvivalStatView {
+            commits: self.commits,
+            introduced: self.introduced,
+            surviving: self.surviving,
+            survival_rate: self.survival_rate(),
+            median_survival: self.median_survival(),
+            capped_survival_rate: self.capped_survival_rate(),
+            cap_lines: self.cap_lines(),
+            largest_commit_share: self.largest_commit_share(),
+        }
+        .serialize(serializer)
+    }
+}
+
+/// What the measurement covered and how: printed next to every number so a
+/// reader can tell two runs apart before comparing them.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Coverage {
+    pub method: &'static str,
+    pub blame_flags: Vec<&'static str>,
+    /// A usable `.git-blame-ignore-revs` was passed to blame.
+    pub ignore_revs_file: bool,
+    /// The repository is a shallow clone: introduced counts are truncated
+    /// and blame stops at the shallow boundary.
+    pub shallow: bool,
+    pub sample_floor: u64,
+    /// Fewer VERIFIED commits than `sample_floor`.
+    pub small_sample: bool,
+}
+
+impl Default for Coverage {
+    fn default() -> Self {
+        Coverage {
+            method: METHOD_VERSION,
+            blame_flags: BLAME_FLAGS.to_vec(),
+            ignore_revs_file: false,
+            shallow: false,
+            sample_floor: SAMPLE_FLOOR,
+            small_sample: true,
+        }
+    }
 }
 
 /// The full audit result.
-#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Default, serde::Serialize)]
 pub struct SurvivalReport {
     pub total_commits: u64,
     pub verified: SurvivalStat,
     pub probable: SurvivalStat,
     /// Per-agent verified stats.
     pub by_agent: BTreeMap<String, SurvivalStat>,
+    pub coverage: Coverage,
 }
 
 /// Pure aggregation: given per-commit introduced counts, detections, and the
@@ -703,25 +853,21 @@ pub fn compute_survival(
 
         match class {
             EvidenceClass::Verified => {
-                report.verified.commits += 1;
-                report.verified.introduced += introduced;
-                report.verified.surviving += surviving;
+                report.verified.record(*introduced, surviving);
                 if let Some(d) = det {
-                    let entry = report.by_agent.entry(d.agent.clone()).or_default();
-                    entry.commits += 1;
-                    entry.introduced += introduced;
-                    entry.surviving += surviving;
+                    report
+                        .by_agent
+                        .entry(d.agent.clone())
+                        .or_default()
+                        .record(*introduced, surviving);
                 }
             }
-            EvidenceClass::Probable => {
-                report.probable.commits += 1;
-                report.probable.introduced += introduced;
-                report.probable.surviving += surviving;
-            }
+            EvidenceClass::Probable => report.probable.record(*introduced, surviving),
             EvidenceClass::Unknown => {}
         }
     }
 
+    report.coverage.small_sample = report.verified.commits < SAMPLE_FLOOR;
     report
 }
 
@@ -858,15 +1004,12 @@ pub fn ignore_revs_file(dir: &Path) -> Option<std::path::PathBuf> {
 }
 
 /// Blame every tracked text file at HEAD, returning the owning commit of each
-/// surviving line.
-pub fn blame_head(dir: &Path) -> Result<Vec<String>> {
-    let ignore_revs = ignore_revs_file(dir);
+/// surviving line. `ignore_revs` is the resolved [`ignore_revs_file`].
+pub fn blame_head(dir: &Path, ignore_revs: Option<&Path>) -> Result<Vec<String>> {
     let mut base_args: Vec<&str> = vec!["blame"];
     base_args.extend(BLAME_FLAGS);
     base_args.push("--line-porcelain");
-    let ignore_flag = ignore_revs
-        .as_ref()
-        .map(|p| format!("--ignore-revs-file={}", p.display()));
+    let ignore_flag = ignore_revs.map(|p| format!("--ignore-revs-file={}", p.display()));
     if let Some(flag) = ignore_flag.as_deref() {
         base_args.push(flag);
     }
@@ -953,8 +1096,11 @@ pub fn audit_repo(dir: &Path) -> Result<SurvivalReport> {
         with_intro.push((c, introduced));
     }
 
-    let head_owners = blame_head(dir)?;
-    Ok(compute_survival(&with_intro, &detections, &head_owners))
+    let ignore_revs = ignore_revs_file(dir);
+    let head_owners = blame_head(dir, ignore_revs.as_deref())?;
+    let mut report = compute_survival(&with_intro, &detections, &head_owners);
+    report.coverage.ignore_revs_file = ignore_revs.is_some();
+    Ok(report)
 }
 
 // ---------------------------------------------------------------------------
@@ -1552,7 +1698,105 @@ mod tests {
 
     #[test]
     fn survival_rate_is_none_when_nothing_introduced() {
-        assert_eq!(SurvivalStat::default().survival_rate(), None);
+        let stat = SurvivalStat::default();
+        assert_eq!(stat.survival_rate(), None);
+        assert_eq!(stat.median_survival(), None);
+        assert_eq!(stat.capped_survival_rate(), None);
+        assert_eq!(stat.cap_lines(), None);
+        assert_eq!(stat.largest_commit_share(), None);
+        // A commit with no text lines has no rate and does not enter the
+        // median or the cap.
+        let mut stat = SurvivalStat::default();
+        stat.record(0, 0);
+        assert_eq!(stat.commits, 1);
+        assert_eq!(stat.median_survival(), None);
+    }
+
+    fn approx(a: Option<f64>, b: f64) -> bool {
+        a.is_some_and(|a| (a - b).abs() < 1e-9)
+    }
+
+    #[test]
+    fn median_and_capped_rate_resist_one_bulk_commit() {
+        // 19 ordinary commits at 90 %, one 5,000-line drop at 1 %.
+        let mut stat = SurvivalStat::default();
+        for _ in 0..19 {
+            stat.record(100, 90);
+        }
+        stat.record(5000, 50);
+
+        assert!(approx(stat.survival_rate(), 1760.0 / 6900.0));
+        assert!(approx(stat.median_survival(), 0.9));
+        // p95 by nearest rank over 20 sizes is the 19th: 100 lines.
+        assert_eq!(stat.cap_lines(), Some(100));
+        assert!(approx(stat.capped_survival_rate(), 1711.0 / 2000.0));
+        assert!(approx(stat.largest_commit_share(), 5000.0 / 6900.0));
+        assert!(stat.dominated_by_one_commit());
+    }
+
+    #[test]
+    fn cap_falls_back_to_the_absolute_ceiling_on_small_samples() {
+        // With fewer than 20 commits the 95th percentile is the largest
+        // commit itself; only the 10,000-line ceiling limits its weight.
+        let mut stat = SurvivalStat::default();
+        for _ in 0..4 {
+            stat.record(100, 90);
+        }
+        stat.record(100_000, 1000);
+        assert_eq!(stat.cap_lines(), Some(CAP_CEILING_LINES));
+        assert!(approx(stat.capped_survival_rate(), 460.0 / 10_400.0));
+        // A group with only small commits: the cap is its largest commit and
+        // the capped rate equals the line-weighted one.
+        let mut small = SurvivalStat::default();
+        small.record(10, 5);
+        small.record(30, 30);
+        assert_eq!(small.cap_lines(), Some(30));
+        assert!(approx(
+            small.capped_survival_rate(),
+            small.survival_rate().unwrap()
+        ));
+        assert!(approx(small.median_survival(), 0.75));
+        assert!(small.dominated_by_one_commit());
+    }
+
+    #[test]
+    fn serialized_stat_carries_derived_fields() {
+        let mut stat = SurvivalStat::default();
+        stat.record(10, 5);
+        let v = serde_json::to_value(&stat).unwrap();
+        for key in [
+            "commits",
+            "introduced",
+            "surviving",
+            "survival_rate",
+            "median_survival",
+            "capped_survival_rate",
+            "cap_lines",
+            "largest_commit_share",
+        ] {
+            assert!(v.get(key).is_some(), "missing {key}");
+        }
+        assert_eq!(v["survival_rate"], 0.5);
+        assert!(v.get("per_commit").is_none());
+    }
+
+    #[test]
+    fn coverage_states_method_flags_and_sample_size() {
+        let c = meta(&"a".repeat(40), "x", "x@x", "m");
+        let mut detections = HashMap::new();
+        detections.insert(c.hash.clone(), detection("claude-code", 1.0));
+        let owners = vec![c.hash.clone()];
+        let report = compute_survival(&[(c, 3)], &detections, &owners);
+        assert_eq!(report.coverage.method, "v2");
+        assert_eq!(report.coverage.blame_flags, vec!["-w", "-M", "-C"]);
+        assert_eq!(report.coverage.sample_floor, 5);
+        assert!(report.coverage.small_sample);
+        assert!(!report.coverage.shallow);
+
+        let v = serde_json::to_value(&report).unwrap();
+        assert_eq!(v["coverage"]["method"], "v2");
+        assert_eq!(v["verified"]["survival_rate"], 1.0 / 3.0);
+        assert_eq!(v["by_agent"]["claude-code"]["median_survival"], 1.0 / 3.0);
     }
 
     // -- end-to-end on a real synthetic git repo -------------------------------
@@ -1702,6 +1946,8 @@ mod tests {
         let with = audit_repo(dir).unwrap();
         assert_eq!(with.verified.introduced, 2);
         assert_eq!(with.verified.surviving, 2);
+        assert!(with.coverage.ignore_revs_file);
+        assert!(!without.coverage.ignore_revs_file);
     }
 
     #[test]
