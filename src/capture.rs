@@ -21,6 +21,13 @@ use crate::repo::Repo;
 /// A single LLM request/response captured by `re proxy`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Exchange {
+    /// Unique capture id (128 random bits, hex), assigned by the proxy.
+    /// Two parallel deterministic calls can finish in the same millisecond
+    /// with identical prompt and completion; they are still two billable
+    /// exchanges and must be attributable separately. Absent on lines
+    /// written by older binaries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     /// Unix epoch milliseconds when the response completed.
     pub ts_ms: u64,
     /// Best-effort agent identity (from the User-Agent header).
@@ -85,8 +92,20 @@ pub struct ExchangeClaim {
     pub ts_ms: u64,
 }
 
-/// Stable identity of a captured exchange (it carries no id of its own).
+/// Fresh capture id for a new exchange.
+pub fn new_exchange_id() -> Result<String> {
+    let mut raw = [0u8; 16];
+    getrandom::fill(&mut raw)
+        .map_err(|e| anyhow::anyhow!("secure randomness unavailable: {}", e))?;
+    Ok(hex::encode(raw))
+}
+
+/// Identity used by the claims ledger. The capture id when present;
+/// otherwise (legacy lines) a digest of timestamp, prompt and completion.
 pub fn exchange_key(e: &Exchange) -> String {
+    if let Some(id) = &e.id {
+        return format!("id:{}", id);
+    }
     let mut h = blake3::Hasher::new();
     h.update(&e.ts_ms.to_le_bytes());
     h.update(e.prompt.as_deref().unwrap_or("").as_bytes());
@@ -446,6 +465,7 @@ mod tests {
 
     fn ex(ts_ms: u64, text: &str) -> Exchange {
         Exchange {
+            id: None,
             ts_ms,
             agent: None,
             model: Some("gpt-4o".into()),
@@ -511,6 +531,26 @@ mod tests {
 
         // Same timestamp, different content: a different exchange.
         assert_ne!(exchange_key(&a), exchange_key(&ex(1_000, "other")));
+
+        // Two parallel calls, same ms, same prompt, same completion: with
+        // capture ids they are still two exchanges and claiming one leaves
+        // the other attributable.
+        let mut c1 = ex(3_000, "identical");
+        let mut c2 = ex(3_000, "identical");
+        assert_eq!(
+            exchange_key(&c1),
+            exchange_key(&c2),
+            "legacy fallback collides"
+        );
+        c1.id = Some(new_exchange_id().unwrap());
+        c2.id = Some(new_exchange_id().unwrap());
+        assert_ne!(exchange_key(&c1), exchange_key(&c2));
+        append_jsonl(&exchanges_path(&repo), &c1).unwrap();
+        append_jsonl(&exchanges_path(&repo), &c2).unwrap();
+        claim_exchange(&repo, &c1, "evt-2").unwrap();
+        let left = load_unclaimed_exchanges_since(&repo, 3_000).unwrap();
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].id, c2.id);
     }
 
     #[test]

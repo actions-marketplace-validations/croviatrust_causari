@@ -295,6 +295,7 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
     };
     let cost_usd = estimate_cost(model.as_deref(), tokens_in, tokens_out);
     let exchange = Exchange {
+        id: Some(crate::capture::new_exchange_id()?),
         ts_ms: now_ms(),
         agent: user_agent,
         model: model.clone(),
