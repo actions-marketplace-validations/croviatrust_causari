@@ -46,42 +46,193 @@ pub struct CommitMeta {
     pub notes: String,
 }
 
-/// Map a free-form agent/model hint (trailer value, tool name, `~handle`) to
-/// Causari's canonical agent names. Unknown hints keep their first token.
-pub fn canonical_agent(hint: &str) -> String {
-    let h = hint.trim().trim_start_matches('~').to_lowercase();
+/// Canonical name of a vendor whose product name appears anywhere in the
+/// lowercased hint. Used for values the author chose to be about a tool
+/// (trailer values, tool ids), never for people's names.
+fn known_agent(h: &str) -> Option<&'static str> {
     if h.contains("claude") || h.contains("anthropic") {
-        "claude-code".into()
+        Some("claude-code")
     } else if h.contains("copilot") {
-        "github-copilot".into()
+        Some("github-copilot")
     } else if h.contains("cursor") {
-        "cursor".into()
+        Some("cursor")
     } else if h.contains("aider") {
-        "aider".into()
+        Some("aider")
     } else if h.contains("codex")
         || h.contains("chatgpt")
         || h.contains("gpt")
         || h.contains("openai")
     {
-        "openai-codex".into()
+        Some("openai-codex")
     } else if h.contains("gemini") {
-        "gemini".into()
+        Some("gemini")
     } else if h.contains("devin") {
-        "devin".into()
+        Some("devin")
     } else if h.contains("openhands") {
-        "openhands".into()
+        Some("openhands")
     } else if h.contains("jules") {
-        "jules".into()
+        Some("jules")
     } else {
-        let token: String = h
-            .split(|c: char| c.is_whitespace() || c == '<' || c == '(' || c == '/')
-            .next()
-            .unwrap_or("ai")
-            .chars()
-            .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_' || *c == '.')
-            .collect();
-        if token.is_empty() { "ai".into() } else { token }
+        None
     }
+}
+
+fn agent_slug_chars(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.'
+}
+
+/// Map a free-form agent/model hint (trailer value, tool name, `~handle`) to
+/// Causari's canonical agent names. Unknown hints keep their first token.
+pub fn canonical_agent(hint: &str) -> String {
+    let h = hint.trim().trim_start_matches('~').to_lowercase();
+    if let Some(agent) = known_agent(&h) {
+        return agent.into();
+    }
+    let token: String = h
+        .split(|c: char| c.is_whitespace() || c == '<' || c == '(' || c == '/')
+        .next()
+        .unwrap_or("ai")
+        .chars()
+        .filter(|c| agent_slug_chars(*c))
+        .collect();
+    if token.is_empty() { "ai".into() } else { token }
+}
+
+/// Agent named by an `Assisted-by:` trailer (Linux kernel, Fedora, LLVM,
+/// OpenTelemetry convention). The value is a tool name, optionally followed
+/// by a model in parentheses or after a colon: `Claude Code (claude-sonnet-4)`,
+/// `Claude:claude-3-5-sonnet`, `Cursor`. The tool's words, lowercased and
+/// hyphen-joined, form the agent; known vendors map to their canonical name.
+pub fn assisted_by_agent(value: &str) -> String {
+    let tool = value
+        .split(['(', ':', '<', ',', '/', '['])
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_lowercase();
+    if let Some(agent) = known_agent(&tool) {
+        return agent.into();
+    }
+    let words: Vec<String> = tool
+        .split_whitespace()
+        .map(|w| {
+            w.chars()
+                .filter(|c| agent_slug_chars(*c))
+                .collect::<String>()
+        })
+        .filter(|w| !w.is_empty())
+        // "v2", "2.1": a version suffix is not part of the tool's name.
+        .take_while(|w| !w.starts_with(|c: char| c.is_ascii_digit()) && !is_version_token(w))
+        .collect();
+    if words.is_empty() {
+        "ai".into()
+    } else {
+        words.join("-")
+    }
+}
+
+fn is_version_token(w: &str) -> bool {
+    let mut chars = w.chars();
+    chars.next() == Some('v') && chars.all(|c| c.is_ascii_digit() || c == '.')
+}
+
+/// One trailer of a commit message, key lowercased.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Trailer {
+    pub key: String,
+    pub value: String,
+    /// The trailer's first line as written, for evidence strings.
+    pub line: String,
+}
+
+/// `Token: value` with token `[A-Za-z0-9-]+`; the separator must be followed
+/// by whitespace or end the line, so `https://…` is prose, not a trailer.
+fn split_trailer_line(line: &str) -> Option<(&str, &str)> {
+    let (token, rest) = line.split_once(':')?;
+    let token = token.trim_end();
+    if token.is_empty()
+        || !token.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        || !(rest.is_empty() || rest.starts_with([' ', '\t']))
+    {
+        return None;
+    }
+    Some((token, rest.trim()))
+}
+
+/// Trailers of a commit message under git's own rules (`git
+/// interpret-trailers`): only the last paragraph is examined and the subject
+/// paragraph never is. Every line must be a trailer or an indented
+/// continuation of one, unless the paragraph carries a git-generated
+/// trailer (`Signed-off-by`, cherry-pick marker) and is at least one quarter
+/// trailers — then its non-trailer lines are skipped. `Executed-By: CI
+/// pipeline` in body prose is therefore not a trailer.
+pub fn parse_trailers(message: &str) -> Vec<Trailer> {
+    let lines: Vec<&str> = message.lines().map(|l| l.trim_end_matches('\r')).collect();
+    let end = lines
+        .iter()
+        .rposition(|l| !l.trim().is_empty())
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    // Paragraph boundary: the last blank line. None means the message is a
+    // single paragraph, i.e. subject only.
+    let Some(blank) = lines[..end].iter().rposition(|l| l.trim().is_empty()) else {
+        return Vec::new();
+    };
+    let block = &lines[blank + 1..end];
+
+    let mut trailers: Vec<Trailer> = Vec::new();
+    let mut non_trailer_lines = 0usize;
+    let mut git_generated = false;
+    for line in block {
+        if line.starts_with([' ', '\t']) {
+            match trailers.last_mut() {
+                Some(t) => {
+                    t.value.push(' ');
+                    t.value.push_str(line.trim());
+                }
+                None => non_trailer_lines += 1,
+            }
+            continue;
+        }
+        if line.starts_with("(cherry picked from commit ") {
+            git_generated = true;
+            non_trailer_lines += 1;
+            continue;
+        }
+        match split_trailer_line(line) {
+            Some((key, value)) => {
+                let key = key.to_lowercase();
+                git_generated |= key == "signed-off-by";
+                trailers.push(Trailer {
+                    key,
+                    value: value.to_string(),
+                    line: line.trim().to_string(),
+                });
+            }
+            None => non_trailer_lines += 1,
+        }
+    }
+
+    let is_block = !trailers.is_empty()
+        && (non_trailer_lines == 0 || (git_generated && trailers.len() * 3 >= non_trailer_lines));
+    if is_block { trailers } else { Vec::new() }
+}
+
+/// True when `word` occurs in `text` delimited by non-alphanumerics: "aider"
+/// matches "aider <aider@aider.chat>" but not "raider"; "cursor" matches
+/// "@cursor.com" but not "precursor".
+fn contains_word(text: &str, word: &str) -> bool {
+    text.match_indices(word).any(|(i, _)| {
+        let before = text[..i]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !c.is_alphanumeric());
+        let after = text[i + word.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !c.is_alphanumeric());
+        before && after
+    })
 }
 
 /// Agent named in a git-ai authorship log (`refs/notes/ai`, schema
@@ -111,12 +262,15 @@ fn git_ai_agent(notes: &str) -> Option<String> {
 
 /// Classify a commit as AI-authored (or not) from its metadata alone.
 ///
-/// Detectors are ordered strongest-first; the first match wins. Signals:
-/// - `Co-Authored-By: Claude`      -> claude-code, verified (1.0)
-/// - `Co-Authored-By: ... Copilot` -> github-copilot, verified (1.0)
-/// - aider author/committer marker -> aider, verified (0.95)
-/// - known bot author emails       -> named bot, verified (0.95)
-/// - `(aider)` suffix in message   -> aider, probable (0.7)
+/// Detectors are ordered strongest-first; the first match wins. Trailers are
+/// read from the git trailer block only (see [`parse_trailers`]). Signals:
+/// - git-ai note under `refs/notes/ai`         -> named tool, verified (1.0)
+/// - `Drafted-With`, `AI-Agent`, `Assisted-by`… -> named tool, verified (1.0)
+/// - `Co-Authored-By: Claude`                  -> claude-code, verified (1.0)
+/// - `Co-Authored-By: ... Copilot`             -> github-copilot, verified (1.0)
+/// - aider author/committer marker             -> aider, verified (0.95)
+/// - known bot authors (`copilot-swe-agent`…)  -> named bot, verified (0.95)
+/// - `(aider)` suffix in message               -> aider, probable (0.7)
 pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
     let msg_lower = commit.message.to_lowercase();
     let author_lower = commit.author_name.to_lowercase();
@@ -131,33 +285,38 @@ pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
         });
     }
 
+    // Only the trailer block counts: `Key: value` in body prose is prose.
+    let trailers = parse_trailers(&commit.message);
+
     // Structured provenance trailers from emerging standards:
     // IETF draft-morrison identity-attributed commits (`Drafted-With`,
-    // `Executed-By`) and the `AI-*` trailer family (`AI-Model`, `AI-Agent`,
-    // `AI-Session-ID`, `AI-Provenance`).
-    let mut ai_marker: Option<String> = None;
-    for line in commit.message.lines() {
-        let trimmed = line.trim();
-        let Some((key, value)) = trimmed.split_once(':') else {
-            continue;
-        };
-        let key = key.trim().to_lowercase();
-        let value = value.trim();
-        if value.is_empty() || is_negative_disclosure(value) {
+    // `Executed-By`), the `AI-*` trailer family (`AI-Model`, `AI-Agent`,
+    // `AI-Session-ID`, `AI-Provenance`) and `Assisted-by` (Linux kernel,
+    // Fedora, LLVM, OpenTelemetry).
+    let mut ai_marker: Option<&Trailer> = None;
+    for t in &trailers {
+        if t.value.is_empty() || is_negative_disclosure(&t.value) {
             continue;
         }
-        match key.as_str() {
+        match t.key.as_str() {
             "drafted-with" | "executed-by" | "ai-model" | "ai-agent" | "ai-tool" => {
                 return Some(Detection {
-                    agent: canonical_agent(value),
+                    agent: canonical_agent(&t.value),
                     confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
+                    evidence: vec![format!("trailer: {}", t.line)],
+                });
+            }
+            "assisted-by" => {
+                return Some(Detection {
+                    agent: assisted_by_agent(&t.value),
+                    confidence: 1.0,
+                    evidence: vec![format!("trailer: {}", t.line)],
                 });
             }
             "ai-session-id" | "ai-provenance" | "ai-generated" | "ai-assisted"
                 if ai_marker.is_none() =>
             {
-                ai_marker = Some(trimmed.to_string());
+                ai_marker = Some(t);
             }
             _ => {}
         }
@@ -166,88 +325,23 @@ pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
         return Some(Detection {
             agent: "ai".into(),
             confidence: 1.0,
-            evidence: vec![format!("trailer: {}", marker)],
+            evidence: vec![format!("trailer: {}", marker.line)],
         });
     }
 
-    // Trailer-based detection: scan message lines for co-author trailers.
-    for line in commit.message.lines() {
-        let trimmed = line.trim();
-        let lower = trimmed.to_lowercase();
-        if let Some(rest) = lower.strip_prefix("co-authored-by:") {
-            let rest = rest.trim();
-            if rest.starts_with("claude") || rest.contains("noreply@anthropic.com") {
-                return Some(Detection {
-                    agent: "claude-code".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if rest.contains("copilot") {
-                return Some(Detection {
-                    agent: "github-copilot".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            // Names below collide with common human names (Devin, Jules,
-            // Gemini as a handle, "precursor"): only attribute when the
-            // identity is a vendor or bot address.
-            let vendor = coauthor_is_vendor_identity(rest);
-            if vendor && rest.contains("cursor") {
-                return Some(Detection {
-                    agent: "cursor".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if rest.contains("aider") {
-                return Some(Detection {
-                    agent: "aider".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if rest.contains("codex") || rest.contains("chatgpt") {
-                return Some(Detection {
-                    agent: "openai-codex".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if vendor && rest.contains("gemini") {
-                return Some(Detection {
-                    agent: "gemini".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if rest.contains("openhands") {
-                return Some(Detection {
-                    agent: "openhands".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if vendor && rest.contains("devin") {
-                return Some(Detection {
-                    agent: "devin".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
-            if vendor && rest.contains("jules") {
-                return Some(Detection {
-                    agent: "jules".into(),
-                    confidence: 1.0,
-                    evidence: vec![format!("trailer: {}", trimmed)],
-                });
-            }
+    // Co-author trailers naming an agent identity.
+    for t in trailers.iter().filter(|t| t.key == "co-authored-by") {
+        if let Some(agent) = coauthor_agent(&t.value.to_lowercase()) {
+            return Some(Detection {
+                agent: agent.into(),
+                confidence: 1.0,
+                evidence: vec![format!("trailer: {}", t.line)],
+            });
         }
     }
 
     // Author-identity detection.
-    if author_lower.contains("(aider)") || email_lower.contains("aider") {
+    if author_lower.contains("(aider)") || contains_word(&email_lower, "aider") {
         return Some(Detection {
             agent: "aider".into(),
             confidence: 0.95,
@@ -260,6 +354,17 @@ pub fn detect_ai(commit: &CommitMeta) -> Option<Detection> {
     if email_lower == "noreply@anthropic.com" || author_lower == "claude" {
         return Some(Detection {
             agent: "claude-code".into(),
+            confidence: 0.95,
+            evidence: vec![format!(
+                "author: {} <{}>",
+                commit.author_name, commit.author_email
+            )],
+        });
+    }
+    // GitHub Copilot coding agent commits as its own bot account.
+    if author_lower.contains("copilot-swe-agent") || email_lower.contains("copilot-swe-agent") {
+        return Some(Detection {
+            agent: "copilot".into(),
             confidence: 0.95,
             evidence: vec![format!(
                 "author: {} <{}>",
@@ -338,6 +443,54 @@ fn is_negative_disclosure(value: &str) -> bool {
         v.as_str(),
         "no" | "none" | "false" | "0" | "n/a" | "na" | "human" | "manual" | "not used"
     )
+}
+
+/// Agent named by a lowercased `Co-authored-by` value (`name <email>`), if
+/// any. Product names are matched as whole words so "raider" and "precursor"
+/// are people. Names that double as human names (Devin, Jules, Gemini,
+/// Cursor, Claude) additionally need a vendor or bot address, or — for
+/// Claude — a display name that is the tool's ("Claude", "Claude Code",
+/// "Claude Opus 4"), not a person's.
+fn coauthor_agent(rest: &str) -> Option<&'static str> {
+    let name = rest.split('<').next().unwrap_or("").trim();
+    let vendor = coauthor_is_vendor_identity(rest);
+    let claude_name = name == "claude"
+        || [
+            "claude code",
+            "claude opus",
+            "claude sonnet",
+            "claude haiku",
+        ]
+        .iter()
+        .any(|p| name.starts_with(p));
+    if rest.contains("noreply@anthropic.com") || claude_name {
+        return Some("claude-code");
+    }
+    if contains_word(rest, "copilot") {
+        return Some("github-copilot");
+    }
+    if vendor && contains_word(rest, "cursor") {
+        return Some("cursor");
+    }
+    if contains_word(rest, "aider") {
+        return Some("aider");
+    }
+    if contains_word(rest, "codex") || contains_word(rest, "chatgpt") {
+        return Some("openai-codex");
+    }
+    if vendor && contains_word(rest, "gemini") {
+        return Some("gemini");
+    }
+    if contains_word(rest, "openhands") {
+        return Some("openhands");
+    }
+    if vendor && contains_word(rest, "devin") {
+        return Some("devin");
+    }
+    if vendor && contains_word(rest, "jules") {
+        return Some("jules");
+    }
+    None
 }
 
 /// True when a lowercased `Co-authored-by` value (`name <email>`) points at
@@ -862,6 +1015,133 @@ mod tests {
             assert_eq!(d.agent, agent, "{trailer}");
             assert_eq!(classify(Some(&d)), EvidenceClass::Verified);
         }
+    }
+
+    #[test]
+    fn trailer_block_follows_git_rules() {
+        // Subject only: no trailer block.
+        assert!(parse_trailers("Co-Authored-By: Claude <noreply@anthropic.com>").is_empty());
+        // Last paragraph of trailers, with a folded continuation line.
+        let t =
+            parse_trailers("fix\n\nbody prose\n\nSigned-off-by: A <a@x>\nAI-Agent: Some\n  Tool\n");
+        assert_eq!(t.len(), 2);
+        assert_eq!(t[1].key, "ai-agent");
+        assert_eq!(t[1].value, "Some Tool");
+        // A prose line in the last paragraph disqualifies it...
+        assert!(parse_trailers("fix\n\nExecuted-By: CI pipeline\nruns nightly.").is_empty());
+        // ...unless git-generated trailers are present (≥ 25 % trailers).
+        let t = parse_trailers("fix\n\n(cherry picked from commit abc)\nSigned-off-by: A <a@x>\n");
+        assert_eq!(t.len(), 1);
+        // A URL is prose, not a `https:` trailer.
+        assert!(parse_trailers("fix\n\nhttps://example.com/issue/1").is_empty());
+        // Trailers followed by another paragraph are body text.
+        assert!(parse_trailers("fix\n\nAI-Agent: Cursor\n\nMore notes.").is_empty());
+    }
+
+    #[test]
+    fn key_value_in_body_prose_is_not_a_trailer() {
+        for message in [
+            "deploy\n\nExecuted-By: CI pipeline after every merge.\nSee the runbook.",
+            "deploy\n\nExecuted-By: CI pipeline\n\nRolled out to staging first.",
+            "deploy\nAI-Agent: Cursor",
+        ] {
+            let c = meta("3".repeat(40).as_str(), "Dev", "dev@example.com", message);
+            assert!(detect_ai(&c).is_none(), "misdetected: {message:?}");
+        }
+    }
+
+    #[test]
+    fn detects_assisted_by_trailer_as_verified() {
+        for (value, agent) in [
+            ("Claude Code (claude-sonnet-4)", "claude-code"),
+            ("Claude:claude-3-5-sonnet-20241022", "claude-code"),
+            ("Cursor", "cursor"),
+            ("GitHub Copilot", "github-copilot"),
+            ("Windsurf Cascade (gpt-5)", "windsurf-cascade"),
+            ("Windsurf Cascade v2", "windsurf-cascade"),
+        ] {
+            let c = meta(
+                "5".repeat(40).as_str(),
+                "Dev",
+                "dev@example.com",
+                &format!("fix\n\nAssisted-by: {value}\nSigned-off-by: Dev <dev@example.com>"),
+            );
+            let d = detect_ai(&c).unwrap_or_else(|| panic!("{value} not detected"));
+            assert_eq!(d.agent, agent, "{value}");
+            assert_eq!(classify(Some(&d)), EvidenceClass::Verified);
+            assert!(d.evidence[0].starts_with("trailer: Assisted-by:"));
+        }
+        let c = meta(
+            "5".repeat(40).as_str(),
+            "Dev",
+            "dev@example.com",
+            "fix\n\nAssisted-by: none",
+        );
+        assert!(detect_ai(&c).is_none());
+    }
+
+    #[test]
+    fn detects_copilot_coding_agent_author_as_verified() {
+        let c = meta(
+            "6".repeat(40).as_str(),
+            "copilot-swe-agent[bot]",
+            "198982749+Copilot@users.noreply.github.com",
+            "Fix flaky test\n\nCo-authored-by: Tarik <tarik@example.com>",
+        );
+        let d = detect_ai(&c).expect("should detect");
+        assert_eq!(d.agent, "copilot");
+        assert_eq!(classify(Some(&d)), EvidenceClass::Verified);
+        assert!(d.evidence[0].starts_with("author:"));
+    }
+
+    #[test]
+    fn coauthor_names_containing_agent_substrings_are_humans() {
+        for trailer in [
+            "Co-Authored-By: Raider Bot <raider@example.com>",
+            "Co-Authored-By: Precursor Team <team@precursor.dev>",
+            "Co-Authored-By: Claude Dupont <claude.dupont@example.fr>",
+            "Co-Authored-By: Codexia Ltd <ops@codexia.example>",
+        ] {
+            let c = meta(
+                "1".repeat(40).as_str(),
+                "Tarik",
+                "tarik@example.com",
+                &format!("pair session\n\n{trailer}"),
+            );
+            assert!(detect_ai(&c).is_none(), "misdetected: {trailer}");
+        }
+        // Whole-word product names still match, whatever surrounds them.
+        for (trailer, agent) in [
+            ("Co-Authored-By: aider (gpt-4o) <aider@aider.chat>", "aider"),
+            (
+                "Co-Authored-By: Copilot <175728472+Copilot@users.noreply.github.com>",
+                "github-copilot",
+            ),
+            (
+                "Co-Authored-By: Claude Opus 4.1 <noreply@anthropic.com>",
+                "claude-code",
+            ),
+        ] {
+            let c = meta(
+                "1".repeat(40).as_str(),
+                "Tarik",
+                "tarik@example.com",
+                &format!("pair session\n\n{trailer}"),
+            );
+            assert_eq!(
+                detect_ai(&c).map(|d| d.agent).as_deref(),
+                Some(agent),
+                "{trailer}"
+            );
+        }
+        // A person whose address merely contains "aider" is not the tool.
+        let c = meta(
+            "1".repeat(40).as_str(),
+            "Tarik",
+            "raider@example.com",
+            "manual fix",
+        );
+        assert!(detect_ai(&c).is_none());
     }
 
     #[test]
