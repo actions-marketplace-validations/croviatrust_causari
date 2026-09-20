@@ -160,6 +160,24 @@ re seal verify           # every signature, whole chain, offline
 re seal issuer           # your issuer id and public key (read-only)
 ```
 
+**PNX — Proof of Non-Exfiltration.** `re proxy --pnx` makes the proxy an
+egress witness for the TACET profile
+[`crovia.pnx.v1`](https://croviatrust.com/registry/tacet/pnx/): every request
+body is fingerprinted (salted winnowing, k-gram 32, window 16) and committed
+to a sparse Merkle map *before* it is forwarded; Ctrl-C signs a run sheet
+carrying the root. `re pnx prove` then shows, for a set of protected assets,
+that none shared a substring of 47 bytes or more with that traffic — or
+records which did. Sheet and proof contain no traffic bytes and no asset
+bytes, and verify offline with `re pnx verify` or with the Python reference
+`tacet-pnx`, in both directions, same verdicts and exit codes. What a proof
+does and does not say: [`docs/pnx.md`](docs/pnx.md).
+
+```bash
+re proxy --pnx                                    # witness a session; Ctrl-C signs the sheet
+re pnx prove --asset api_key=.env --assets-dir src/secret/
+re pnx verify .causari/pnx/<run>/proof.json --asset api_key=.env --assets-dir src/secret/
+```
+
 **Causari Proof.** `re proof generate` signs a summary of the ledger — event
 count, agents, models, files touched, a digest over the exact set of event ids
 — with a dedicated key, domain-separated, canonicalised with CSC-1. `re proof
@@ -252,8 +270,8 @@ Causari does not compete with provenance trackers (Agent Trace, git-ai,
 `Assisted-by:` trailers, Entire checkpoints); it reads them, measures with a
 public method, and signs the result so a third party can verify it offline.
 Next: `git blame -w -M -C` and per-commit caps in the audit; Agent Trace and
-`Assisted-by:` readers; the audit result as a Seal; a PNX witness mode in
-the proxy that proves what an agent session did *not* send to the model.
+`Assisted-by:` readers; the audit result as a Seal. Done: a PNX witness mode
+in the proxy that proves what an agent session did *not* send to the model.
 Phases and exit criteria: [`ROADMAP.md`](ROADMAP.md).
 
 ## Family

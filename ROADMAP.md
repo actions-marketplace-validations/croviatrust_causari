@@ -74,9 +74,13 @@ one-file change in < 50 ms; the adversarial harness passes on Linux.
 - [ ] The audit result **is a Seal**: `crovia.seal.v1` with the audit JSON as
       subject, bound to commit hash and method version; `re proof` retired in
       its favour; `causari.dev/verify` is a static, offline verifier.
-- [ ] **PNX witness mode**: `re proxy --pnx` produces a signed run sheet per
-      session; `re pnx prove/verify` via `crovia-tacet`; the GitHub Action
-      can attach a PNX proof to a PR.
+- [x] **PNX witness mode**: `re proxy --pnx` produces a signed run sheet per
+      session; `re pnx prove/verify/sheet/list` native in Rust, byte-identical
+      to `crovia-tacet` (reference vectors in CI, proofs cross-verified with
+      `tacet-pnx` in both directions, sealed delivery accepted); the GitHub
+      Action verifies a PNX proof and attaches its verdict to the PR comment
+      (`pnx-proof`, `pnx-assets`, `pnx-fail-on-present`). Not yet: commit of
+      the run root into a TACET epoch (PNX.md §6 step 5).
 - [ ] **Weekly Survival Report** replaces the leaderboard: static page, card,
       RSS, Zenodo deposit with DOI, same pipeline as the Crovia Silence
       Report; counts and intervals, no ranks; technical report positioned
