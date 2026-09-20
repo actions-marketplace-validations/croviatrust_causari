@@ -653,9 +653,72 @@ pub fn lines_added_all(dir: &Path) -> Result<HashMap<String, u64>> {
     Ok(parse_log_numstat(&raw))
 }
 
+/// Blame flags of method v2. `-w` ignores whitespace so a re-indent or a
+/// formatter pass does not re-attribute a line; `-M` follows lines moved
+/// within a file; `-C` follows lines moved or copied from another file
+/// touched by the same commit. Published in the report so a reader can
+/// reproduce the exact blame.
+pub const BLAME_FLAGS: [&str; 3] = ["-w", "-M", "-C"];
+
+/// Conventional name of the revision list that `git blame` should skip
+/// (mass reformats, renames-only commits). Honoured when present at the
+/// repository root, as GitHub's blame view does.
+pub const IGNORE_REVS_FILE: &str = ".git-blame-ignore-revs";
+
+/// The repository's `.git-blame-ignore-revs`, when present and usable.
+///
+/// `git blame` dies on any entry it cannot resolve to a commit. Because a
+/// per-file blame failure is tolerated (binary files), that would silently
+/// turn every line of the repository into "no owner" and report 0 %
+/// survival. A file with an unresolvable entry is therefore skipped with a
+/// warning rather than passed through.
+pub fn ignore_revs_file(dir: &Path) -> Option<std::path::PathBuf> {
+    let path = dir.join(IGNORE_REVS_FILE);
+    let text = std::fs::read_to_string(&path).ok()?;
+    let revs: Vec<&str> = text
+        .lines()
+        .map(|l| l.split('#').next().unwrap_or("").trim())
+        .filter(|l| !l.is_empty())
+        .collect();
+    for rev in revs {
+        let spec = format!("{rev}^{{commit}}");
+        if git(
+            dir,
+            &[
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                "--end-of-options",
+                &spec,
+            ],
+        )
+        .is_err()
+        {
+            eprintln!(
+                "warning: {IGNORE_REVS_FILE} lists '{rev}', which is not a commit here; \
+                 the file is ignored for this audit"
+            );
+            return None;
+        }
+    }
+    Some(path)
+}
+
 /// Blame every tracked text file at HEAD, returning the owning commit of each
 /// surviving line.
 pub fn blame_head(dir: &Path) -> Result<Vec<String>> {
+    let ignore_revs = ignore_revs_file(dir);
+    let mut base_args: Vec<&str> = vec!["blame"];
+    base_args.extend(BLAME_FLAGS);
+    base_args.push("--line-porcelain");
+    let ignore_flag = ignore_revs
+        .as_ref()
+        .map(|p| format!("--ignore-revs-file={}", p.display()));
+    if let Some(flag) = ignore_flag.as_deref() {
+        base_args.push(flag);
+    }
+    base_args.extend(["HEAD", "--"]);
+
     let files = git(dir, &["ls-files"])?;
     let list: Vec<&str> = files
         .lines()
@@ -685,9 +748,9 @@ pub fn blame_head(dir: &Path) -> Result<Vec<String>> {
                     }
                     // Skip files git cannot blame (e.g. binary): tolerate
                     // per-file errors.
-                    if let Ok(porcelain) =
-                        git(dir, &["blame", "--line-porcelain", "HEAD", "--", list[i]])
-                    {
+                    let mut args = base_args.clone();
+                    args.push(list[i]);
+                    if let Ok(porcelain) = git(dir, &args) {
                         local.extend(parse_blame_owners(&porcelain));
                     }
                     let d = done.fetch_add(1, Ordering::Relaxed) + 1;
@@ -1228,46 +1291,48 @@ mod tests {
         assert!(ok, "git {:?} failed", args);
     }
 
+    /// Empty repository on `main` with a human baseline commit.
+    fn synthetic_repo() -> tempfile::TempDir {
+        let tmp = tempfile::tempdir().unwrap();
+        run_git(tmp.path(), &["init", "-q", "-b", "main"]);
+        std::fs::write(tmp.path().join("main.py"), "print('hello')\n").unwrap();
+        commit_all(tmp.path(), "initial scaffold");
+        tmp
+    }
+
+    fn commit_all(dir: &Path, message: &str) {
+        run_git(dir, &["add", "-A", "."]);
+        run_git(dir, &["commit", "-q", "-m", message]);
+    }
+
+    const CLAUDE_TRAILER: &str = "\n\nCo-Authored-By: Claude <noreply@anthropic.com>";
+
+    fn head_hash(dir: &Path) -> String {
+        git(dir, &["rev-parse", "HEAD"]).unwrap().trim().to_string()
+    }
+
     #[test]
     fn audits_a_synthetic_repo_end_to_end() {
-        let tmp = std::env::temp_dir().join(format!("causari-audit-test-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        std::fs::create_dir_all(&tmp).unwrap();
-
-        run_git(&tmp, &["init", "-q", "-b", "main"]);
-
-        // Commit 1 (human): baseline.
-        std::fs::write(tmp.join("main.py"), "print('hello')\n").unwrap();
-        run_git(&tmp, &["add", "."]);
-        run_git(&tmp, &["commit", "-q", "-m", "initial scaffold"]);
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
 
         // Commit 2 (AI, Claude trailer): adds 3 lines.
         std::fs::write(
-            tmp.join("auth.py"),
+            dir.join("auth.py"),
             "def refresh(user):\n    token = rotate(user)\n    return token\n",
         )
         .unwrap();
-        run_git(&tmp, &["add", "."]);
-        run_git(
-            &tmp,
-            &[
-                "commit",
-                "-q",
-                "-m",
-                "add token refresh\n\nCo-Authored-By: Claude <noreply@anthropic.com>",
-            ],
-        );
+        commit_all(dir, &format!("add token refresh{CLAUDE_TRAILER}"));
 
         // Commit 3 (human): deletes one AI line -> 2 of 3 AI lines survive.
         std::fs::write(
-            tmp.join("auth.py"),
+            dir.join("auth.py"),
             "def refresh(user):\n    return rotate(user)\n",
         )
         .unwrap();
-        run_git(&tmp, &["add", "."]);
-        run_git(&tmp, &["commit", "-q", "-m", "simplify refresh by hand"]);
+        commit_all(dir, "simplify refresh by hand");
 
-        let report = audit_repo(&tmp).expect("audit must succeed");
+        let report = audit_repo(dir).expect("audit must succeed");
 
         assert_eq!(report.total_commits, 3);
         assert_eq!(report.verified.commits, 1);
@@ -1276,7 +1341,105 @@ mod tests {
         // replaced. Exactly 1 original AI line remains attributable at HEAD.
         assert_eq!(report.verified.surviving, 1);
         assert!(report.by_agent.contains_key("claude-code"));
+    }
 
-        let _ = std::fs::remove_dir_all(&tmp);
+    #[test]
+    fn reindented_ai_line_still_survives() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+
+        std::fs::write(
+            dir.join("auth.py"),
+            "def refresh(user):\n    token = rotate(user)\n    return token\n",
+        )
+        .unwrap();
+        commit_all(dir, &format!("add token refresh{CLAUDE_TRAILER}"));
+
+        // A human wraps the body in a block: every AI line is re-indented,
+        // none is rewritten. Whitespace-insensitive blame keeps all three.
+        std::fs::write(
+            dir.join("auth.py"),
+            "def refresh(user):\n        token = rotate(user)\n        return token\n",
+        )
+        .unwrap();
+        commit_all(dir, "re-indent by hand");
+
+        let report = audit_repo(dir).expect("audit must succeed");
+        assert_eq!(report.verified.introduced, 3);
+        assert_eq!(report.verified.surviving, 3);
+    }
+
+    #[test]
+    fn ai_block_moved_to_another_file_still_survives() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+
+        // Long enough for blame's -C heuristic (≥ 40 alphanumerics moved).
+        let block = "def rotate_credentials(user, issuer):\n    \
+                     material = issuer.derive_material(user.identifier)\n    \
+                     user.credentials = Credentials.from_material(material)\n    \
+                     return user.credentials\n";
+        std::fs::write(dir.join("auth.py"), block).unwrap();
+        commit_all(dir, &format!("add credential rotation{CLAUDE_TRAILER}"));
+
+        // Human moves the function to a new module in one commit.
+        std::fs::remove_file(dir.join("auth.py")).unwrap();
+        std::fs::write(
+            dir.join("credentials.py"),
+            format!("import issuers\n\n{block}"),
+        )
+        .unwrap();
+        commit_all(dir, "move rotation into credentials module");
+
+        let report = audit_repo(dir).expect("audit must succeed");
+        assert_eq!(report.verified.introduced, 4);
+        assert_eq!(report.verified.surviving, 4);
+    }
+
+    #[test]
+    fn blame_ignore_revs_file_is_honoured() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+
+        std::fs::write(dir.join("config.py"), "NAME = 'causari'\nRETRIES = 3\n").unwrap();
+        commit_all(dir, &format!("add config{CLAUDE_TRAILER}"));
+
+        // Quote-style reformat: not whitespace, so only the ignore list can
+        // keep the attribution on the AI commit.
+        std::fs::write(dir.join("config.py"), "NAME = \"causari\"\nRETRIES = 3\n").unwrap();
+        commit_all(dir, "reformat quotes");
+        let reformat = head_hash(dir);
+
+        let without = audit_repo(dir).unwrap();
+        assert_eq!(without.verified.surviving, 1);
+
+        std::fs::write(
+            dir.join(IGNORE_REVS_FILE),
+            format!("# formatter passes\n{reformat}\n"),
+        )
+        .unwrap();
+        assert!(ignore_revs_file(dir).is_some());
+        let with = audit_repo(dir).unwrap();
+        assert_eq!(with.verified.introduced, 2);
+        assert_eq!(with.verified.surviving, 2);
+    }
+
+    #[test]
+    fn unresolvable_ignore_revs_entry_disables_the_file() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+        std::fs::write(
+            dir.join(IGNORE_REVS_FILE),
+            format!("{}\n{}\n", head_hash(dir), "0".repeat(40)),
+        )
+        .unwrap();
+        assert!(ignore_revs_file(dir).is_none());
+        // The audit still runs and still attributes lines (the ignore file
+        // itself is part of this commit's introduced lines).
+        std::fs::write(dir.join("x.py"), "x = 1\n").unwrap();
+        commit_all(dir, &format!("add x{CLAUDE_TRAILER}"));
+        let report = audit_repo(dir).unwrap();
+        assert!(report.verified.introduced > 0);
+        assert_eq!(report.verified.surviving, report.verified.introduced);
     }
 }
