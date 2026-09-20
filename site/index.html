@@ -50,7 +50,7 @@
     "description": "Intent-addressable code for AI agents. Causari records every action an agent takes on your codebase as an immutable, queryable causal event.",
     "url": "https://causari.dev",
     "downloadUrl": "https://github.com/croviatrust/causari",
-    "softwareVersion": "0.1.1",
+    "softwareVersion": "0.1.5",
     "license": "https://github.com/croviatrust/causari/blob/main/LICENSE",
     "publisher": { "@type": "Organization", "name": "Croviatrust" }
   }
@@ -104,7 +104,7 @@
 
     <div class="hero-tag">
       <span class="dot"></span>
-      <span>v0.1.1 — prebuilt binaries for Linux · macOS · Windows</span>
+      <span>v0.1.5 — prebuilt binaries for Linux · macOS · Windows</span>
     </div>
 
     <h1 class="hero-title">
@@ -136,7 +136,7 @@
       <span class="sep">·</span>
       <span>Linux · macOS · Windows</span>
       <span class="sep">·</span>
-      <span>~3 MB binary</span>
+      <span>~5 MB binary</span>
       <span class="sep">·</span>
       <span>No telemetry</span>
     </p>
@@ -212,7 +212,7 @@
   <div class="container">
     <div class="section-head">
       <p class="eyebrow">Zero setup — try it right now</p>
-      <h2>Audit any repository in 10 seconds.</h2>
+      <h2>Audit any repository. Seconds for most, minutes for the largest.</h2>
       <p class="lede">No ledger, no integration, no account. <code>re audit</code> reads plain
       git history, detects AI-authored commits from verifiable metadata
       (<code>Co-Authored-By</code> trailers, bot authors, aider markers) and measures how many
@@ -474,7 +474,7 @@ re audit --card           # shareable survival card</code></pre>
       <article class="problem-card">
         <div class="problem-num">the good virus</div>
         <h3>Spread</h3>
-        <p>Drop the badge in your README and <strong>every visitor sees it</strong>. Each repo that adopts a verified proof advertises trust — and Causari — to everyone who reads it. Generating and verifying are <strong>free forever</strong>; the hosted public verifier, org registry, RFC&nbsp;3161 anchoring and compliance exports are the commercial Trust Plane.</p>
+        <p>Drop the badge in your README and <strong>every visitor sees it</strong>. Each repo that adopts a verified proof advertises trust — and Causari — to everyone who reads it. Generating and verifying are free, offline, and need no account.</p>
       </article>
     </div>
 
@@ -675,7 +675,7 @@ Review with: re show &lt;id&gt;  re diff &lt;id&gt;  re trace &lt;file&gt;</code
     <div class="section-head">
       <p class="eyebrow">What you get</p>
       <h2>A complete causal layer for agentic codebases.</h2>
-      <p class="lede">15+ commands. One binary. Zero cloud. Built in Rust, content-addressed with BLAKE3, queryable in microseconds.</p>
+      <p class="lede">One binary. Zero cloud. Built in Rust, content-addressed with BLAKE3, queryable in microseconds.</p>
     </div>
 
     <div class="features">
@@ -1006,7 +1006,7 @@ found: first bad event: <span class="t-id">17cbc28d</span>
             <button class="copy-btn" data-copy="qs1ps">Copy</button>
 <pre id="qs1ps"><code>iwr -useb https://causari.dev/install.ps1 | iex</code></pre>
           </div>
-          <p class="muted">~800 KB download to <code>~/.local/bin</code> (or <code>%LOCALAPPDATA%\Programs\causari</code> on Windows). The binary's SHA-256 is checked against the <a href="https://github.com/croviatrust/causari/releases">release <code>SHA256SUMS.txt</code></a> and the install aborts on any mismatch. Prefer to verify by hand, or build from source? <code>cargo install --git https://github.com/croviatrust/causari</code>.</p>
+          <p class="muted">~5 MB download to <code>~/.local/bin</code> (or <code>%LOCALAPPDATA%\Programs\causari</code> on Windows). The binary's SHA-256 is checked against the <a href="https://github.com/croviatrust/causari/releases">release <code>SHA256SUMS.txt</code></a> and the install aborts on any mismatch. Prefer to verify by hand, or build from source? <code>cargo install --git https://github.com/croviatrust/causari</code>.</p>
         </div>
       </li>
 
@@ -1067,7 +1067,7 @@ re find "jwt refresh"     # skills first, then raw events</code></pre>
 <pre id="qs5p"><code>re proof generate         # → causari-proof.json + causari-proof.svg badge
 re proof verify           # offline signature check — tamper fails closed</code></pre>
           </div>
-          <p class="muted">Drop the badge in your README; every visitor sees verified provenance. Generating and verifying are free forever — hosted public verification and audit-grade exports are the commercial Trust Plane.</p>
+          <p class="muted">Drop the badge in your README; every visitor sees verified provenance. Generating and verifying are free, offline, and need no account.</p>
         </div>
       </li>
 
@@ -1111,7 +1111,7 @@ re bisect --test "npm test"</code></pre>
 
       <details class="faq">
         <summary><span>Are skills free? What about the experience layer?</span></summary>
-        <p><strong>Yes — completely free in the <code>re</code> binary.</strong> Distillation, Ed25519 signing, verification, and MCP recall all run locally at zero cost. What will be commercial is the <em>Trust Plane</em> on top: organization-wide signed skill registries, RFC&nbsp;3161 timestamping, fleet dashboards and audit-grade compliance exports. The free tool creates the experience; the paid plane lets a company trust it at scale.</p>
+        <p><strong>Yes — completely free in the <code>re</code> binary.</strong> Distillation, Ed25519 signing, verification, and MCP recall all run locally at zero cost. Nothing in the binary is gated, and there is no paid tier today.</p>
       </details>
 
       <details class="faq">
@@ -1121,7 +1121,7 @@ re bisect --test "npm test"</code></pre>
 
       <details class="faq">
         <summary><span>How does Causari make money if the CLI is free?</span></summary>
-        <p>The CLI creates the experience; the commercial <em>Trust Plane</em> lets organizations trust it at scale: signed skill registries, RFC&nbsp;3161 timestamping, fleet dashboards and audit-grade compliance exports. The tool you install today is Apache 2.0 and stays that way.</p>
+        <p>The tool you install today is Apache 2.0 and stays that way. There is no paid tier; if one appears it will be announced on this page, not assumed on it.</p>
       </details>
     </div>
   </div>

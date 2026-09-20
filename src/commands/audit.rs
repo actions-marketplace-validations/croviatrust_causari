@@ -187,13 +187,13 @@ pub fn run(args: AuditArgs) -> Result<()> {
 }
 
 fn print_terminal(report: &SurvivalReport) {
-    println!("{}", "Causari Survival Audit".bold());
+    println!("{}", "∵ causari · AI code survival".bold());
     println!(
         "{}",
-        "═══════════════════════════════════════════════════".bright_black()
+        "───────────────────────────────────────────────────".bright_black()
     );
     println!(
-        "  {} commits analyzed (git-only, no Causari setup required)",
+        "  {} commits analyzed (git metadata only, no setup required)",
         report.total_commits
     );
     println!();
