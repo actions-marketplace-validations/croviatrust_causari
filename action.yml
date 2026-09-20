@@ -5,7 +5,7 @@ description: >-
   Check out with full history (actions/checkout `fetch-depth: 0`): the
   audit refuses shallow clones because a truncated history misstates
   every count.
-author: "Croviatrust"
+author: "Crovia Trust"
 branding:
   icon: "activity"
   color: "green"

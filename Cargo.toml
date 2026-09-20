@@ -10,7 +10,7 @@ readme = "README.md"
 keywords = ["ai", "provenance", "git", "agents", "mcp"]
 default-run = "causari"
 categories = ["development-tools", "command-line-utilities"]
-authors = ["Croviatrust <hello@croviatrust.com>"]
+authors = ["Crovia Trust <info@croviatrust.com>"]
 rust-version = "1.85"
 
 # One program, two names. `causari` is the binary; `re` is the short alias every

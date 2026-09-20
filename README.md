@@ -266,6 +266,6 @@ reproducible numbers, no verdicts, offline verification, limits stated first.
 
 ## License
 
-Apache-2.0 (see `LICENSE`). "Causari" is a trademark of Croviatrust; the
+Apache-2.0 (see `LICENSE`). "Causari" is a trademark of Crovia Trust; the
 license does not grant trademark rights (see `NOTICE`). Contributing: see
 `CONTRIBUTING.md`.

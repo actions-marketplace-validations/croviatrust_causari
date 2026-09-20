@@ -7,7 +7,7 @@ and we want to keep it that way — please read this first.
 
 - **Causari is licensed under Apache-2.0** (see [`LICENSE`](LICENSE) and
   [`NOTICE`](NOTICE)) — free for any use, personal or commercial, at any
-  scale. "Causari" is a trademark of Croviatrust.
+  scale. "Causari" is a trademark of Crovia Trust.
 - **Contributions are certified with the DCO** ([`DCO.md`](DCO.md)): add
   `Signed-off-by` to each commit with `git commit -s`. No agreement to sign,
   no bot to talk to; CI checks the trailer. Your code stays Apache 2.0.
