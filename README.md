@@ -37,10 +37,10 @@ re audit vercel/next.js     # any public repo, cloned to a temp dir
 
 Everyone debates how much code AI writes. Nobody measures how much of it
 **survives**. `re audit` reads plain git history — `Co-Authored-By` trailers,
-bot authors, agent markers — and checks every AI-introduced line against
-HEAD. No estimates, no surveys, just git. See the
-[**AI Code Survival Leaderboard**](https://causari.dev/survival) for weekly
-audited numbers on aider, cline, zed and more, or a
+bot authors, agent markers — and checks every line from those commits against
+HEAD. No estimates, no surveys, just git: a count, not a grade. See the
+[weekly measurements](https://causari.dev/survival) on open-source
+repositories (unranked; [method and limits](https://causari.dev/method)), or a
 [live PR comment](https://github.com/croviatrust/causari-audit-demo/pull/1)
 posted by the [GitHub Action](https://github.com/marketplace/actions/causari-survival-audit).
 

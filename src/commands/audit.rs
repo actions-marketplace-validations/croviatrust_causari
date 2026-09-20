@@ -219,37 +219,41 @@ fn print_terminal(report: &SurvivalReport) {
     println!("  · VERIFIED = explicit metadata (trailers, bot author, etc.)");
     println!("  · PROBABLE = weak heuristic; may include human-assisted commits");
     println!("  · UNKNOWN commits are excluded from headline numbers");
+    println!("  · Only lines from AI-tagged commits are measured; inline completions");
+    println!("    (Copilot, Cursor Tab, …) leave no git trace and are invisible here");
+    println!("  · A measurement, not a grade: method at https://causari.dev/method");
 }
 
 fn print_summary(report: &SurvivalReport) {
     let v = &report.verified;
     let rate = v.survival_rate();
-    let status = if v.commits == 0 {
-        "ℹ️ no verified AI commits"
-    } else if rate.unwrap_or(0.0) >= 0.70 {
-        "🟢 healthy"
-    } else if rate.unwrap_or(0.0) >= 0.40 {
-        "🟡 moderate churn"
-    } else {
-        "🔴 high churn"
-    };
 
-    println!("## Causari Survival Audit — {}", status);
+    // A measurement, not a grade: no colour, no verdict. The reader judges.
+    println!("## ∵ causari · AI code survival");
     println!();
     println!(
-        "{} commits analyzed (git-only, retroactive — no setup required).",
+        "{} commits analyzed (git metadata only, retroactive, no setup).",
         report.total_commits
     );
     println!();
 
     if v.commits > 0 {
         println!(
-            "**Verified AI survival: {:.1}%** ({} of {} lines still at HEAD, {} commits)",
+            "**Verified AI survival: {:.1}%** ({} of {} lines still at HEAD, {} commit{})",
             rate.unwrap_or(0.0) * 100.0,
             v.surviving,
             v.introduced,
-            v.commits
+            v.commits,
+            if v.commits == 1 { "" } else { "s" }
         );
+        if v.commits < 5 {
+            println!();
+            println!(
+                "_Small sample: {} AI-tagged commit{}. A single commit can dominate this figure; read it as a count, not a rate._",
+                v.commits,
+                if v.commits == 1 { "" } else { "s" }
+            );
+        }
         println!();
     }
     if report.probable.commits > 0 {
@@ -280,7 +284,9 @@ fn print_summary(report: &SurvivalReport) {
 
     println!(
         "<sub>VERIFIED = explicit commit metadata; PROBABLE = heuristic. \
-         Powered by [Causari](https://causari.dev) `re audit`</sub>"
+         Counts lines from AI-tagged commits still attributed to them by `git blame`; \
+         inline completions leave no git trace and are not measured. \
+         Method: [causari.dev/method](https://causari.dev/method) · reproduce: `re audit`</sub>"
     );
 }
 
@@ -303,14 +309,14 @@ fn print_class(label: &str, stat: &SurvivalStat) {
 /// Shields-style flat badge: `AI survival | NN.N%`.
 fn generate_badge(report: &SurvivalReport) -> String {
     let v = &report.verified;
-    let (value, color) = match v.survival_rate() {
-        None => ("n/a".to_string(), "#9f9f9f"),
-        Some(r) if r >= 0.70 => (format!("{:.1}%", r * 100.0), "#4c1"),
-        Some(r) if r >= 0.40 => (format!("{:.1}%", r * 100.0), "#dfb317"),
-        Some(r) => (format!("{:.1}%", r * 100.0), "#e05d44"),
+    // One colour for every value: a badge reports a measurement, it does not grade it.
+    let color = "#3b4252";
+    let value = match v.survival_rate() {
+        None => "n/a".to_string(),
+        Some(r) => format!("{:.1}%", r * 100.0),
     };
-    let label = "AI survival";
-    let label_w: u32 = 76;
+    let label = "∵ AI survival";
+    let label_w: u32 = 90;
     let value_w: u32 = 12 + value.len() as u32 * 8;
     let total_w = label_w + value_w;
     format!(
@@ -335,13 +341,7 @@ fn generate_badge(report: &SurvivalReport) -> String {
 fn generate_svg_card(report: &SurvivalReport) -> String {
     let v = &report.verified;
     let pct = v.survival_rate().unwrap_or(0.0) * 100.0;
-    let color = if pct >= 70.0 {
-        "#22c55e"
-    } else if pct >= 40.0 {
-        "#eab308"
-    } else {
-        "#ef4444"
-    };
+    let color = "#3b4252";
     let verified = if v.commits == 0 {
         "No verified AI commits detected".to_string()
     } else {
@@ -355,11 +355,11 @@ fn generate_svg_card(report: &SurvivalReport) -> String {
         r##"<svg xmlns="http://www.w3.org/2000/svg" width="440" height="240" viewBox="0 0 440 240">
   <rect width="440" height="240" rx="12" fill="#0f0f15"/>
   <rect x="20" y="20" width="400" height="200" rx="10" fill="none" stroke="{color}" stroke-width="2"/>
-  <text x="40" y="60" fill="#a7f3d0" font-family="monospace" font-size="14" font-weight="bold">CAUSARI SURVIVAL AUDIT</text>
+  <text x="40" y="60" fill="#d8dee9" font-family="monospace" font-size="14" font-weight="bold">∵ causari · AI code survival</text>
   <text x="40" y="110" fill="white" font-family="monospace" font-size="32" font-weight="bold">{verified}</text>
   <text x="40" y="150" fill="#94a3b8" font-family="monospace" font-size="12">Verified AI commits: {}</text>
   <text x="40" y="175" fill="#94a3b8" font-family="monospace" font-size="12">Probable AI commits: {}</text>
-  <text x="40" y="205" fill="#64748b" font-family="monospace" font-size="10">Verified with Causari · causari.dev</text>
+  <text x="40" y="205" fill="#64748b" font-family="monospace" font-size="10">git metadata only · reproduce: re audit · causari.dev/method</text>
 </svg>"##,
         v.commits, report.probable.commits
     )

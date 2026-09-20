@@ -4,7 +4,8 @@
 
 # Repository & community
 /github         https://github.com/croviatrust/causari                              302
-/repo           https://github.com/croviatrust/causari                              302
+/repo           /survival                                                            301
+/repo/*         /survival                                                            301
 /discussions    https://github.com/croviatrust/causari/discussions                  302
 /issues         https://github.com/croviatrust/causari/issues                       302
 

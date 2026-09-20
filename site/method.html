@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Method: how Causari measures AI code survival — Causari</title>
+  <meta name="description" content="Exactly how re audit detects AI-tagged commits and measures which of their lines are still at HEAD, what it cannot see, and the known ways the number can mislead. Method v1." />
+  <meta name="theme-color" content="#0a0e1f" />
+  <meta name="color-scheme" content="dark light" />
+  <link rel="canonical" href="https://causari.dev/method" />
+  <meta property="og:title" content="Method: how Causari measures AI code survival" />
+  <meta property="og:description" content="Detection rules, survival computation, coverage, known artefacts, and how to reproduce or contest any number." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://causari.dev/method" />
+  <meta property="og:image" content="https://causari.dev/assets/og-card.png" />
+  <link rel="icon" type="image/svg+xml" href="/assets/icon.svg" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .m-wrap { max-width: 760px; margin: 0 auto; padding: 3rem 1.25rem 4rem; line-height: 1.65; }
+    .m-wrap h1 { font-size: 2rem; margin-bottom: 0.25rem; }
+    .m-wrap h2 { margin-top: 2.5rem; font-size: 1.25rem; }
+    .m-wrap table { width: 100%; border-collapse: collapse; font-size: 0.92rem; margin: 1rem 0; }
+    .m-wrap th, .m-wrap td { text-align: left; padding: 0.5rem 0.7rem; border-top: 1px solid rgba(148,163,184,0.15); vertical-align: top; }
+    .m-wrap code, .m-wrap pre { font-family: "JetBrains Mono", monospace; font-size: 0.9em; }
+    .m-wrap pre { background: rgba(148,163,184,0.08); padding: 0.8rem 1rem; border-radius: 8px; overflow-x: auto; }
+    .m-version { color: #94a3b8; font-size: 0.9rem; }
+    .m-box { border: 1px solid rgba(148,163,184,0.25); border-radius: 10px; padding: 1rem 1.25rem; margin: 1.5rem 0; }
+  </style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" role="banner">
+  <div class="container nav-inner">
+    <a href="/" class="brand" aria-label="Causari home">
+      <img src="/assets/icon.svg" alt="" width="32" height="32" />
+      <span class="brand-name">Causari</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/#audit">Audit</a>
+      <a href="/survival">Measurements</a>
+      <a href="/method">Method</a>
+      <a href="https://github.com/croviatrust/causari" rel="noopener">Source</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="m-wrap">
+  <h1>Method</h1>
+  <p class="m-version">v1 · applies to <code>re audit</code> in every 0.1.x release · this page changes only when the method does</p>
+
+  <p>Causari publishes counts about repositories that are not ours. The only honest way to do
+  that is to publish, next to every number, exactly how it was obtained, what it cannot see,
+  and how to reproduce or contest it. This page is that.</p>
+
+  <h2>1. What is counted</h2>
+  <p>For a repository at a given HEAD, <code>re audit</code> walks <code>git log --no-merges</code>
+  and classifies each commit from <strong>machine-readable metadata only</strong>: the commit
+  message trailers and the author identity. No model, no heuristic on the diff, no guess from
+  style. Merge commits are excluded.</p>
+
+  <table>
+    <tr><th>Signal</th><th>Class</th></tr>
+    <tr><td>git-ai note under <code>refs/notes/ai</code></td><td>VERIFIED</td></tr>
+    <tr><td>Trailers <code>Drafted-With</code>, <code>Executed-By</code>, <code>AI-Model</code>, <code>AI-Agent</code>, <code>AI-Tool</code>, <code>AI-Assisted: yes</code> and the <code>AI-*</code> family with a positive value</td><td>VERIFIED</td></tr>
+    <tr><td><code>Co-Authored-By</code> naming a known agent identity (Claude, Copilot, aider, Codex, ChatGPT, OpenHands; Devin, Jules, Gemini and Cursor only with a bot identity or vendor domain)</td><td>VERIFIED</td></tr>
+    <tr><td>Author identity of a known agent (aider, <code>noreply@anthropic.com</code>, <code>devin-ai</code>, <code>openhands</code>, <code>cursoragent</code>, <code>google-labs-jules</code>)</td><td>VERIFIED</td></tr>
+    <tr><td>Message contains <code>(aider)</code> or <code>Generated with Claude Code</code></td><td>PROBABLE</td></tr>
+    <tr><td>Anything else</td><td>UNKNOWN · never counted</td></tr>
+  </table>
+
+  <p>VERIFIED and PROBABLE are never summed. Published measurements use VERIFIED only.</p>
+
+  <h2>2. How survival is computed</h2>
+  <p><em>Introduced</em> = lines added by each classified commit (<code>git log --numstat</code>),
+  text files only, excluding lockfiles, vendored and generated paths. <em>Still at HEAD</em> = for
+  every tracked file, <code>git blame --line-porcelain HEAD</code>; a line counts for the commit
+  blame attributes it to, capped at that commit's introduced count. The ratio is the sum over all
+  classified commits, so it is <strong>line-weighted</strong>.</p>
+
+  <h2>3. What it cannot see</h2>
+  <ul>
+    <li><strong>Inline completions.</strong> Copilot, Cursor Tab, Windsurf, Continue, Zed AI,
+    JetBrains AI leave no trace in git. Their code is counted as human. "No git signal" means no
+    metadata, not no AI.</li>
+    <li><strong>Untagged agent commits.</strong> Claude Code's trailer can be disabled; many teams
+    strip trailers on squash. Those commits are UNKNOWN.</li>
+    <li><strong>Mixed commits.</strong> Granularity is the commit. A human's review edits inside an
+    AI co-authored commit count as AI; AI code committed by a human counts as human.</li>
+    <li><strong>Paraphrase and rewrite.</strong> A line rewritten by a human with the same meaning
+    is a death; a line the AI copied from elsewhere is an introduction.</li>
+  </ul>
+
+  <h2>4. Known ways the number misleads (method v1)</h2>
+  <div class="m-box">
+    <p><strong>Bulk commits dominate.</strong> Because the ratio is line-weighted, one commit that
+    vendors a tree, snapshots documentation or checks in a generated bundle can hold nearly every
+    introduced line of a repository. The published row then measures that commit's fate, not the
+    project's. Example in the current data: one documentation-versioning commit of 3.2 million lines
+    determines a repository's entire ratio. We publish it with the mark "one agent ≥ 90 %" because
+    hiding it would be worse than showing it, and because the fix belongs in the method, not in the
+    table.</p>
+    <p><strong>Formatting and moves count as death.</strong> <code>git blame</code> runs without
+    <code>-w</code>, <code>-M</code>, <code>-C</code>: a formatter pass, a re-indent, or moving a
+    function to another file re-attributes those lines.</p>
+    <p><strong>Small samples.</strong> Below 5 AI-tagged commits no ratio is published.</p>
+    <p><strong>Age.</strong> Survival decays with time since the commit. Early adopters look worse
+    than last week's adopters. Method v1 does not normalise for age.</p>
+  </div>
+
+  <p><strong>Method v2</strong> (in progress) caps per-commit weight, reports medians and
+  bootstrap intervals alongside the line-weighted ratio, runs blame with <code>-w -M -C</code>,
+  parses the trailer block with git's own rules, reads <code>Assisted-by:</code> and Agent Trace
+  records, and refuses shallow clones. Every published row will carry the method version that
+  produced it.</p>
+
+  <h2>5. Reproduce or contest any number</h2>
+<pre>curl -fsSL https://causari.dev/install.sh | sh
+re audit owner/repo --json      # the exact bytes behind the row</pre>
+  <p>If your reproduction differs, or a row is wrong, open an issue with the JSON. Corrections
+  are made in public and recorded in the data history. Maintainers who do not want their
+  repository measured add one line to
+  <a href="https://github.com/croviatrust/causari/edit/main/.github/survival-optout.txt" rel="noopener"><code>.github/survival-optout.txt</code></a>;
+  the next weekly run drops the row and it is not re-added.</p>
+
+  <h2>6. What we do not do</h2>
+  <ul>
+    <li>No rank, no colour, no "healthy" or "high churn" wording, no badge about repositories we do not own.</li>
+    <li>No audit of a third-party repository on request through our infrastructure. Run it yourself; the tool is free.</li>
+    <li>No estimate. Where git carries no signal, the row says so.</li>
+  </ul>
+
+  <p class="m-version">Context: <a href="https://arxiv.org/abs/2601.16809" rel="noopener">"Will It Survive?", arXiv 2601.16809</a>
+  measures the same question on 201 projects with a different detector and finds agent-authored
+  code is modified less often than human code. Our counts should be read next to it, not instead of it.</p>
+</main>
+
+<footer class="footer">
+  <div class="container foot-bottom">
+    <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Croviatrust</a>. <em>Causari</em> is a trademark of Croviatrust.</p>
+    <p class="muted"><a href="/survival">Measurements</a> · <a href="/">causari.dev</a></p>
+  </div>
+</footer>
+<script>document.getElementById("year").textContent = new Date().getFullYear();</script>
+</body>
+</html>
