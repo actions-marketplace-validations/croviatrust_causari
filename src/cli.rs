@@ -325,6 +325,17 @@ pub struct AuditArgs {
     /// carries coverage.shallow = true). Prefer `git fetch --unshallow`.
     #[arg(long)]
     pub allow_shallow: bool,
+
+    /// Issue a Crovia Seal (crovia.seal.v1) over the audit JSON, bound to
+    /// the audited commit and the method version, and write it with the
+    /// audit to audit.seal.json (see --output). Anyone verifies it offline
+    /// with `re seal verify FILE` or at https://causari.dev/verify
+    #[arg(long)]
+    pub seal: bool,
+
+    /// Where to write the seal bundle (default: audit.seal.json)
+    #[arg(short, long, requires = "seal", value_name = "FILE")]
+    pub output: Option<std::path::PathBuf>,
 }
 
 #[derive(Args, Debug)]
@@ -376,10 +387,17 @@ pub struct SealArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum SealCommand {
-    /// Verify every seal in this repo's chain (signatures + hash links)
+    /// Verify every seal in this repo's chain (signatures + hash links),
+    /// or one file: an audit seal bundle from `re audit --seal`, or a bare
+    /// seal. Needs no repository and no network. Exit 0 valid, 1 invalid,
+    /// 2 unreadable.
     Verify {
-        /// Verify a single external seal file instead of the repo chain
+        /// Seal file to verify instead of the repo chain
         file: Option<std::path::PathBuf>,
+
+        /// Print the verdict and what the seal states as JSON
+        #[arg(long)]
+        json: bool,
     },
 
     /// List the seals issued by this repository
