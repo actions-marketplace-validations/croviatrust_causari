@@ -7,8 +7,11 @@
 > Apache-2.0, local-first, no telemetry, verifiable offline.
 
 Ways to use Causari without installing anything:
-- Weekly measurements on open-source repositories: https://causari.dev/survival
-  (unranked, method and limits at https://causari.dev/method)
+- Weekly Survival Report on open-source repositories:
+  https://causari.dev/reports/survival/ (numbered, dated, citable; counts
+  and intervals, no ranks; Atom feed at /reports/survival/feed.xml, JSON at
+  /reports/survival/latest.json, a Zenodo DOI per report; method and limits
+  at https://causari.dev/method)
 - Add one CI step to any repo: `uses: croviatrust/causari@v1` posts the
   survival counts on every pull request.
 
@@ -21,7 +24,12 @@ Local install (single binary, about 5 MB, Linux/macOS/Windows):
 
 Key commands:
 - `re audit [owner/repo]` — AI code survival from git history alone; `--json`
-  gives the exact bytes; `--summary` gives Markdown for CI
+  gives the exact bytes; `--summary` gives Markdown for CI; `--seal` also
+  writes `audit.seal.json`, a crovia.seal.v1 over the audit JSON bound to
+  the commit and method version
+- `re seal verify audit.seal.json` — check an audit seal offline: signature,
+  both subject hashes, commit/method binding; exit 0 valid, 1 invalid,
+  2 unreadable. Same check in a browser, no network: https://causari.dev/verify
 - `re init` — create the local ledger `.causari/` (gitignored)
 - `re hook claude-code` — record every Claude Code prompt and edit exactly
 - `re proxy` — local LLM proxy recording prompts, models, tokens, cost
@@ -42,6 +50,8 @@ and says so; a survival ratio is a count, not a quality judgement.
 ## Docs
 - [README](https://github.com/croviatrust/causari#readme): full command reference
 - [Method](https://causari.dev/method): detection rules, computation, limits, how to contest a number
+- [Survival Report](https://causari.dev/reports/survival/): weekly counts, archive, feed, DOIs; how it is made: https://github.com/croviatrust/causari/blob/main/docs/survival-report.md
+- [Verify](https://causari.dev/verify): offline verifier for audit seals (what a seal proves and does not)
 - [Manifesto](https://github.com/croviatrust/causari/blob/main/MANIFESTO.md)
 - [Roadmap](https://github.com/croviatrust/causari/blob/main/ROADMAP.md)
 - [GitHub Action](https://github.com/marketplace/actions/causari-survival-audit)

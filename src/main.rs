@@ -1,4 +1,5 @@
 mod audit;
+mod audit_seal;
 mod banner;
 mod capture;
 mod cli;
@@ -6,10 +7,12 @@ mod commands;
 mod commit;
 mod config;
 mod dag;
+mod exit;
 mod index;
 mod keys;
 mod object;
-mod proof;
+mod pnx;
+mod pnx_run;
 mod provenance;
 mod repo;
 mod seal;
@@ -22,7 +25,7 @@ use clap::Parser;
 
 use crate::cli::{Cli, Command};
 
-fn main() -> Result<()> {
+fn main() {
     // `re log | head` must end quietly. Rust ignores SIGPIPE and turns the
     // resulting EPIPE into a panic in println!; restore the default so the
     // process exits like every other Unix tool when the reader goes away.
@@ -32,6 +35,15 @@ fn main() -> Result<()> {
     }
     let cli = Cli::parse();
 
+    if let Err(err) = run(cli) {
+        // Same report anyhow prints from a `main() -> Result`, plus the
+        // status the command asked for (see `exit.rs`).
+        eprintln!("Error: {err:?}");
+        std::process::exit(exit::code_of(&err));
+    }
+}
+
+fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Init => commands::init::run(),
         Command::Record(args) => commands::record::run(args),
@@ -59,6 +71,7 @@ fn main() -> Result<()> {
         Command::Report(args) => commands::report::run(args),
         Command::Proxy(args) => commands::proxy::run(args),
         Command::Seal(args) => commands::seal::run(args),
+        Command::Pnx(args) => commands::pnx::run(args),
         Command::Hook(args) => commands::hook::run(args),
         Command::HookEvent(args) => commands::hook::run_event(args),
     }

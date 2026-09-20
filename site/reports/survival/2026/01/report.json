@@ -1,0 +1,857 @@
+{
+ "schema": "causari.survival_report.v1",
+ "title": "Survival Report #1",
+ "number": 1,
+ "id": "2026/01",
+ "date": "2026-09-20",
+ "generated_at": "2026-09-20T16:49:36Z",
+ "url": "https://causari.dev/reports/survival/2026/01/",
+ "license": "CC-BY-4.0",
+ "license_url": "https://creativecommons.org/licenses/by/4.0/",
+ "publisher": "Crovia Trust",
+ "tool": {
+  "name": "causari",
+  "version": "0.1.5"
+ },
+ "method": {
+  "version": "v2",
+  "url": "https://causari.dev/method",
+  "command": "re audit <owner/repo> --json",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "sample_floor": 5,
+  "cap_rule": "a commit weighs at most the 95th percentile of per-commit introduced line counts in its repository, and never more than 10,000 lines",
+  "evidence_class": "VERIFIED only; PROBABLE is listed but never summed",
+  "aggregation": "repositories with at least sample_floor VERIFIED commits and a full (non-shallow) clone"
+ },
+ "aggregate": {
+  "repositories": 10,
+  "total_commits": 86024,
+  "ai_tagged_commits": 12349,
+  "introduced": 754476,
+  "surviving": 462838,
+  "survival_rate": 0.6134562265731448,
+  "survival_rate_interval_95": {
+   "low": 0.5304357732523084,
+   "high": 0.6490311097741345
+  },
+  "median_capped_survival_rate": 0.6570472402699699,
+  "median_capped_survival_rate_interval_95": {
+   "low": 0.3864493709554352,
+   "high": 0.8002067623688555
+  },
+  "interval_method": {
+   "kind": "bootstrap over repositories",
+   "resamples": 2000,
+   "seed": 1,
+   "note": "95 % percentile interval from 2000 bootstrap resamples of the 10 aggregated repositories (with replacement, seed 1). It describes the sampled repositories, not all AI-assisted code, and not the repositories not in this sample."
+  }
+ },
+ "by_agent": {
+  "ai": {
+   "repositories": 1,
+   "commits": 1,
+   "introduced": 28,
+   "surviving": 20,
+   "survival_rate": 0.7142857142857143
+  },
+  "aider": {
+   "repositories": 2,
+   "commits": 11157,
+   "introduced": 374809,
+   "surviving": 235802,
+   "survival_rate": 0.6291257680578641
+  },
+  "claude-code": {
+   "repositories": 9,
+   "commits": 602,
+   "introduced": 117299,
+   "surviving": 77229,
+   "survival_rate": 0.6583943597132116
+  },
+  "cursor": {
+   "repositories": 6,
+   "commits": 165,
+   "introduced": 24979,
+   "surviving": 18204,
+   "survival_rate": 0.7287721686216422
+  },
+  "gemini": {
+   "repositories": 1,
+   "commits": 1,
+   "introduced": 4,
+   "surviving": 3,
+   "survival_rate": 0.75
+  },
+  "github-copilot": {
+   "repositories": 6,
+   "commits": 67,
+   "introduced": 55707,
+   "surviving": 23094,
+   "survival_rate": 0.4145619042490172
+  },
+  "jules": {
+   "repositories": 1,
+   "commits": 1,
+   "introduced": 4,
+   "surviving": 0,
+   "survival_rate": 0.0
+  },
+  "openai-codex": {
+   "repositories": 3,
+   "commits": 354,
+   "introduced": 181501,
+   "surviving": 108353,
+   "survival_rate": 0.596982936733131
+  },
+  "openhands": {
+   "repositories": 1,
+   "commits": 1,
+   "introduced": 145,
+   "surviving": 133,
+   "survival_rate": 0.9172413793103448
+  }
+ },
+ "repositories": [
+  {
+   "repo": "Aider-AI/aider",
+   "url": "https://github.com/Aider-AI/aider",
+   "audit_file": "repos/Aider-AI__aider.json",
+   "reproduce": "re audit Aider-AI/aider --json",
+   "total_commits": 12461,
+   "verified": {
+    "commits": 11156,
+    "introduced": 374687,
+    "surviving": 235782,
+    "survival_rate": 0.6292772367335936,
+    "median_survival": 0.3333333333333333,
+    "capped_survival_rate": 0.41864655522961985,
+    "cap_lines": 81,
+    "largest_commit_share": 0.2667266278253582
+   },
+   "probable": {
+    "commits": 0,
+    "introduced": 0,
+    "surviving": 0,
+    "survival_rate": null,
+    "median_survival": null,
+    "capped_survival_rate": null,
+    "cap_lines": null,
+    "largest_commit_share": null
+   },
+   "by_agent": {
+    "aider": {
+     "commits": 11155,
+     "introduced": 374668,
+     "surviving": 235764,
+     "survival_rate": 0.6292611058323636,
+     "median_survival": 0.3333333333333333,
+     "capped_survival_rate": 0.4185792070927031,
+     "cap_lines": 81,
+     "largest_commit_share": 0.2667401539496301
+    },
+    "claude-code": {
+     "commits": 1,
+     "introduced": 19,
+     "surviving": 18,
+     "survival_rate": 0.9473684210526315,
+     "median_survival": 0.9473684210526315,
+     "capped_survival_rate": 0.9473684210526315,
+     "cap_lines": 19,
+     "largest_commit_share": 1.0
+    }
+   },
+   "coverage": {
+    "method": "v2",
+    "blame_flags": [
+     "-w",
+     "-M",
+     "-C"
+    ],
+    "ignore_revs_file": false,
+    "shallow": false,
+    "sample_floor": 5,
+    "small_sample": false
+   },
+   "aggregated": true
+  },
+  {
+   "repo": "anthropics/anthropic-sdk-python",
+   "url": "https://github.com/anthropics/anthropic-sdk-python",
+   "audit_file": "repos/anthropics__anthropic-sdk-python.json",
+   "reproduce": "re audit anthropics/anthropic-sdk-python --json",
+   "total_commits": 1390,
+   "verified": {
+    "commits": 38,
+    "introduced": 4852,
+    "surviving": 4043,
+    "survival_rate": 0.8332646331409728,
+    "median_survival": 0.8373015873015873,
+    "capped_survival_rate": 0.8002067623688555,
+    "cap_lines": 580,
+    "largest_commit_share": 0.3268755152514427
+   },
+   "probable": {
+    "commits": 0,
+    "introduced": 0,
+    "surviving": 0,
+    "survival_rate": null,
+    "median_survival": null,
+    "capped_survival_rate": null,
+    "cap_lines": null,
+    "largest_commit_share": null
+   },
+   "by_agent": {
+    "claude-code": {
+     "commits": 38,
+     "introduced": 4852,
+     "surviving": 4043,
+     "survival_rate": 0.8332646331409728,
+     "median_survival": 0.8373015873015873,
+     "capped_survival_rate": 0.8002067623688555,
+     "cap_lines": 580,
+     "largest_commit_share": 0.3268755152514427
+    }
+   },
+   "coverage": {
+    "method": "v2",
+    "blame_flags": [
+     "-w",
+     "-M",
+     "-C"
+    ],
+    "ignore_revs_file": false,
+    "shallow": false,
+    "sample_floor": 5,
+    "small_sample": false
+   },
+   "aggregated": true
+  },
+  {
+   "repo": "anthropics/anthropic-sdk-typescript",
+   "url": "https://github.com/anthropics/anthropic-sdk-typescript",
+   "audit_file": "repos/anthropics__anthropic-sdk-typescript.json",
+   "reproduce": "re audit anthropics/anthropic-sdk-typescript --json",
+   "total_commits": 1321,
+   "verified": {
+    "commits": 48,
+    "introduced": 13796,
+    "surviving": 11394,
+    "survival_rate": 0.825891562771818,
+    "median_survival": 0.9605808054664045,
+    "capped_survival_rate": 0.846647002154662,
+    "cap_lines": 743,
+    "largest_commit_share": 0.39873876485937954
+   },
+   "probable": {
+    "commits": 0,
+    "introduced": 0,
+    "surviving": 0,
+    "survival_rate": null,
+    "median_survival": null,
+    "capped_survival_rate": null,
+    "cap_lines": null,
+    "largest_commit_share": null
+   },
+   "by_agent": {
+    "claude-code": {
+     "commits": 48,
+     "introduced": 13796,
+     "surviving": 11394,
+     "survival_rate": 0.825891562771818,
+     "median_survival": 0.9605808054664045,
+     "capped_survival_rate": 0.846647002154662,
+     "cap_lines": 743,
+     "largest_commit_share": 0.39873876485937954
+    }
+   },
+   "coverage": {
+    "method": "v2",
+    "blame_flags": [
+     "-w",
+     "-M",
+     "-C"
+    ],
+    "ignore_revs_file": false,
+    "shallow": false,
+    "sample_floor": 5,
+    "small_sample": false
+   },
+   "aggregated": true
+  },
+  {
+   "repo": "browser-use/browser-use",
+   "url": "https://github.com/browser-use/browser-use",
+   "audit_file": "repos/browser-use__browser-use.json",
+   "reproduce": "re audit browser-use/browser-use --json",
+   "total_commits": 7000,
+   "verified": {
+    "commits": 220,
+    "introduced": 18186,
+    "surviving": 3184,
+    "survival_rate": 0.1750797316617178,
+    "median_survival": 0.0,
+    "capped_survival_rate": 0.2339353926984145,
+    "cap_lines": 400,
+    "largest_commit_share": 0.21148135928736392
+   },
+   "probable": {
+    "commits": 0,
+    "introduced": 0,
+    "surviving": 0,
+    "survival_rate": null,
+    "median_survival": null,
+    "capped_survival_rate": null,
+    "cap_lines": null,
+    "largest_commit_share": null
+   },
+   "by_agent": {
+    "claude-code": {
+     "commits": 118,
+     "introduced": 13982,
+     "surviving": 1985,
+     "survival_rate": 0.14196824488628237,
+     "median_survival": 0.0,
+     "capped_survival_rate": 0.19917269513045166,
+     "cap_lines": 469,
+     "largest_commit_share": 0.2750679445000715
+    },
+    "cursor": {
+     "commits": 97,
+     "introduced": 4180,
+     "surviving": 1179,
+     "survival_rate": 0.28205741626794256,
+     "median_survival": 0.0,
+     "capped_survival_rate": 0.29775497468348106,
+     "cap_lines": 235,
+     "largest_commit_share": 0.1284688995215311
+    },
+    "gemini": {
+     "commits": 1,
+     "introduced": 4,
+     "surviving": 3,
+     "survival_rate": 0.75,
+     "median_survival": 0.75,
+     "capped_survival_rate": 0.75,
+     "cap_lines": 4,
+     "largest_commit_share": 1.0
+    },
+    "github-copilot": {
+     "commits": 3,
+     "introduced": 6,
+     "surviving": 3,
+     "survival_rate": 0.5,
+     "median_survival": 0.5,
+     "capped_survival_rate": 0.5,
+     "cap_lines": 3,
+     "largest_commit_share": 0.5
+    },
+    "openai-codex": {
+     "commits": 1,
+     "introduced": 14,
+     "surviving": 14,
+     "survival_rate": 1.0,
+     "median_survival": 1.0,
+     "capped_survival_rate": 1.0,
+     "cap_lines": 14,
+     "largest_commit_share": 1.0
+    }
+   },
+   "coverage": {
+    "method": "v2",
+    "blame_flags": [
+     "-w",
+     "-M",
+     "-C"
+    ],
+    "ignore_revs_file": false,
+    "shallow": false,
+    "sample_floor": 5,
+    "small_sample": false
+   },
+   "aggregated": true
+  },
+  {
+   "repo": "cline/cline",
+   "url": "https://github.com/cline/cline",
+   "audit_file": "repos/cline__cline.json",
+   "reproduce": "re audit cline/cline --json",
+   "total_commits": 7273,
+   "verified": {
+    "commits": 154,
+    "introduced": 95301,
+    "surviving": 63063,
+    "survival_rate": 0.6617244310133157,
+    "median_survival": 0.7204522096608428,
+    "capped_survival_rate": 0.67879896551319,
+    "cap_lines": 3290,
+    "largest_commit_share": 0.11900189924554831
+   },
+   "probable": {
+    "commits": 0,
+    "introduced": 0,
+    "surviving": 0,
+    "survival_rate": null,
+    "median_survival": null,
+    "capped_survival_rate": null,
+    "cap_lines": null,
+    "largest_commit_share": null
+   },
+   "by_agent": {
+    "claude-code": {
+     "commits": 67,
+     "introduced": 44737,
+     "surviving": 35518,
+     "survival_rate": 0.7939289626036614,
+     "median_survival": 0.7768595041322314,
+     "capped_survival_rate": 0.8143716412061406,
+     "cap_lines": 3721,
+     "largest_commit_share": 0.2083957350738762
+    },
+    "cursor": {
+     "commits": 40,
+     "introduced": 13895,
+     "surviving": 10933,
+     "survival_rate": 0.7868297948902483,
+     "median_survival": 0.8566793992988331,
+     "capped_survival_rate": 0.7792610013681381,
+     "cap_lines": 862,
+     "largest_commit_share": 0.332637639438647
+    },
+    "github-copilot": {
+     "commits": 47,
+     "introduced": 36669,
+     "surviving": 16612,
+     "survival_rate": 0.45302571654531076,
+     "median_survival": 0.19801980198019803,
+     "capped_survival_rate": 0.4391659933331682,
+     "cap_lines": 3290,
+     "largest_commit_share": 0.3092803185251848
+    }
+   },
+   "coverage": {
+    "method": "v2",
+    "blame_flags": [
+     "-w",
+     "-M",
+     "-C"
+    ],
+    "ignore_revs_file": false,
+    "shallow": false,
+    "sample_floor": 5,
+    "small_sample": false
+   },
+   "aggregated": true
+  },
+  {
+   "repo": "continuedev/continue",
+   "url": "https://github.com/continuedev/continue",
+   "audit_file": "repos/continuedev__continue.json",
+   "reproduce": "re audit continuedev/continue --json",
+   "total_commits": 16266,
+   "verified": {
+    "commits": 228,
+    "introduced": 27756,
+    "surviving": 18063,
+    "survival_rate": 0.6507782101167315,
+    "median_survival": 0.6809752747252746,
+    "capped_survival_rate": 0.6352955150267496,
+    "cap_lines": 446,
+    "largest_commit_share": 0.1085531056348177
+   },
+   "probable": {
+    "commits": 3,
+    "introduced": 1228,
+    "surviving": 529,
+    "survival_rate": 0.43078175895765475,
+    "median_survival": 0.425,
+    "capped_survival_rate": 0.43078175895765475,
+    "cap_lines": 480,
+    "largest_commit_share": 0.39087947882736157
+   },
+   "by_agent": {
+    "aider": {
+     "commits": 2,
+     "introduced": 141,
+     "surviving": 38,
+     "survival_rate": 0.2695035460992908,
+     "median_survival": 0.40702087286527516,
+     "capped_survival_rate": 0.2695035460992908,
+     "cap_lines": 124,
+     "largest_commit_share": 0.8794326241134752
+    },
+    "claude-code": {
+     "commits": 214,
+     "introduced": 25675,
+     "surviving": 16724,
+     "survival_rate": 0.6513729308666018,
+     "median_survival": 0.6637931034482759,
+     "capped_survival_rate": 0.6300802419516838,
+     "cap_lines": 446,
+     "largest_commit_share": 0.11735150925024343
+    },
+    "cursor": {
+     "commits": 10,
+     "introduced": 383,
+     "surviving": 366,
+     "survival_rate": 0.9556135770234987,
+     "median_survival": 1.0,
+     "capped_survival_rate": 0.9556135770234987,
+     "cap_lines": 145,
+     "largest_commit_share": 0.3785900783289817
+    },
+    "github-copilot": {
+     "commits": 1,
+     "introduced": 1412,
+     "surviving": 802,
+     "survival_rate": 0.5679886685552408,
+     "median_survival": 0.5679886685552408,
+     "capped_survival_rate": 0.5679886685552408,
+     "cap_lines": 1412,
+     "largest_commit_share": 1.0
+    },
+    "openhands": {
+     "commits": 1,
+     "introduced": 145,
+     "surviving": 133,
+     "survival_rate": 0.9172413793103448,
+     "median_survival": 0.9172413793103448,
+     "capped_survival_rate": 0.9172413793103448,
+     "cap_lines": 145,
+     "largest_commit_share": 1.0
+    }
+   },
+   "coverage": {
+    "method": "v2",
+    "blame_flags": [
+     "-w",
+     "-M",
+     "-C"
+    ],
+    "ignore_revs_file": false,
+    "shallow": false,
+    "sample_floor": 5,
+    "small_sample": false
+   },
+   "aggregated": true
+  },
+  {
+   "repo": "croviatrust/causari",
+   "url": "https://github.com/croviatrust/causari",
+   "audit_file": "repos/croviatrust__causari.json",
+   "reproduce": "re audit croviatrust/causari --json",
+   "total_commits": 127,
+   "verified": {
+    "commits": 14,
+    "introduced": 6267,
+    "surviving": 5595,
+    "survival_rate": 0.8927716610818573,
+    "median_survival": 0.9617821330902461,
+    "capped_survival_rate": 0.8927716610818573,
+    "cap_lines": 1554,
+    "largest_commit_share": 0.24796553374820487
+   },
+   "probable": {
+    "commits": 0,
+    "introduced": 0,
+    "surviving": 0,
+    "survival_rate": null,
+    "median_survival": null,
+    "capped_survival_rate": null,
+    "cap_lines": null,
+    "largest_commit_share": null
+   },
+   "by_agent": {
+    "cursor": {
+     "commits": 14,
+     "introduced": 6267,
+     "surviving": 5595,
+     "survival_rate": 0.8927716610818573,
+     "median_survival": 0.9617821330902461,
+     "capped_survival_rate": 0.8927716610818573,
+     "cap_lines": 1554,
+     "largest_commit_share": 0.24796553374820487
+    }
+   },
+   "coverage": {
+    "method": "v2",
+    "blame_flags": [
+     "-w",
+     "-M",
+     "-C"
+    ],
+    "ignore_revs_file": false,
+    "shallow": false,
+    "sample_floor": 5,
+    "small_sample": false
+   },
+   "aggregated": true
+  },
+  {
+   "repo": "ghostty-org/ghostty",
+   "url": "https://github.com/ghostty-org/ghostty",
+   "audit_file": "repos/ghostty-org__ghostty.json",
+   "reproduce": "re audit ghostty-org/ghostty --json",
+   "total_commits": 13460,
+   "verified": {
+    "commits": 77,
+    "introduced": 3725,
+    "surviving": 2570,
+    "survival_rate": 0.6899328859060403,
+    "median_survival": 0.8599388379204893,
+    "capped_survival_rate": 0.7335434214151884,
+    "cap_lines": 228,
+    "largest_commit_share": 0.12536912751677853
+   },
+   "probable": {
+    "commits": 0,
+    "introduced": 0,
+    "surviving": 0,
+    "survival_rate": null,
+    "median_survival": null,
+    "capped_survival_rate": null,
+    "cap_lines": null,
+    "largest_commit_share": null
+   },
+   "by_agent": {
+    "ai": {
+     "commits": 1,
+     "introduced": 28,
+     "surviving": 20,
+     "survival_rate": 0.7142857142857143,
+     "median_survival": 0.7142857142857143,
+     "capped_survival_rate": 0.7142857142857143,
+     "cap_lines": 28,
+     "largest_commit_share": 1.0
+    },
+    "claude-code": {
+     "commits": 72,
+     "introduced": 3605,
+     "surviving": 2498,
+     "survival_rate": 0.6929264909847435,
+     "median_survival": 0.8666666666666667,
+     "capped_survival_rate": 0.7385544315996232,
+     "cap_lines": 228,
+     "largest_commit_share": 0.12954230235783634
+    },
+    "cursor": {
+     "commits": 1,
+     "introduced": 32,
+     "surviving": 32,
+     "survival_rate": 1.0,
+     "median_survival": 1.0,
+     "capped_survival_rate": 1.0,
+     "cap_lines": 32,
+     "largest_commit_share": 1.0
+    },
+    "github-copilot": {
+     "commits": 1,
+     "introduced": 1,
+     "surviving": 1,
+     "survival_rate": 1.0,
+     "median_survival": 1.0,
+     "capped_survival_rate": 1.0,
+     "cap_lines": 1,
+     "largest_commit_share": 1.0
+    },
+    "openai-codex": {
+     "commits": 2,
+     "introduced": 59,
+     "surviving": 19,
+     "survival_rate": 0.3220338983050847,
+     "median_survival": 0.47244897959183674,
+     "capped_survival_rate": 0.3220338983050847,
+     "cap_lines": 49,
+     "largest_commit_share": 0.8305084745762712
+    }
+   },
+   "coverage": {
+    "method": "v2",
+    "blame_flags": [
+     "-w",
+     "-M",
+     "-C"
+    ],
+    "ignore_revs_file": false,
+    "shallow": false,
+    "sample_floor": 5,
+    "small_sample": false
+   },
+   "aggregated": true
+  },
+  {
+   "repo": "openai/codex",
+   "url": "https://github.com/openai/codex",
+   "audit_file": "repos/openai__codex.json",
+   "reproduce": "re audit openai/codex --json",
+   "total_commits": 11046,
+   "verified": {
+    "commits": 364,
+    "introduced": 183908,
+    "surviving": 109674,
+    "survival_rate": 0.596352524088131,
+    "median_survival": 0.5882490793438232,
+    "capped_survival_rate": 0.5912723220654207,
+    "cap_lines": 1874,
+    "largest_commit_share": 0.06153620288405072
+   },
+   "probable": {
+    "commits": 0,
+    "introduced": 0,
+    "surviving": 0,
+    "survival_rate": null,
+    "median_survival": null,
+    "capped_survival_rate": null,
+    "cap_lines": null,
+    "largest_commit_share": null
+   },
+   "by_agent": {
+    "claude-code": {
+     "commits": 10,
+     "introduced": 2250,
+     "surviving": 1223,
+     "survival_rate": 0.5435555555555556,
+     "median_survival": 0.5254237288135594,
+     "capped_survival_rate": 0.5435555555555556,
+     "cap_lines": 930,
+     "largest_commit_share": 0.41333333333333333
+    },
+    "github-copilot": {
+     "commits": 3,
+     "introduced": 230,
+     "surviving": 131,
+     "survival_rate": 0.5695652173913044,
+     "median_survival": 0.16666666666666666,
+     "capped_survival_rate": 0.5695652173913044,
+     "cap_lines": 138,
+     "largest_commit_share": 0.6
+    },
+    "openai-codex": {
+     "commits": 351,
+     "introduced": 181428,
+     "surviving": 108320,
+     "survival_rate": 0.5970412505236237,
+     "median_survival": 0.5917558005594865,
+     "capped_survival_rate": 0.5919764008394931,
+     "cap_lines": 1885,
+     "largest_commit_share": 0.06237736181846242
+    }
+   },
+   "coverage": {
+    "method": "v2",
+    "blame_flags": [
+     "-w",
+     "-M",
+     "-C"
+    ],
+    "ignore_revs_file": false,
+    "shallow": false,
+    "sample_floor": 5,
+    "small_sample": false
+   },
+   "aggregated": true
+  },
+  {
+   "repo": "sst/opencode",
+   "url": "https://github.com/sst/opencode",
+   "audit_file": "repos/sst__opencode.json",
+   "reproduce": "re audit sst/opencode --json",
+   "total_commits": 15680,
+   "verified": {
+    "commits": 50,
+    "introduced": 25998,
+    "surviving": 9470,
+    "survival_rate": 0.364258789137626,
+    "median_survival": 0.3954326923076923,
+    "capped_survival_rate": 0.3542521866812506,
+    "cap_lines": 4159,
+    "largest_commit_share": 0.4264558812216324
+   },
+   "probable": {
+    "commits": 0,
+    "introduced": 0,
+    "surviving": 0,
+    "survival_rate": null,
+    "median_survival": null,
+    "capped_survival_rate": null,
+    "cap_lines": null,
+    "largest_commit_share": null
+   },
+   "by_agent": {
+    "claude-code": {
+     "commits": 34,
+     "introduced": 8383,
+     "surviving": 3826,
+     "survival_rate": 0.4563998568531552,
+     "median_survival": 0.3954326923076923,
+     "capped_survival_rate": 0.5109735842792524,
+     "cap_lines": 2381,
+     "largest_commit_share": 0.4961231062865323
+    },
+    "cursor": {
+     "commits": 3,
+     "introduced": 222,
+     "surviving": 99,
+     "survival_rate": 0.44594594594594594,
+     "median_survival": 0.16666666666666666,
+     "capped_survival_rate": 0.44594594594594594,
+     "cap_lines": 117,
+     "largest_commit_share": 0.527027027027027
+    },
+    "github-copilot": {
+     "commits": 12,
+     "introduced": 17389,
+     "surviving": 5545,
+     "survival_rate": 0.31887975156708265,
+     "median_survival": 0.4993911788581221,
+     "capped_survival_rate": 0.30688403736734404,
+     "cap_lines": 10000,
+     "largest_commit_share": 0.6375869802748865
+    },
+    "jules": {
+     "commits": 1,
+     "introduced": 4,
+     "surviving": 0,
+     "survival_rate": 0.0,
+     "median_survival": 0.0,
+     "capped_survival_rate": 0.0,
+     "cap_lines": 4,
+     "largest_commit_share": 1.0
+    }
+   },
+   "coverage": {
+    "method": "v2",
+    "blame_flags": [
+     "-w",
+     "-M",
+     "-C"
+    ],
+    "ignore_revs_file": false,
+    "shallow": false,
+    "sample_floor": 5,
+    "small_sample": false
+   },
+   "aggregated": true
+  }
+ ],
+ "not_aggregated": [],
+ "excluded": {
+  "shallow": [],
+  "not_method_v2": [],
+  "failed": [],
+  "opted_out": 0,
+  "optout_file": "https://github.com/croviatrust/causari/blob/main/.github/survival-optout.txt"
+ },
+ "doi": "10.5281/zenodo.22863966",
+ "concept_doi": "10.5281/zenodo.22863965",
+ "zenodo": {
+  "record_url": "https://zenodo.org/records/22863966",
+  "record_id": 22863966,
+  "version": "#1",
+  "sandbox": false,
+  "published_at": "2026-09-20T20:19:53Z"
+ }
+}

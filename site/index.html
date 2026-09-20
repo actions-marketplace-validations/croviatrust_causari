@@ -28,7 +28,8 @@
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
   <link rel="apple-touch-icon" href="/assets/favicon.svg" />
   <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="alternate" type="application/atom+xml" href="/reports/survival/feed.xml" title="Causari Survival Report" />
+  <link rel="stylesheet" href="/styles.css?v=9be98290a2" />
 
   <script type="application/ld+json">
   {
@@ -45,7 +46,7 @@
         "url": "https://causari.dev",
         "downloadUrl": "https://github.com/croviatrust/causari/releases",
         "installUrl": "https://causari.dev/install.sh",
-        "softwareVersion": "0.1.5",
+        "softwareVersion": "0.2.0",
         "license": "https://www.apache.org/licenses/LICENSE-2.0",
         "isAccessibleForFree": true,
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -63,11 +64,11 @@
       },
       {
         "@type": "Dataset",
-        "name": "AI code survival, weekly measurements",
-        "description": "For each measured open-source repository: commits carrying machine-readable AI authorship metadata, lines they introduced, and lines git blame still attributes to them at HEAD. Unranked; method public.",
-        "url": "https://causari.dev/survival",
-        "distribution": { "@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": "https://causari.dev/survival-data.json" },
-        "license": "https://www.apache.org/licenses/LICENSE-2.0",
+        "name": "Causari Survival Report",
+        "description": "Weekly, numbered, citable: for each measured open-source repository, commits carrying machine-readable AI authorship metadata, lines they introduced, and lines git blame still attributes to them at HEAD. Counts and intervals; unranked; method public.",
+        "url": "https://causari.dev/reports/survival/",
+        "distribution": { "@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": "https://causari.dev/reports/survival/latest.json" },
+        "license": "https://creativecommons.org/licenses/by/4.0/",
         "creator": { "@id": "https://croviatrust.com/#org" }
       },
       {
@@ -89,14 +90,15 @@
     <a href="/" class="brand" aria-label="causari home">
       <img src="/assets/mark.svg" alt="" width="26" height="26" class="mark-light" />
       <img src="/assets/mark-white.svg" alt="" width="26" height="26" class="mark-dark" />
-      <span class="brand-name">causari</span>
+      <span class="brand-name" translate="no">causari</span>
     </a>
     <nav class="nav-links" aria-label="Primary">
       <a href="#audit" class="hide-sm">audit</a>
-      <a href="/survival">measurements</a>
+      <a href="/reports/survival/">reports</a>
       <a href="#ledger" class="hide-sm">ledger</a>
-      <a href="#proof" class="hide-sm">proof</a>
+      <a href="#proof" class="hide-sm">seal</a>
       <a href="/method">method</a>
+      <a href="/verify/" class="hide-sm">verify</a>
       <a href="https://github.com/croviatrust/causari" rel="noopener">source</a>
       <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
     </nav>
@@ -107,19 +109,19 @@
 
 <section class="hero">
   <div class="container">
-    <p class="eyebrow">∵ causari · part of the <a href="https://croviatrust.com" rel="noopener">Crovia</a> family · v0.1.5</p>
+    <p class="eyebrow">∵ causari · part of the <a href="https://croviatrust.com" rel="noopener">Crovia</a> family · v0.2.0</p>
     <h1>AI-written code has no author.<br/>It has causes.<br/>Causari proves them.</h1>
     <p class="lede">How many lines from AI-tagged commits are still alive in your repository? One command, any git repo, no setup. A count, not a grade. When you want to know <em>why</em> a line exists, the same binary records the prompt, the model and the files behind every agent edit into a local ledger — and signs what it measured so a stranger can verify it offline.</p>
 
     <div class="hero-cmd">
       <div class="cmd">
         <button class="copy" data-copy="install">copy</button>
-<pre id="install"><code>curl -fsSL https://causari.dev/install.sh | sh
+<pre translate="no" id="install"><code translate="no">curl -fsSL https://causari.dev/install.sh | sh
 re audit                    <span class="dim"># the repo you are in</span>
 re audit vercel/next.js     <span class="dim"># any public repo</span></code></pre>
       </div>
       <div class="cmd">
-<pre><code><span class="dim">$</span> re audit
+<pre translate="no"><code translate="no"><span class="dim">$</span> re audit
 ∵ causari · AI code survival
 ───────────────────────────────────────────
   36 commits analyzed <span class="dim">(git metadata only)</span>
@@ -149,7 +151,7 @@ By agent <span class="dim">(verified only)</span>
     <div class="section-head">
       <p class="eyebrow">re audit · works on any history, today</p>
       <h2>Everyone argues about how much code AI writes. Nobody can check the numbers.</h2>
-      <p class="lede"><code>re audit</code> reads plain git history — <code>Co-Authored-By</code> trailers, bot authors, agent markers — finds the commits that carry machine-readable AI authorship, and asks <code>git blame</code> how many of their lines are still at HEAD. No model, no estimate, no survey. Anyone re-runs it and gets the same bytes.</p>
+      <p class="lede"><code translate="no">re audit</code> reads plain git history — <code translate="no">Co-Authored-By</code> trailers, bot authors, agent markers — finds the commits that carry machine-readable AI authorship, and asks <code translate="no">git blame</code> how many of their lines are still at HEAD. No model, no estimate, no survey. Anyone re-runs it and gets the same bytes.</p>
     </div>
 
     <div class="rows">
@@ -167,14 +169,14 @@ By agent <span class="dim">(verified only)</span>
       </div>
       <div class="row">
         <div class="k">--save</div>
-        <div class="v"><p>Append a snapshot to <code>.causari/audits/</code> and follow your own trend.</p></div>
+        <div class="v"><p>Append a snapshot to <code translate="no">.causari/audits/</code> and follow your own trend.</p></div>
       </div>
     </div>
 
     <div class="grid grid-2" style="margin-top:2.5rem">
       <div class="card">
         <h3>In CI, on every pull request</h3>
-<pre><code>on: pull_request
+<pre translate="no"><code translate="no">on: pull_request
 permissions: { contents: read, pull-requests: write }
 jobs:
   audit:
@@ -183,12 +185,12 @@ jobs:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }   <span class="dim"># shallow clones are wrong</span>
       - uses: croviatrust/causari@v1</code></pre>
-        <p class="small muted" style="margin-top:0.8rem">The Action downloads the prebuilt Linux binary, runs <code>re audit --summary</code>, writes it to the job summary and keeps one sticky comment per PR. <a href="https://github.com/croviatrust/causari-audit-demo/pull/1" rel="noopener">A live example.</a></p>
+        <p class="small muted" style="margin-top:0.8rem">The Action downloads the prebuilt Linux binary, runs <code translate="no">re audit --summary</code>, writes it to the job summary and keeps one sticky comment per PR. <a href="https://github.com/croviatrust/causari-audit-demo/pull/1" rel="noopener">A live example.</a></p>
       </div>
       <div class="card">
         <h3>What it cannot see</h3>
-        <p>Code from inline completions (Copilot, Cursor Tab, Windsurf, …) leaves no git trace and counts as human. Commits without a trailer are UNKNOWN and excluded from the headline. A formatter pass or a moved function counts as a death under method v1. One bulk commit can dominate a line-weighted ratio; ratios under five AI-tagged commits are flagged.</p>
-        <p>All of this is written down at <a href="/method">causari.dev/method</a>, with how to reproduce or contest a number. The weekly <a href="/survival">measurements</a> on open-source repositories follow the same rules: alphabetical, unranked, opt-out by pull request.</p>
+        <p>Code from inline completions (Copilot, Cursor Tab, Windsurf, …) leaves no git trace and counts as human. Commits without a trailer are UNKNOWN and excluded from the headline. One bulk commit can dominate a line-weighted ratio, so method v2 also reports a capped ratio and the median per commit; repositories under five AI-tagged commits are measured but not aggregated.</p>
+        <p>All of this is written down at <a href="/method">causari.dev/method</a>, with how to reproduce or contest a number. The weekly <a href="/reports/survival/">Survival Report</a> on open-source repositories follows the same rules: alphabetical, unranked, intervals over the sample, opt-out by pull request, a DOI per report.</p>
       </div>
     </div>
   </div>
@@ -199,12 +201,12 @@ jobs:
     <div class="section-head">
       <p class="eyebrow">the ledger · from "which commit" to "which prompt"</p>
       <h2>Git remembers what changed. The ledger remembers what caused it.</h2>
-      <p class="lede">If you also want to know <em>why</em> a line exists — the prompt, the model, the files the agent read — Causari records agent actions as they happen into a local, append-only ledger (<code>.causari/</code>, gitignored), with a snapshot of the tree before and after each one. Content-addressed with BLAKE3. Queried like git, answered with causes.</p>
+      <p class="lede">If you also want to know <em>why</em> a line exists — the prompt, the model, the files the agent read — Causari records agent actions as they happen into a local, append-only ledger (<code translate="no">.causari/</code>, gitignored), with a snapshot of the tree before and after each one. Content-addressed with BLAKE3. Queried like git, answered with causes.</p>
     </div>
 
     <div class="grid grid-2">
       <div class="cmd">
-<pre><code>re init                     <span class="dim"># .causari/, added to .gitignore</span>
+<pre translate="no"><code translate="no">re init                     <span class="dim"># .causari/, added to .gitignore</span>
 re hook claude-code         <span class="dim"># every prompt and edit, exactly</span>
 re proxy                    <span class="dim"># local LLM proxy: model, tokens, cost</span>
 re watch                    <span class="dim"># attribute file changes to completions</span>
@@ -217,7 +219,7 @@ re bisect --test "npm test" <span class="dim"># first recorded event that breaks
 re revert &lt;event-id&gt;        <span class="dim"># restore the pre-state; recorded too</span></code></pre>
       </div>
       <div class="cmd">
-<pre><code><span class="dim">$</span> re why src/auth.ts:42
+<pre translate="no"><code translate="no"><span class="dim">$</span> re why src/auth.ts:42
 
 src/auth.ts:42  ⊢  introduced by event 2d070eb8cf
   agent:     claude-code
@@ -245,11 +247,11 @@ src/legacy.ts:7  ⊢  introduced by event 8f21c0aa19 <span class="dim">(root)</s
       <table class="tbl">
         <thead><tr><th>Agent</th><th>Prompt + file, exact</th><th>Model, tokens, cost</th><th>How</th></tr></thead>
         <tbody>
-          <tr><td>Claude Code</td><td>yes, via lifecycle hooks</td><td>not yet — edits travel as <code>tool_use</code>, which the proxy does not join to files yet</td><td><code>re hook claude-code</code></td></tr>
-          <tr><td>Aider</td><td>heuristic join, measured</td><td>yes</td><td><code>OPENAI_API_BASE</code> / <code>ANTHROPIC_API_BASE</code> → <code>re proxy</code> + <code>re watch</code></td></tr>
-          <tr><td>Codex CLI, Agents SDK</td><td>not yet — Responses API output not parsed</td><td>yes</td><td><code>OPENAI_BASE_URL</code> → <code>re proxy</code></td></tr>
-          <tr><td>Cursor, Windsurf, Copilot</td><td>only what the agent self-reports via MCP</td><td>no</td><td><code>re mcp</code></td></tr>
-          <tr><td>Cline / Roo, scripts, curl</td><td>heuristic join when the completion carries the code as text</td><td>yes</td><td>base URL → <code>re proxy</code> + <code>re watch</code></td></tr>
+          <tr><td>Claude Code</td><td>yes, via lifecycle hooks</td><td>not yet — edits travel as <code translate="no">tool_use</code>, which the proxy does not join to files yet</td><td><code translate="no">re hook claude-code</code></td></tr>
+          <tr><td>Aider</td><td>heuristic join, measured</td><td>yes</td><td><code translate="no">OPENAI_API_BASE</code> / <code translate="no">ANTHROPIC_API_BASE</code> → <code translate="no">re proxy</code> + <code translate="no">re watch</code></td></tr>
+          <tr><td>Codex CLI, Agents SDK</td><td>not yet — Responses API output not parsed</td><td>yes</td><td><code translate="no">OPENAI_BASE_URL</code> → <code translate="no">re proxy</code></td></tr>
+          <tr><td>Cursor, Windsurf, Copilot</td><td>only what the agent self-reports via MCP</td><td>no</td><td><code translate="no">re mcp</code></td></tr>
+          <tr><td>Cline / Roo, scripts, curl</td><td>heuristic join when the completion carries the code as text</td><td>yes</td><td>base URL → <code translate="no">re proxy</code> + <code translate="no">re watch</code></td></tr>
         </tbody>
       </table>
     </div>
@@ -257,7 +259,7 @@ src/legacy.ts:7  ⊢  introduced by event 8f21c0aa19 <span class="dim">(root)</s
     <div class="grid grid-2" style="margin-top:2.5rem">
       <div class="card">
         <h3>Two evidence classes, always printed</h3>
-        <p><strong>Declared</strong> — hooks, MCP, <code>re record</code>: the agent stated what it did. Exact prompt and path. With Claude Code the hook snapshots the tree right before the edit, so a human change between two agent edits is reported separately instead of absorbed.</p>
+        <p><strong>Declared</strong> — hooks, MCP, <code translate="no">re record</code>: the agent stated what it did. Exact prompt and path. With Claude Code the hook snapshots the tree right before the edit, so a human change between two agent edits is reported separately instead of absorbed.</p>
         <p><strong>Correlated</strong> — proxy + watch: the lines you inserted are searched inside completions captured moments before. A score, not a fact. The <a href="https://github.com/croviatrust/causari/blob/main/examples/real-session/RESULTS.md" rel="noopener">adversarial harness</a> gives the measured numbers: 100 % on a clean write, 50 % after a formatter pass, wrong per-line attribution when two prompts touch one file in the same window.</p>
       </div>
       <div class="card">
@@ -272,30 +274,33 @@ src/legacy.ts:7  ⊢  introduced by event 8f21c0aa19 <span class="dim">(root)</s
 <section id="proof" class="section">
   <div class="container">
     <div class="section-head">
-      <p class="eyebrow">⊢ proof · verifiable offline</p>
+      <p class="eyebrow">⊢ seal · verifiable offline</p>
       <h2>A measurement nobody can check is an opinion.</h2>
-      <p class="lede"><code>re proof generate</code> signs a manifest of the ledger — event count, sessions, agents, models, the content digest of the ledger itself — with a dedicated Ed25519 key, domain-separated from every other key the ledger owns. <code>re proof verify</code> needs the public key and nothing else: no server, no account, no trust in us. A modified manifest is rejected; unknown fields are rejected; a proof from an older schema is rejected by name.</p>
+      <p class="lede"><code translate="no">re audit --seal</code> runs the audit and issues a <a href="https://croviatrust.com/registry/seal/" rel="noopener">Crovia Seal</a> (<code translate="no">crovia.seal.v1</code>) over the exact JSON it printed: the audit bytes as the sealed output, the commit, method version and options as the sealed input, both committed by SHA-256 and length, signed with the repository's Ed25519 issuer key and chained with every other seal the repository issues. <code translate="no">re seal verify audit.seal.json</code> needs the file and nothing else: no server, no account, no trust in us. The same check runs in a browser at <a href="/verify/">causari.dev/verify</a> without a network request. A modified number is rejected; a swapped commit is rejected; a field the signer did not sign is rejected.</p>
     </div>
     <div class="grid grid-2">
       <div class="cmd">
-<pre><code><span class="dim">$</span> re proof generate
-proof: causari-proof.json
-  128 events · 4 sessions · 36 files
-  agents: claude-code, cursor
-  badge:  causari-proof.svg
+<pre translate="no"><code translate="no"><span class="dim">$</span> re audit --seal
+<span class="dim">… the audit as usual, then:</span>
+✓ seal cs_2026_6X3TIUCUGIMGLH7ZQNXOMRREJ4 written to audit.seal.json
+  issuer   urn:crovia:seal-issuer:causari:c4b3b0a67b24  (sequence 0)
+  commit   5990442f31c267cdbaee9039a54e0cbf6a81ef57  method v2
+  verify   re seal verify audit.seal.json — or drop the file on https://causari.dev/verify
 
-<span class="dim">$</span> re proof verify --against-repo
-ok   signature valid (Ed25519, causari.proof.v0.2)
-     attests 128 events · 2 agents
-     fresh: matches the current ledger
+<span class="dim">$</span> re seal verify audit.seal.json
+✓ signature valid — cs_2026_6X3TIUCUGIMGLH7ZQNXOMRREJ4 (crovia.seal.v1, audit seal)
+  commit    5990442f31c267cdbaee9039a54e0cbf6a81ef57
+  method    v2
+  audit     36 commits · verified AI: 3 commits, 1773 introduced, 1773 survived
 
-<span class="dim">$ # someone edits the manifest…</span>
-INVALID  signature verification failed</code></pre>
+<span class="dim">$ # someone edits a number…</span>
+✗ invalid: audit JSON does not match subject.output_hash: the numbers were altered</code></pre>
       </div>
       <div class="card">
-        <h3>Where this is going</h3>
-        <p>The audit result itself will become a <a href="https://croviatrust.com/registry/seal/" rel="noopener">Crovia Seal</a> (<code>crovia.seal.v1</code>): the audit JSON as subject, bound to the commit it measured and the method version that produced it, verifiable at <code>causari.dev/verify</code> with a static page and no network. The proxy will gain a <a href="https://croviatrust.com/registry/tacet/pnx/" rel="noopener">PNX</a> witness mode: a signed run sheet per agent session proving that no secret from a given set left the machine in the agent's traffic.</p>
-        <p class="small muted">Those are Phase 2 of the roadmap and are not shipped yet. This page says "signed" only where something is signed today.</p>
+        <h3>What it proves, and what it does not</h3>
+        <p>A valid audit seal proves that this issuer key signed this exact audit JSON for this commit, produced with this method version, and that the numbers were not altered since. It does not prove the numbers are true: anyone reruns <code translate="no">re audit</code> on the commit and compares the bytes. It does not say who controls the key: the seal names it, you decide whether to trust it. The verifier at <a href="/verify/">causari.dev/verify</a> is a static page that makes no network request.</p>
+        <p>Every completion through <code translate="no">re proxy --seal</code> gets a seal of the same format, hash-chained with the audit seals, so one repository has one chain and one verifier. The proxy also has a <a href="https://croviatrust.com/registry/tacet/pnx/" rel="noopener">PNX</a> witness mode (<code translate="no">re proxy --pnx</code>): a signed run sheet per agent session, and <code translate="no">re pnx prove</code> shows offline that no secret from a given set left the machine in the agent's traffic. The proofs verify under the Python reference and vice versa.</p>
+        <p class="small muted">This page says "signed" only where something is signed today.</p>
       </div>
     </div>
   </div>
@@ -315,7 +320,7 @@ INVALID  signature verification failed</code></pre>
       </div>
       <div>
         <div class="name">PNX <span>· proof of non-exfiltration</span></div>
-        <p class="small">A TACET profile for agent egress: witness an agent's outbound traffic and prove that none of a set of secrets appeared in it. A GitHub Action, <code>tacet-pnx</code> on PyPI.</p>
+        <p class="small">A TACET profile for agent egress: witness an agent's outbound traffic and prove that none of a set of secrets appeared in it. A GitHub Action, <code translate="no">tacet-pnx</code> on PyPI.</p>
         <a class="small" href="https://croviatrust.com/registry/tacet/pnx/" rel="noopener">croviatrust.com/registry/tacet/pnx</a>
       </div>
       <div class="here">
@@ -336,42 +341,42 @@ INVALID  signature verification failed</code></pre>
     <div class="grid grid-2">
       <div class="cmd">
         <button class="copy" data-copy="ins-sh">copy</button>
-<pre id="ins-sh"><code><span class="dim"># Linux / macOS</span>
+<pre translate="no" id="ins-sh"><code translate="no"><span class="dim"># Linux / macOS</span>
 curl -fsSL https://causari.dev/install.sh | sh</code></pre>
       </div>
       <div class="cmd">
         <button class="copy" data-copy="ins-ps">copy</button>
-<pre id="ins-ps"><code><span class="dim"># Windows (PowerShell)</span>
+<pre translate="no" id="ins-ps"><code translate="no"><span class="dim"># Windows (PowerShell)</span>
 iwr -useb https://causari.dev/install.ps1 | iex</code></pre>
       </div>
     </div>
     <div class="grid grid-2" style="margin-top:1rem">
       <div class="cmd">
         <button class="copy" data-copy="ins-brew">copy</button>
-<pre id="ins-brew"><code><span class="dim"># Homebrew (macOS, Linux)</span>
+<pre translate="no" id="ins-brew"><code translate="no"><span class="dim"># Homebrew (macOS, Linux)</span>
 brew install croviatrust/tap/causari</code></pre>
       </div>
       <div class="cmd">
         <button class="copy" data-copy="ins-scoop">copy</button>
-<pre id="ins-scoop"><code><span class="dim"># Scoop (Windows)</span>
+<pre translate="no" id="ins-scoop"><code translate="no"><span class="dim"># Scoop (Windows)</span>
 scoop bucket add causari https://github.com/croviatrust/scoop-bucket
 scoop install causari</code></pre>
       </div>
     </div>
-    <p class="muted small" style="margin-top:1rem">One program under two names: <code>causari</code> and <code>re</code>, both installed. The installers check the archive's SHA-256 against the release's <code>SHA256SUMS.txt</code> and abort on mismatch; the <a href="https://github.com/croviatrust/homebrew-tap" rel="noopener">tap</a> and the <a href="https://github.com/croviatrust/scoop-bucket" rel="noopener">bucket</a> render their manifests from the same file. From v0.2.0 every archive carries a signed SLSA provenance attestation (<code>gh attestation verify</code>). Prefer to build it yourself: <code>cargo install --git https://github.com/croviatrust/causari</code>.</p>
+    <p class="muted small" style="margin-top:1rem">One program under two names: <code translate="no">causari</code> and <code translate="no">re</code>, both installed. The installers check the archive's SHA-256 against the release's <code translate="no">SHA256SUMS.txt</code> and abort on mismatch; the <a href="https://github.com/croviatrust/homebrew-tap" rel="noopener">tap</a> and the <a href="https://github.com/croviatrust/scoop-bucket" rel="noopener">bucket</a> render their manifests from the same file. From v0.2.0 every archive carries a signed SLSA provenance attestation (<code translate="no">gh attestation verify</code>). Prefer to build it yourself: <code translate="no">cargo install causari --locked</code> from crates.io, or <code translate="no">--git https://github.com/croviatrust/causari</code>.</p>
 
     <div class="rows" style="margin-top:2.5rem">
       <div class="row">
         <div class="k">MCP</div>
-        <div class="v"><p><code>re mcp</code> exposes <code>causari_record</code>, <code>causari_recall</code> and <code>causari_why</code> over local stdio to Claude Desktop, Claude Code, Cursor, Windsurf and Cline. <code>causari_record</code> appends to <code>.causari/</code> and never edits your source. Config snippets in the <a href="https://github.com/croviatrust/causari#as-an-mcp-server" rel="noopener">README</a>; one click in <a href="https://cursor.com/en/install-mcp?name=causari&amp;config=eyJjb21tYW5kIjoicmUiLCJhcmdzIjpbIm1jcCJdfQ%3D%3D" rel="noopener">Cursor</a>; in Claude Code, <code>/plugin marketplace add croviatrust/causari</code>.</p></div>
+        <div class="v"><p><code translate="no">re mcp</code> exposes <code translate="no">causari_record</code>, <code translate="no">causari_recall</code> and <code translate="no">causari_why</code> over local stdio to Claude Desktop, Claude Code, Cursor, Windsurf and Cline. <code translate="no">causari_record</code> appends to <code translate="no">.causari/</code> and never edits your source. Config snippets in the <a href="https://github.com/croviatrust/causari#as-an-mcp-server" rel="noopener">README</a>; one click in <a href="https://cursor.com/en/install-mcp?name=causari&amp;config=eyJjb21tYW5kIjoicmUiLCJhcmdzIjpbIm1jcCJdfQ%3D%3D" rel="noopener">Cursor</a>; in Claude Code, <code translate="no">/plugin marketplace add croviatrust/causari</code>.</p></div>
       </div>
       <div class="row">
         <div class="k">Experimental</div>
-        <div class="v"><p><code>re skill</code>, <code>re brief</code>, <code>re guard</code>, <code>re churn</code> and <code>re sessions</code> exist and are documented in the README. They are marked experimental: their output is not part of any proof and their interfaces may change.</p></div>
+        <div class="v"><p><code translate="no">re skill</code>, <code translate="no">re brief</code>, <code translate="no">re guard</code>, <code translate="no">re churn</code> and <code translate="no">re sessions</code> exist and are documented in the README. They are marked experimental: their output is not part of any proof and their interfaces may change.</p></div>
       </div>
       <div class="row">
         <div class="k">Privacy</div>
-        <div class="v"><p>Everything lives in <code>.causari/</code> next to your code. Prompts, models and reasoning never leave the machine. <code>.env</code> files are excluded from snapshots. Keys are written <code>0600</code>. No telemetry — and this page loads nothing from anyone else.</p></div>
+        <div class="v"><p>Everything lives in <code translate="no">.causari/</code> next to your code. Prompts, models and reasoning never leave the machine. <code translate="no">.env</code> files are excluded from snapshots. Keys are written <code translate="no">0600</code>. No telemetry — and this page loads nothing from anyone else.</p></div>
       </div>
       <div class="row">
         <div class="k">License</div>
@@ -386,10 +391,10 @@ scoop install causari</code></pre>
 <footer class="footer">
   <div class="container foot-bottom">
     <p>© <span id="year">2026</span> Crovia · <em>causari</em> is a trademark of Crovia Trust · <a href="https://github.com/croviatrust/causari/blob/main/NOTICE" rel="noopener">notice</a> · <a href="mailto:security@croviatrust.com">security</a></p>
-    <p><a href="/survival">measurements</a> · <a href="/method">method</a> · <a href="/llms.txt">llms.txt</a> · <a href="https://github.com/croviatrust/causari/blob/main/MANIFESTO.md" rel="noopener">manifesto</a> · <a href="https://github.com/croviatrust/causari/blob/main/ROADMAP.md" rel="noopener">roadmap</a> · <a href="https://github.com/croviatrust/causari/discussions" rel="noopener">discussions</a></p>
+    <p><a href="/reports/survival/">survival report</a> · <a href="/method">method</a> · <a href="/llms.txt">llms.txt</a> · <a href="https://github.com/croviatrust/causari/blob/main/MANIFESTO.md" rel="noopener">manifesto</a> · <a href="https://github.com/croviatrust/causari/blob/main/ROADMAP.md" rel="noopener">roadmap</a> · <a href="https://github.com/croviatrust/causari/discussions" rel="noopener">discussions</a></p>
   </div>
 </footer>
 
-<script src="/app.js" defer></script>
+<script src="/app.js?v=eb85cbc8d5" defer></script>
 </body>
 </html>

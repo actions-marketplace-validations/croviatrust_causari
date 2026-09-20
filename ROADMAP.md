@@ -74,41 +74,57 @@ one-file change in < 50 ms; the adversarial harness passes on Linux.
 ## Phase 2 — interoperate, prove, report
 
 - [ ] `re audit` emits and reads **Agent Trace**; reads git-ai notes (kept).
-- [~] The audit result **is a Seal**: `crovia.seal.v1` with the audit JSON as
-      subject, bound to commit hash and method version; `re proof` retired in
-      its favour; `causari.dev/verify` is a static, offline verifier.
-- [~] **PNX witness mode**: `re proxy --pnx` produces a signed run sheet per
-      session; `re pnx prove/verify` via `crovia-tacet`; the GitHub Action
-      can attach a PNX proof to a PR.
-- [~] **Weekly Survival Report** replaces the leaderboard: static page, card,
-      RSS, Zenodo deposit with DOI, same pipeline as the Crovia Silence
-      Report; counts and intervals, no ranks; technical report positioned
-      against arXiv 2601.16809 and GitClear.
+- [x] The audit result **is a Seal**: `re audit --seal` writes a
+      `crovia.seal.v1` with the audit JSON as subject, bound to commit hash
+      and method version, hash-chained with the proxy's completion seals;
+      `re seal verify` and the static, offline `causari.dev/verify` check it
+      (the browser verifier is tested against the CLI from Node); `re proof`
+      retired; Action inputs `seal` / `seal-key`. Shipped in 0.2.0.
+- [x] **PNX witness mode**: `re proxy --pnx` produces a signed run sheet per
+      session; `re pnx prove/verify/sheet/list` native in Rust, byte-identical
+      to `crovia-tacet` (reference vectors in CI, proofs cross-verified with
+      `tacet-pnx` in both directions, sealed delivery accepted); the GitHub
+      Action verifies a PNX proof and attaches its verdict to the PR comment
+      (`pnx-proof`, `pnx-assets`, `pnx-fail-on-present`). The published
+      conformance vectors (`pnx_002..004`, 21 proofs) run against
+      `re pnx verify` in CI as the third runner beside Python and JS. Not yet:
+      commit of the run root into a TACET epoch (PNX.md §6 step 5).
+- [x] **Weekly Survival Report** replaces the leaderboard: static page, card,
+      Atom feed, JSON, Zenodo deposit with DOI, same pipeline as the Crovia
+      Silence Report; counts and intervals, no ranks; positioned against
+      arXiv 2601.16809 and GitClear (`docs/survival-report.md`). Report #1
+      published with DOI 10.5281/zenodo.22863966; the series has concept DOI
+      10.5281/zenodo.22863965 and every Monday's report becomes a version of
+      it.
 - [ ] Hook targets: Cursor `hooks.json`, Gemini CLI.
 - [ ] Ledger events optionally stored in `refs/notes/causari` so provenance
       travels with `git push`.
 
 Exit: a stranger verifies an audit seal and a PNX proof offline with the
-public key alone; the first report is deposited with a DOI.
+public key alone; the first report is deposited with a DOI. Reached on
+2026-09-20 with 0.2.0.
 
 ## Phase 3 — identity and distribution
 
 - [x] Identity: `∵` mark, monospace wordmark, monochrome palette, glyph set
       (`∵`, `⊢`, `·`, `—`), OG images, audit card, badge, site restyle.
-- [~] Binary `causari` with `re` as alias (done). Open: `--help` grouped by
-      area (record · ask · measure · prove · integrate).
-- [~] Signed SLSA attestations on every archive, non-empty release notes,
+- [x] Binary `causari` with `re` as alias; `--help` grouped by area
+      (measure · record · ask · move · prove · experimental), with a test
+      that every subcommand is listed.
+- [x] Signed SLSA attestations on every archive, non-empty release notes,
       Action verifies the checksum, Homebrew tap (`croviatrust/homebrew-tap`),
-      Scoop bucket (`croviatrust/scoop-bucket`) — done; crates.io via
-      Trusted Publishing (`publish-crate.yml`, OIDC, no token) — workflow
-      in place; the first version must be published by hand (owner ask).
+      Scoop bucket (`croviatrust/scoop-bucket`); crates.io by Trusted
+      Publishing (`publish-crate.yml`, environment `crates-io`, OIDC, no
+      token): 0.2.0 was published by the tag alone, and the tap and bucket
+      followed the release the same hour.
 - [x] DCO instead of CLA.
 - [x] One legal entity name (Crovia Trust) in NOTICE, trademark line, Cargo
       authors, Action metadata and the canon; git author fixed.
-- [~] MCP registry: `server.json` validated, published by the release
-      workflow after the crate (GitHub OIDC). Claude Code plugin: the repo
-      is a marketplace (`/plugin marketplace add croviatrust/causari`).
-      Open: Cursor MCP directory, awesome lists.
+- [~] MCP registry: `io.github.croviatrust/causari` 0.2.0 listed as
+      `active`, published by the release workflow after the crate (GitHub
+      OIDC). Claude Code plugin: the repo is a marketplace
+      (`/plugin marketplace add croviatrust/causari`). Open: Cursor MCP
+      directory, awesome lists.
 - [x] Family canon: `canon/canon.json` + `scripts/audit_surfaces.py`
       (claims, versions, links, glyphs, installers vs release), in CI on every
       push; live site weekly.
@@ -118,10 +134,9 @@ signature; the first external contributor lands a PR without ceremony.
 
 ## Open asks (things only the owner can do)
 
-- First `cargo publish` of `causari` by hand (crates.io requires it), then
-  Settings → Trusted Publishing: repository `croviatrust/causari`, workflow
-  `publish-crate.yml`, environment `crates-io`; create that environment in
-  the GitHub repository settings.
 - Hugging Face write token for the Crovia dataset mirror (family item).
 - Jurisdiction for the trademark line (the entity name is Crovia Trust).
-- `ZENODO_TOKEN` for the Survival Report DOI deposits.
+- `REPORT_PUSH_TOKEN` (fine-grained PAT of an admin, this repository only,
+  Contents: read and write) so the weekly workflow can push the report and
+  its DOI to `main` through branch protection. Without it the run still
+  measures and deposits, and leaves the tree as an artifact.

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Verify an audit seal · offline — causari</title>
+
+  <meta name="description" content="Verify a causari audit seal (crovia.seal.v1) in your browser: Ed25519 signature, subject hashes and the binding to commit and method, recomputed with WebCrypto. Nothing is uploaded; the page makes no network request." />
+  <meta name="theme-color" content="#0b0d10" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="canonical" href="https://causari.dev/verify/" />
+
+  <meta property="og:title" content="Verify an audit seal · offline" />
+  <meta property="og:description" content="Drop an audit.seal.json. The browser recomputes every hash and checks the Ed25519 signature; nothing leaves the page." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://causari.dev/verify/" />
+  <meta property="og:image" content="https://causari.dev/assets/og.png" />
+  <meta property="og:site_name" content="causari" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Verify an audit seal · offline" />
+  <meta name="twitter:description" content="Ed25519 signature, subject hashes and commit binding recomputed in the browser. No upload, no network." />
+  <meta name="twitter:image" content="https://causari.dev/assets/og.png" />
+
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+  <link rel="stylesheet" href="/styles.css?v=9be98290a2" />
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" role="banner">
+  <div class="container nav-inner">
+    <a href="/" class="brand" aria-label="causari home">
+      <img src="/assets/mark.svg" alt="" width="26" height="26" class="mark-light" />
+      <img src="/assets/mark-white.svg" alt="" width="26" height="26" class="mark-dark" />
+      <span class="brand-name" translate="no">causari</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/#audit" class="hide-sm">audit</a>
+      <a href="/survival">measurements</a>
+      <a href="/method">method</a>
+      <a href="/verify/" aria-current="page">verify</a>
+      <a href="https://github.com/croviatrust/causari" rel="noopener">source</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">⊢ verify · offline · nothing leaves this page</p>
+      <h2>Check an audit seal without trusting us.</h2>
+      <p class="lede"><code translate="no">re audit --seal</code> writes <code translate="no">audit.seal.json</code>: the audit JSON, the commit it
+      measured and the method version that produced it, signed with the repository's Ed25519 issuer key
+      as a <a href="https://croviatrust.com/registry/seal/" rel="noopener">Crovia Seal</a>
+      (<code translate="no">crovia.seal.v1</code>). Drop that file here. Your browser recomputes both subject hashes,
+      rebuilds the canonical payload and checks the signature with WebCrypto. This page makes no
+      network request and has no third-party code; you can save it and run it from disk. The same
+      checks, on the command line: <code translate="no">re seal verify audit.seal.json</code>.</p>
+    </div>
+
+    <div class="vf-unsupported" id="vf-unsupported" hidden>
+      <strong>This browser cannot verify Ed25519 signatures.</strong> WebCrypto Ed25519 needs Chrome 113+,
+      Firefox 130+ or Safari 17+. Hashes and structure are still checked; the signature step will fail.
+      Use <code translate="no">re seal verify FILE</code> instead.
+    </div>
+
+    <div class="grid grid-2">
+      <div>
+        <div class="vf-drop" id="vf-drop">
+          <label for="vf-text" class="muted small">Paste <code translate="no">audit.seal.json</code>, a bare seal, or a <code translate="no">seals.jsonl</code> chain — or drop the file anywhere in this box.</label>
+          <textarea id="vf-text" spellcheck="false" autocomplete="off" aria-label="Seal JSON" placeholder='{ "bundle": "causari.audit-seal.v1", "seal": { … }, "subject": { … } }'></textarea>
+          <div class="vf-actions">
+            <button type="button" id="vf-run">verify</button>
+            <label for="vf-file">open file…</label>
+            <input type="file" id="vf-file" accept=".json,.jsonl,application/json,text/plain" />
+            <button type="button" id="vf-clear">clear</button>
+            <span class="muted" id="vf-filename"></span>
+          </div>
+          <div class="vf-actions vf-sample">
+            <span class="muted small">No seal at hand?</span>
+            <button type="button" id="vf-sample">try a real one</button>
+            <button type="button" id="vf-tamper">then change one digit</button>
+            <span class="muted small">The sample is the seal of this repository's own audit at a fixed commit, embedded in this page.</span>
+          </div>
+        </div>
+      </div>
+      <div class="card" aria-live="polite">
+        <p class="vf-verdict" id="vf-verdict">—</p>
+        <dl class="vf-states" id="vf-states"></dl>
+        <table class="vf-audit" id="vf-audit" hidden>
+          <thead><tr><th>Sealed audit</th><th>Commits</th><th>Introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Capped</th><th>Median</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="small muted" id="vf-means"></p>
+        <ol class="vf-steps" id="vf-steps"></ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>What a valid audit seal proves</h3>
+        <p>That the key shown as <em>issuer</em> signed exactly this audit JSON for exactly this commit,
+        produced with this method version, and that not one byte of the numbers changed since. The
+        seal is a <code translate="no">crovia.seal.v1</code> like any other: the audit JSON is its
+        <code translate="no">subject.output</code>, the audited git state (commit, method, options) its
+        <code translate="no">subject.input</code>, both committed by SHA-256 and length. The bundle around the seal
+        carries both subjects so the hashes are recomputable here with no repository and no network.</p>
+        <p class="small muted">It does not prove that the numbers are true, and it does not say who
+        controls the issuer key. Anyone can rerun <code translate="no">re audit</code> on the commit and compare the
+        bytes; the <a href="/method">method</a> is public.</p>
+      </div>
+      <div class="card">
+        <h3>What fails, and how</h3>
+        <p>Verification is fail-closed. A bundle with a field the signer did not sign, an audit JSON
+        whose hash or length differs from the seal, a commit or method that disagrees between the
+        input, the signed parameters and the audit JSON, a float or an unsorted key in the canonical
+        payload, a wrong signature, a chain with a gap or a broken link: each is rejected at the step
+        that catches it, and the steps are listed so you can see which one.</p>
+        <p class="small muted">"Unreadable" means the text is not a seal at all (not JSON, or JSON with
+        a duplicate key); "invalid" means it is a seal that does not verify. <code translate="no">re seal verify</code>
+        exits 2 and 1 for the same two cases.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="container foot-bottom">
+    <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Crovia</a> · <em>causari</em> is a trademark of Crovia Trust.</p>
+    <p class="muted">Same check offline: <code translate="no">re seal verify audit.seal.json</code> · <a href="/method">method</a> · <a href="/">causari.dev</a></p>
+  </div>
+</footer>
+
+<!-- The sample seal: `re audit --seal` on this repository at the commit it names. Inline, because this page makes no network request. -->
+<script type="application/json" id="vf-sample-data">{"bundle":"causari.audit-seal.v1","seal":{"chain":{"prev_seal_hash":null,"sequence":0},"generator":{"id":"causari","params":{"commit":"18dad1fe7b4c5b72299aef433cb9d12d73e6cf9d","coverage.shallow":"false","method":"v2","repo":"https://github.com/croviatrust/causari","subject_type":"causari.audit.v1"},"version":"0.2.0","weights_hash":null},"issuer":{"id":"urn:crovia:seal-issuer:causari:cf7b88123e9b","pubkey":{"alg":"ed25519","key_hex":"cf7b88123e9b8ce4c6d8bde17135f0723968277344bedbcb1cd085314c37cd7b"}},"seal_id":"cs_2026_BM7ZPFVVOZG7Q7ROLLB6D7Y6TI","seal_version":"crovia.seal.v1","signature":{"alg":"ed25519","canon":"csc-1","domain":"CROVIA-SEAL-v1","payload_hash_alg":"sha256","sig_hex":"e67ad37c7ec49948022443d99c1ac76fe36a36d1ed208aa88e70fa2596f450ba14e0598921e8f7d0c19fdd807107a44e02a5bd4cd429caee13f95fbfd3c60d04"},"subject":{"input_hash":"sha256:13af2fb0cd26a9efe8ab67f1f8e0bac1ca5ccb0e36a9669e2b9ea3b99dfdf641","input_len":133,"modality":"text","output_hash":"sha256:bf02e7da42d0224791ee873f777b42174df2a983b9a05af9104bfd6afbfb6f61","output_len":1095},"timestamp":{"emitted_at":"2026-09-20T20:46:15.200Z","nonce":"DKGEAHFILEG66N5KZ7GBKRM3HQ"}},"subject":{"audit_json":"{\n  \"by_agent\": {\n    \"cursor\": {\n      \"cap_lines\": 1554,\n      \"capped_survival_rate\": 0.8460188287857029,\n      \"commits\": 14,\n      \"introduced\": 6267,\n      \"largest_commit_share\": 0.24796553374820487,\n      \"median_survival\": 0.9336976338631049,\n      \"survival_rate\": 0.8460188287857029,\n      \"surviving\": 5302\n    }\n  },\n  \"coverage\": {\n    \"blame_flags\": [\n      \"-w\",\n      \"-M\",\n      \"-C\"\n    ],\n    \"ignore_revs_file\": false,\n    \"method\": \"v2\",\n    \"sample_floor\": 5,\n    \"shallow\": false,\n    \"small_sample\": false\n  },\n  \"method\": \"v2\",\n  \"probable\": {\n    \"cap_lines\": null,\n    \"capped_survival_rate\": null,\n    \"commits\": 0,\n    \"introduced\": 0,\n    \"largest_commit_share\": null,\n    \"median_survival\": null,\n    \"survival_rate\": null,\n    \"surviving\": 0\n  },\n  \"total_commits\": 168,\n  \"verified\": {\n    \"cap_lines\": 1554,\n    \"capped_survival_rate\": 0.8460188287857029,\n    \"commits\": 14,\n    \"introduced\": 6267,\n    \"largest_commit_share\": 0.24796553374820487,\n    \"median_survival\": 0.9336976338631049,\n    \"survival_rate\": 0.8460188287857029,\n    \"surviving\": 5302\n  }\n}\n","input":{"commit":"18dad1fe7b4c5b72299aef433cb9d12d73e6cf9d","method":"v2","options":{"allow_shallow":false},"type":"causari.audit.input.v1"}}}</script>
+<script src="/app.js?v=eb85cbc8d5" defer></script>
+<script src="/verify/seal-core.js" defer></script>
+<script src="/verify/verify.js" defer></script>
+</body>
+</html>

@@ -17,6 +17,28 @@ jobs:
           # Full history: re audit reads every commit + git blame at HEAD.
           fetch-depth: 0
 
-      # Dogfood the public composite action (uses prebuilt release binary,
-      # falls back to cargo install before the first release exists).
+      # Dogfood the public composite action from this checkout (uses the
+      # prebuilt release binary, falls back to cargo install before the
+      # first release exists).
       - uses: ./
+        with:
+          seal: "true"
+
+  # What adopters run, byte for byte: the published action at its floating
+  # major tag, not the checkout. Fails when `v1` lags behind the release
+  # (e.g. an archive name the old action does not know).
+  consumer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: croviatrust/causari@v1
+        with:
+          comment: "false"
+          seal: "true"
+      - name: The seal the action wrote verifies offline
+        shell: bash
+        run: |
+          test -s causari-audit.seal.json
+          re seal verify causari-audit.seal.json

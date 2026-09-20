@@ -1,0 +1,25 @@
+{
+ "schema": "causari.zenodo_state.v1",
+ "production": {
+  "concept_doi": "10.5281/zenodo.22863965",
+  "concept_id": 22863966,
+  "reports": {
+   "2026/01": {
+    "doi": "10.5281/zenodo.22863966",
+    "concept_doi": "10.5281/zenodo.22863965",
+    "html": "https://zenodo.org/records/22863966",
+    "id": 22863966,
+    "version": "#1",
+    "revision": 1,
+    "sandbox": false,
+    "content_sha256": "a4dceb26e4a7ac033162d82e34b74c6aacafdfb4d0f820650f6fba7736fe712f",
+    "published_at": "2026-09-20T20:19:53Z"
+   }
+  }
+ },
+ "sandbox": {
+  "concept_doi": null,
+  "concept_id": null,
+  "reports": {}
+ }
+}

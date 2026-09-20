@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>causari — Survival Report</title>
+  <subtitle>Weekly counts of surviving lines from AI-tagged commits in open-source repositories. No ranks, no verdicts. CC-BY-4.0.</subtitle>
+  <link rel="self" type="application/atom+xml" href="https://causari.dev/reports/survival/feed.xml"/>
+  <link rel="alternate" type="text/html" href="https://causari.dev/reports/survival/"/>
+  <id>https://causari.dev/reports/survival/</id>
+  <updated>2026-09-20T16:49:36Z</updated>
+  <author><name>Crovia Trust</name><uri>https://croviatrust.com</uri></author>
+  <rights>CC-BY-4.0 Crovia Trust</rights>
+  <icon>https://causari.dev/assets/favicon.svg</icon>
+  <entry>
+    <title>Survival Report #1 · 2026-09-20</title>
+    <link rel="alternate" type="text/html" href="https://causari.dev/reports/survival/2026/01/"/>
+    <link rel="enclosure" type="image/png" href="https://causari.dev/reports/survival/2026/01/card.png"/>
+    <link rel="related" type="application/json" href="https://causari.dev/reports/survival/2026/01/report.json"/>
+    <id>https://causari.dev/reports/survival/2026/01/</id>
+    <published>2026-09-20T00:00:00Z</published>
+    <updated>2026-09-20T16:49:36Z</updated>
+    <summary>462,838 of 754,476 lines introduced by 12,349 AI-tagged commits in 10 open-source repositories are still at HEAD (61.3 %). 95 % interval over the sampled repositories: 53.0 % to 64.9 %. Counts, not grades. CC-BY-4.0. DOI 10.5281/zenodo.22863966.</summary>
+  </entry>
+</feed>

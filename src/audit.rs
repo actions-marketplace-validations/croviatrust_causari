@@ -1078,6 +1078,26 @@ pub fn is_shallow(dir: &Path) -> bool {
     }
 }
 
+/// The commit the working tree is at: what an audit measures and what an
+/// audit seal is bound to.
+pub fn head_commit(dir: &Path) -> Result<String> {
+    let hash = git(dir, &["rev-parse", "--verify", "HEAD^{commit}"])?
+        .trim()
+        .to_string();
+    if hash.len() != 40 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+        anyhow::bail!("git rev-parse HEAD returned {hash:?}, not a commit hash");
+    }
+    Ok(hash)
+}
+
+/// The `origin` remote URL, if the repository has one.
+pub fn origin_url(dir: &Path) -> Option<String> {
+    git(dir, &["remote", "get-url", "origin"])
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct AuditOptions {
     /// Measure a shallow clone anyway; the report then carries
@@ -1085,16 +1105,22 @@ pub struct AuditOptions {
     pub allow_shallow: bool,
 }
 
+/// The audit was refused because the clone is shallow. Typed so the CLI can
+/// exit 2 (unusable request) rather than 1 (measurement failed).
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "refusing to audit a shallow clone: its history is truncated, so introduced and \
+     surviving line counts would be wrong.\n  Fetch the full history first: \
+     `git fetch --unshallow` (in GitHub Actions: `fetch-depth: 0` on actions/checkout), \
+     or pass --allow-shallow to measure anyway and have the report say so."
+)]
+pub struct ShallowCloneRefused;
+
 /// Full Group-0 audit of a git repository: no ledger, no hooks, no proxy.
 pub fn audit_repo(dir: &Path, opts: &AuditOptions) -> Result<SurvivalReport> {
     let shallow = is_shallow(dir);
     if shallow && !opts.allow_shallow {
-        anyhow::bail!(
-            "refusing to audit a shallow clone: its history is truncated, so introduced and \
-             surviving line counts would be wrong.\n  Fetch the full history first: \
-             `git fetch --unshallow` (in GitHub Actions: `fetch-depth: 0` on actions/checkout), \
-             or pass --allow-shallow to measure anyway and have the report say so."
-        );
+        return Err(ShallowCloneRefused.into());
     }
     if shallow {
         eprintln!(

@@ -6,7 +6,7 @@
 <p align="center">
   <a href="https://causari.dev"><strong>causari.dev</strong></a>
   &nbsp;·&nbsp;
-  <a href="https://causari.dev/survival">Weekly measurements</a>
+  <a href="https://causari.dev/reports/survival/">Weekly Survival Report</a>
   &nbsp;·&nbsp;
   <a href="https://causari.dev/method">Method</a>
   &nbsp;·&nbsp;
@@ -160,14 +160,39 @@ re seal verify           # every signature, whole chain, offline
 re seal issuer           # your issuer id and public key (read-only)
 ```
 
-**Causari Proof.** `re proof generate` signs a summary of the ledger — event
-count, agents, models, files touched, a digest over the exact set of event ids
-— with a dedicated key, domain-separated, canonicalised with CSC-1. `re proof
-verify` fails closed: a proof containing any field the signer did not sign does
-not even parse.
+**PNX — Proof of Non-Exfiltration.** `re proxy --pnx` makes the proxy an
+egress witness for the TACET profile
+[`crovia.pnx.v1`](https://croviatrust.com/registry/tacet/pnx/): every request
+body is fingerprinted (salted winnowing, k-gram 32, window 16) and committed
+to a sparse Merkle map *before* it is forwarded; Ctrl-C signs a run sheet
+carrying the root. `re pnx prove` then shows, for a set of protected assets,
+that none shared a substring of 47 bytes or more with that traffic — or
+records which did. Sheet and proof contain no traffic bytes and no asset
+bytes, and verify offline with `re pnx verify` or with the Python reference
+`tacet-pnx`, in both directions, same verdicts and exit codes. What a proof
+does and does not say: [`docs/pnx.md`](docs/pnx.md).
 
-A proof says *this is what the ledger contained*, signed by this key. It does
-not say the ledger is complete. That distinction is on the output.
+```bash
+re proxy --pnx                                    # witness a session; Ctrl-C signs the sheet
+re pnx prove --asset api_key=.env --assets-dir src/secret/
+re pnx verify .causari/pnx/<run>/proof.json --asset api_key=.env --assets-dir src/secret/
+```
+
+**Audit seals.** `re audit --seal` writes the audit result as the same kind of
+receipt: a `crovia.seal.v1` over the exact bytes of `re audit --json`, bound to
+the audited commit and the method version, hash-chained with the proxy's
+completion seals under one issuer key per repository. `re seal verify FILE`
+checks it offline; so does the static page
+[causari.dev/verify](https://causari.dev/verify), which makes no network
+request. A valid seal proves that this key signed these numbers for this
+commit and that they were not altered since. It does not prove the numbers
+are true: rerun `re audit` on the commit and compare. (`re proof` is retired
+in favour of this; it exits 2 and names the replacement.)
+
+```bash
+re audit --seal --output audit.seal.json
+re seal verify audit.seal.json
+```
 
 ## Experimental
 
@@ -285,8 +310,8 @@ Causari does not compete with provenance trackers (Agent Trace, git-ai,
 `Assisted-by:` trailers, Entire checkpoints); it reads them, measures with a
 public method, and signs the result so a third party can verify it offline.
 Next: `git blame -w -M -C` and per-commit caps in the audit; Agent Trace and
-`Assisted-by:` readers; the audit result as a Seal; a PNX witness mode in
-the proxy that proves what an agent session did *not* send to the model.
+`Assisted-by:` readers; the audit result as a Seal. Done: a PNX witness mode
+in the proxy that proves what an agent session did *not* send to the model.
 Phases and exit criteria: [`ROADMAP.md`](ROADMAP.md).
 
 ## Family
@@ -296,6 +321,9 @@ tenses: **TACET** proves a model's silence about its training data, **PNX**
 proves an agent's egress carried no protected bytes, **Causari** proves why a
 line of code exists and whether it is still there. Same rules everywhere:
 reproducible numbers, no verdicts, offline verification, limits stated first.
+
+Role in the Crovia canon — Sibling product: proof of cause for AI-written code
+(audit + local ledger); Seal issuer for agent completions and audit results.
 
 ## License
 

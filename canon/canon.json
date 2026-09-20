@@ -74,15 +74,18 @@
       "NOTICE",
       "action.yml",
       "site/index.html",
-      "site/survival.html",
+      "site/reports/survival/index.html",
       "site/method.html",
       "site/llms.txt",
-      "site/README.md"
+      "site/README.md",
+      "docs/survival-report.md",
+      "site/verify/index.html"
     ],
     "html": [
       "site/index.html",
-      "site/survival.html",
-      "site/method.html"
+      "site/reports/survival/index.html",
+      "site/method.html",
+      "site/verify/index.html"
     ],
     "required_files": [
       "site/assets/mark.svg",
@@ -96,7 +99,12 @@
       "site/sitemap.xml",
       "site/install.sh",
       "site/install.ps1",
-      "site/survival-data.json"
+      "site/reports/survival/index.html",
+      "site/reports/survival/feed.xml",
+      "site/reports/survival/latest.json",
+      "site/verify/index.html",
+      "site/verify/verify.js",
+      "site/verify/seal-core.js"
     ],
     "identical_pairs": [
       [
@@ -107,7 +115,12 @@
         "scripts/install.ps1",
         "site/install.ps1"
       ]
-    ]
+    ],
+    "generated": {
+      "rule": "site/reports/survival/** is written by scripts/survival_report.py from `re audit --json` runs and never edited by hand; report directories are append-only.",
+      "generator": "scripts/survival_report.py",
+      "tests": "scripts/tests/test_survival_report.py"
+    }
   },
   "forbidden_words": {
     "rule": "A measurement with a verdict attached stops being a measurement. None of these may appear on a public surface, in the README or in CLI output templates.",
@@ -153,11 +166,11 @@
         "leaderboard"
       ],
       "DCO.md": [],
-      "site/survival.html": [
-        "leaderboard"
-      ],
-      "site/README.md": [
-        "leaderboard"
+      "site/README.md": [],
+      "docs/survival-report.md": [
+        "leaderboard",
+        "high churn",
+        "healthy"
       ]
     }
   },
@@ -167,7 +180,8 @@
       "README.md": [
         "not a grade",
         "What it cannot see",
-        "causari.dev/method"
+        "causari.dev/method",
+        "re seal verify"
       ],
       "site/index.html": [
         "not a grade",
@@ -175,21 +189,36 @@
         "/method",
         "Signed-off-by|DCO|Apache 2.0"
       ],
-      "site/survival.html": [
-        "counts, not grades",
-        "survival-optout.txt",
-        "/method"
-      ],
       "site/method.html": [
         "Reproduce or contest",
         "survival-optout.txt"
       ],
       "site/llms.txt": [
         "counts, not grades",
-        "causari.dev/method"
+        "causari.dev/method",
+        "causari.dev/verify"
       ],
       "action.yml": [
         "--summary"
+      ],
+      "site/reports/survival/index.html": [
+        "counts, not grades",
+        "survival-optout.txt",
+        "/method",
+        "feed.xml",
+        "not a sample of all AI-assisted code"
+      ],
+      "docs/survival-report.md": [
+        "not a quality judgement",
+        "arXiv 2601.16809",
+        "GitClear",
+        "ZENODO_TOKEN"
+      ],
+      "site/verify/index.html": [
+        "does not prove",
+        "no network request",
+        "re seal verify",
+        "/method"
       ]
     }
   },
@@ -230,22 +259,31 @@
     "base": "https://causari.dev",
     "pages": {
       "/": "It has causes",
-      "/survival": "weekly measurements",
       "/method": "Reproduce or contest",
       "/llms.txt": "not grades",
       "/robots.txt": "Sitemap",
-      "/sitemap.xml": "causari.dev/method",
+      "/sitemap.xml": "causari.dev/verify/",
       "/install.sh": "SHA256SUMS.txt",
       "/install.ps1": "SHA256SUMS.txt",
       "/assets/favicon.svg": "<svg",
       "/assets/mark.svg": "<svg",
-      "/survival-data.json": "{"
+      "/reports/survival/": "Survival Report",
+      "/reports/survival/feed.xml": "<feed",
+      "/reports/survival/latest.json": "causari.survival_report.v1",
+      "/verify/": "does not prove",
+      "/verify/seal-core.js": "CROVIA-SEAL-v1",
+      "/verify/verify.js": "causari.audit-seal.v1"
     },
     "redirects": {
-      "/repo": "/survival",
+      "/repo": "/reports/survival/",
       "/assets/icon.svg": "/assets/favicon.svg",
       "/assets/og-card.png": "/assets/og.png",
-      "/cla": "DCO.md"
+      "/cla": "DCO.md",
+      "/survival": "/reports/survival/",
+      "/report": "/reports/survival/",
+      "/survival-data.json": "/reports/survival/latest.json",
+      "/verify": "/verify/",
+      "/seal": "/verify/"
     },
     "headers": {
       "/": {
@@ -254,6 +292,16 @@
       },
       "/install.sh": {
         "content-type": "text/x-shellscript"
+      },
+      "/reports/survival/feed.xml": {
+        "content-type": "application/atom+xml"
+      },
+      "/reports/survival/latest.json": {
+        "content-type": "application/json"
+      },
+      "/verify/": {
+        "content-security-policy": "connect-src 'none'",
+        "x-frame-options": "DENY"
       }
     },
     "forbidden_live_words": [
@@ -261,9 +309,11 @@
       "fonts.googleapis.com",
       "og-card.png",
       "/assets/icon.svg\"",
-      "leaderboard.html",
       "🟢",
-      "🔴"
+      "🔴",
+      "leaderboard.html",
+      "survival.js",
+      "re proof"
     ]
   }
 }
