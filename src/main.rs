@@ -9,6 +9,7 @@ mod dag;
 mod index;
 mod keys;
 mod object;
+mod pnx;
 mod proof;
 mod provenance;
 mod repo;
