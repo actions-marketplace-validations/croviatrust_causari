@@ -358,7 +358,7 @@ scoop bucket add causari https://github.com/croviatrust/scoop-bucket
 scoop install causari</code></pre>
       </div>
     </div>
-    <p class="muted small" style="margin-top:1rem">One program under two names: <code>causari</code> and <code>re</code>, both installed. The installers check the archive's SHA-256 against the release's <code>SHA256SUMS.txt</code> and abort on mismatch; the <a href="https://github.com/croviatrust/homebrew-tap" rel="noopener">tap</a> and the <a href="https://github.com/croviatrust/scoop-bucket" rel="noopener">bucket</a> render their manifests from the same file. From v0.2.0 every archive carries a signed SLSA provenance attestation (<code>gh attestation verify</code>). Prefer to build it yourself: <code>cargo install --git https://github.com/croviatrust/causari</code>.</p>
+    <p class="muted small" style="margin-top:1rem">One program under two names: <code>causari</code> and <code>re</code>, both installed. The installers check the archive's SHA-256 against the release's <code>SHA256SUMS.txt</code> and abort on mismatch; the <a href="https://github.com/croviatrust/homebrew-tap" rel="noopener">tap</a> and the <a href="https://github.com/croviatrust/scoop-bucket" rel="noopener">bucket</a> render their manifests from the same file. From v0.2.0 every archive carries a signed SLSA provenance attestation (<code>gh attestation verify</code>). Prefer to build it yourself: <code>cargo install causari --locked</code> from crates.io, or <code>--git https://github.com/croviatrust/causari</code>.</p>
 
     <div class="rows" style="margin-top:2.5rem">
       <div class="row">
