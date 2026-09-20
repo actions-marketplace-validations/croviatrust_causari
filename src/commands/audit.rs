@@ -306,61 +306,91 @@ fn print_class(label: &str, stat: &SurvivalStat) {
     );
 }
 
-/// Shields-style flat badge: `AI survival | NN.N%`.
+/// The identity palette. Numbers never carry colour: a badge or a card reports
+/// a measurement, it does not grade it, so every value renders in graphite.
+const INK: &str = "#0b0d10";
+const PAPER: &str = "#f5f4ef";
+const GRAPHITE: &str = "#3b4252";
+const MIST: &str = "#9aa3ad";
+const MONO: &str = "ui-monospace,'JetBrains Mono','SF Mono','Cascadia Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace";
+
+/// The ∵ mark as three discs, so it renders identically in every viewer and
+/// never depends on a font carrying U+2235.
+fn mark_svg(x: f32, y: f32, size: f32, fill: &str) -> String {
+    let s = size / 100.0;
+    let r = 14.5 * s;
+    [(28.0, 34.0), (72.0, 34.0), (50.0, 72.0)]
+        .iter()
+        .map(|(cx, cy): &(f32, f32)| {
+            format!(
+                r#"<circle cx="{:.2}" cy="{:.2}" r="{:.2}" fill="{fill}"/>"#,
+                x + cx * s,
+                y + cy * s,
+                r
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+/// Shields-style flat badge: `∵ AI survival | NN.N%`.
 fn generate_badge(report: &SurvivalReport) -> String {
     let v = &report.verified;
-    // One colour for every value: a badge reports a measurement, it does not grade it.
-    let color = "#3b4252";
     let value = match v.survival_rate() {
         None => "n/a".to_string(),
         Some(r) => format!("{:.1}%", r * 100.0),
     };
-    let label = "∵ AI survival";
-    let label_w: u32 = 90;
-    let value_w: u32 = 12 + value.len() as u32 * 8;
+    let label = "AI survival";
+    let label_w: u32 = 102;
+    let value_w: u32 = 16 + value.len() as u32 * 7;
     let total_w = label_w + value_w;
+    let mark = mark_svg(5.0, 4.0, 12.0, PAPER);
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{total_w}" height="20" role="img" aria-label="{label}: {value}">
-  <linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient>
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{total_w}" height="20" role="img" aria-label="∵ {label}: {value}">
   <clipPath id="r"><rect width="{total_w}" height="20" rx="3" fill="#fff"/></clipPath>
   <g clip-path="url(#r)">
-    <rect width="{label_w}" height="20" fill="#555"/>
-    <rect x="{label_w}" width="{value_w}" height="20" fill="{color}"/>
-    <rect width="{total_w}" height="20" fill="url(#s)"/>
+    <rect width="{label_w}" height="20" fill="{INK}"/>
+    <rect x="{label_w}" width="{value_w}" height="20" fill="{GRAPHITE}"/>
   </g>
-  <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">
-    <text x="{lx}" y="14">{label}</text>
-    <text x="{vx}" y="14">{value}</text>
+  {mark}
+  <g fill="{PAPER}" font-family="{MONO}" font-size="11">
+    <text x="22" y="14">{label}</text>
+    <text x="{vx}" y="14" text-anchor="middle">{value}</text>
   </g>
 </svg>"##,
-        lx = label_w / 2 + 1,
         vx = label_w + value_w / 2,
     )
 }
 
 fn generate_svg_card(report: &SurvivalReport) -> String {
     let v = &report.verified;
-    let pct = v.survival_rate().unwrap_or(0.0) * 100.0;
-    let color = "#3b4252";
-    let verified = if v.commits == 0 {
-        "No verified AI commits detected".to_string()
-    } else {
-        format!(
-            "{:.1}% survival\n{} / {} lines",
-            pct, v.surviving, v.introduced
-        )
+    let (headline, detail) = match v.survival_rate() {
+        None => (
+            "no verified AI commits".to_string(),
+            "nothing to measure from git metadata".to_string(),
+        ),
+        Some(r) => (
+            format!("{:.1}% still at HEAD", r * 100.0),
+            format!("{} of {} lines, {} commits", v.surviving, v.introduced, v.commits),
+        ),
     };
-
+    let sample_note = if v.commits > 0 && v.commits < 5 {
+        " · small sample"
+    } else {
+        ""
+    };
+    let mark = mark_svg(36.0, 30.0, 28.0, PAPER);
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="440" height="240" viewBox="0 0 440 240">
-  <rect width="440" height="240" rx="12" fill="#0f0f15"/>
-  <rect x="20" y="20" width="400" height="200" rx="10" fill="none" stroke="{color}" stroke-width="2"/>
-  <text x="40" y="60" fill="#d8dee9" font-family="monospace" font-size="14" font-weight="bold">∵ causari · AI code survival</text>
-  <text x="40" y="110" fill="white" font-family="monospace" font-size="32" font-weight="bold">{verified}</text>
-  <text x="40" y="150" fill="#94a3b8" font-family="monospace" font-size="12">Verified AI commits: {}</text>
-  <text x="40" y="175" fill="#94a3b8" font-family="monospace" font-size="12">Probable AI commits: {}</text>
-  <text x="40" y="205" fill="#64748b" font-family="monospace" font-size="10">git metadata only · reproduce: re audit · causari.dev/method</text>
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="560" height="240" viewBox="0 0 560 240" role="img" aria-label="∵ causari · AI code survival: {headline}">
+  <rect width="560" height="240" rx="12" fill="{INK}"/>
+  {mark}
+  <text x="74" y="52" fill="{PAPER}" font-family="{MONO}" font-size="16" font-weight="500">causari <tspan fill="{MIST}">· AI code survival</tspan></text>
+  <text x="36" y="118" fill="{PAPER}" font-family="{MONO}" font-size="30" font-weight="500">{headline}</text>
+  <text x="36" y="148" fill="{MIST}" font-family="{MONO}" font-size="13">{detail}{sample_note}</text>
+  <text x="36" y="172" fill="{MIST}" font-family="{MONO}" font-size="13">probable AI-assisted: {probable} commits, excluded from the number above</text>
+  <line x1="36" y1="192" x2="524" y2="192" stroke="{GRAPHITE}" stroke-width="1"/>
+  <text x="36" y="214" fill="{MIST}" font-family="{MONO}" font-size="11">git metadata only · a count, not a grade · re audit · causari.dev/method</text>
 </svg>"##,
-        v.commits, report.probable.commits
+        probable = report.probable.commits,
     )
 }

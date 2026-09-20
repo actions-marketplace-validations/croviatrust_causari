@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Causari">
+  <style>
+    .bg { fill: #0b0d10; } .fg { fill: #f5f4ef; }
+    @media (prefers-color-scheme: light) { .bg { fill: #0b0d10; } .fg { fill: #f5f4ef; } }
+  </style>
+  <rect class="bg" width="100" height="100" rx="22"/>
+  <circle cx="28" cy="34" r="14.5" class="fg"/>
+  <circle cx="72" cy="34" r="14.5" class="fg"/>
+  <circle cx="50" cy="72" r="14.5" class="fg"/>
+</svg>

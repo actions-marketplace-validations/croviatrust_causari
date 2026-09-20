@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" width="420" height="100" role="img" aria-label="causari">
+  <g transform="translate(0,0) scale(1)">
+      <circle cx="28" cy="34" r="14.5" fill="#0b0d10"/>
+      <circle cx="72" cy="34" r="14.5" fill="#0b0d10"/>
+      <circle cx="50" cy="72" r="14.5" fill="#0b0d10"/>
+  </g>
+  <text x="118" y="70" font-family="'JetBrains Mono','SF Mono','Cascadia Mono','Fira Code',Consolas,monospace" font-size="58" font-weight="500" letter-spacing="-1" fill="#0b0d10">causari</text>
+</svg>
