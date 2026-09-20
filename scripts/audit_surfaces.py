@@ -1,0 +1,348 @@
+#!/usr/bin/env python3
+"""Audit Causari's public surfaces against canon/canon.json.
+
+The canon says what every public surface of Causari must and must not say:
+one version everywhere, no verdict wording on a measurement, the same agent
+matrix in the README and on the site, installers that agree with the release
+workflow on the archive name, every internal link on causari.dev pointing at
+a file that exists. This tool checks the working tree (offline, runs in CI on
+every push) and, with ``--live``, the deployed site.
+
+    python3 scripts/audit_surfaces.py            # report
+    python3 scripts/audit_surfaces.py --gate     # exit 1 on critical or high
+    python3 scripts/audit_surfaces.py --live     # also fetch causari.dev
+
+Standard library only. Findings carry a severity; ``info`` lines are the
+checks that passed, so the report is a complete account of what was looked at.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+import urllib.error
+import urllib.request
+from html.parser import HTMLParser
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SEVERITIES = ("critical", "high", "medium", "low", "info")
+
+
+class Report:
+    def __init__(self) -> None:
+        self.findings: list[dict] = []
+
+    def add(self, area: str, severity: str, where: str, message: str) -> None:
+        assert severity in SEVERITIES
+        self.findings.append({"area": area, "severity": severity, "where": where, "message": message})
+
+    def count(self, severity: str) -> int:
+        return sum(1 for f in self.findings if f["severity"] == severity)
+
+
+def read(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+
+# ---------------------------------------------------------------- versions
+
+def check_versions(canon: dict, r: Report) -> None:
+    found: dict[str, list[str]] = {}
+    for spec in canon["version_sources"]["files"]:
+        text = read(spec["path"])
+        m = re.search(spec["pattern"], text, re.M)
+        if not m:
+            r.add("version", "high", spec["path"], f"pattern {spec['pattern']!r} not found")
+            continue
+        found.setdefault(m.group(1), []).append(f"{spec['path']} ({spec['pattern'][:30]}…)")
+    if len(found) > 1:
+        r.add("version", "high", "repo", f"more than one version on public surfaces: {json.dumps(found)}")
+    elif found:
+        r.add("version", "info", "repo", f"one version everywhere: {next(iter(found))}")
+
+
+# ---------------------------------------------------------------- wording
+
+def check_forbidden(canon: dict, r: Report) -> None:
+    fw = canon["forbidden_words"]
+    for path in canon["surfaces"]["text"]:
+        if not (ROOT / path).exists():
+            r.add("wording", "high", path, "surface listed in canon does not exist")
+            continue
+        text = read(path)
+        allowed = set(fw["allow"].get(path, []))
+        hits = []
+        for word in fw["words"]:
+            if word in allowed:
+                continue
+            for m in re.finditer(re.escape(word), text):
+                # Naming the forbidden word in quotes ("no \"healthy\"") is how the
+                # rule is explained; using it bare is the defect.
+                before = text[max(0, m.start() - 1):m.start()]
+                if before in ('"', "'", "\u201c", "\u2018", "`", "\u00ab"):
+                    continue
+                line = text.count("\n", 0, m.start()) + 1
+                hits.append(f"{word!r} at line {line}")
+                break
+        if hits:
+            r.add("wording", "high", path, "forbidden wording: " + "; ".join(hits))
+        else:
+            r.add("wording", "info", path, "no forbidden wording")
+
+
+def check_required(canon: dict, r: Report) -> None:
+    for path, phrases in canon["required_phrases"]["by_file"].items():
+        if not (ROOT / path).exists():
+            r.add("wording", "high", path, "file with required phrases does not exist")
+            continue
+        text = read(path)
+        missing = [p for p in phrases if not any(alt in text for alt in p.split("|"))]
+        if missing:
+            r.add("wording", "medium", path, f"missing required phrase(s): {missing}")
+        else:
+            r.add("wording", "info", path, "all required phrases present")
+
+
+# ---------------------------------------------------------------- files
+
+def check_files(canon: dict, r: Report) -> None:
+    for path in canon["surfaces"]["required_files"]:
+        if (ROOT / path).exists():
+            r.add("files", "info", path, "present")
+        else:
+            r.add("files", "high", path, "required file missing")
+    for a, b in canon["surfaces"]["identical_pairs"]:
+        if not (ROOT / a).exists() or not (ROOT / b).exists():
+            r.add("files", "high", f"{a} = {b}", "one side missing")
+        elif read(a) != read(b):
+            r.add("files", "high", f"{a} = {b}", "files differ; the site serves a stale installer")
+        else:
+            r.add("files", "info", f"{a} = {b}", "identical")
+
+
+# ---------------------------------------------------------------- html
+
+class LinkCollector(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.links: list[tuple[str, str]] = []
+        self.ids: set[str] = set()
+        self.external_loads: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        a = dict(attrs)
+        if a.get("id"):
+            self.ids.add(a["id"])
+        if a.get("name") and tag == "a":
+            self.ids.add(a["name"])
+        for key in ("href", "src"):
+            v = a.get(key)
+            if not v:
+                continue
+            rel = (a.get("rel") or "").lower()
+            is_load = tag in ("script", "img") or (tag == "link" and rel not in ("canonical", "alternate", "me", "license"))
+            if is_load and v.startswith(("http://", "https://")):
+                self.external_loads.append(v)
+            if tag == "a" or (tag in ("link", "img", "script")):
+                self.links.append((tag, v))
+
+
+def site_path_exists(target: str, redirects: dict[str, str]) -> bool:
+    if target in redirects:
+        return True
+    p = target.split("?")[0]
+    candidates = [ROOT / "site" / p.lstrip("/")]
+    if not Path(p).suffix:
+        candidates.append(ROOT / "site" / (p.lstrip("/") + ".html"))
+        candidates.append(ROOT / "site" / p.lstrip("/") / "index.html")
+    return any(c.is_file() for c in candidates)
+
+
+def load_redirects() -> dict[str, str]:
+    out: dict[str, str] = {}
+    for line in read("site/_redirects").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) >= 2:
+            out[parts[0]] = parts[1]
+    return out
+
+
+def check_html(canon: dict, r: Report) -> None:
+    redirects = load_redirects()
+    parsed: dict[str, LinkCollector] = {}
+    for path in canon["surfaces"]["html"]:
+        lc = LinkCollector()
+        lc.feed(read(path))
+        parsed[path] = lc
+    for path, lc in parsed.items():
+        broken = []
+        for tag, href in lc.links:
+            if href.startswith(("http://", "https://", "mailto:", "data:")):
+                continue
+            if href.startswith("#"):
+                if href[1:] and href[1:] not in lc.ids:
+                    broken.append(f"{href} (no such id)")
+                continue
+            target, _, frag = href.partition("#")
+            if not target.startswith("/"):
+                target = "/" + target
+            if not site_path_exists(target, redirects):
+                broken.append(href)
+                continue
+            if frag:
+                # a fragment on another page of ours: check it exists there
+                other = next((p for p in parsed if "/" + Path(p).stem == target or ("/" == target and p.endswith("index.html"))), None)
+                if other and frag not in parsed[other].ids:
+                    broken.append(f"{href} (no id {frag!r} in {other})")
+        if broken:
+            r.add("links", "high", path, "broken internal link(s): " + ", ".join(broken))
+        else:
+            r.add("links", "info", path, f"{len(lc.links)} links, all internal targets resolve")
+        if lc.external_loads:
+            r.add("privacy", "high", path, f"loads third-party resources: {lc.external_loads}")
+        else:
+            r.add("privacy", "info", path, "no third-party resource loads")
+        text = read(path)
+        if 'data-theme="dark"' in text.split("<body")[0]:
+            r.add("identity", "medium", path, "theme forced on <html>; the palette follows the system unless the visitor chooses")
+        if "assets/favicon.svg" not in text:
+            r.add("identity", "medium", path, "favicon is not the ∵ mark")
+
+
+# ---------------------------------------------------------------- matrix
+
+def agent_rows(text: str, start_marker: str, end_marker: str | None = None) -> list[str]:
+    rows = []
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("|") and not s.startswith("|--") and not s.startswith("| Agent"):
+            cell = s.split("|")[1].strip().strip("*")
+            rows.append(cell)
+        if s.startswith("<tr><td>"):
+            m = re.match(r"<tr><td>([^<]+)</td>", s)
+            if m:
+                rows.append(m.group(1).strip())
+    return rows
+
+
+def check_matrix(canon: dict, r: Report) -> None:
+    want = canon["integration_matrix"]["agents"]
+    readme = read("README.md")
+    html = read("site/index.html")
+    got_md = [row for row in agent_rows(readme, "") if any(row.startswith(a) for a in want)]
+    got_html = [row for row in agent_rows(html, "") if any(row.startswith(a) for a in want)]
+    norm = lambda rows: [next(a for a in want if row.startswith(a)) for row in rows]
+    if norm(got_md) != want:
+        r.add("matrix", "medium", "README.md", f"integration matrix rows {norm(got_md)} != canon {want}")
+    elif norm(got_html) != want:
+        r.add("matrix", "medium", "site/index.html", f"integration matrix rows {norm(got_html)} != canon {want}")
+    else:
+        r.add("matrix", "info", "README.md = site/index.html", f"same agent rows in the same order: {want}")
+
+
+# ---------------------------------------------------------------- release
+
+def check_release(canon: dict, r: Report) -> None:
+    for path, needles in canon["release"]["must_mention"].items():
+        if not (ROOT / path).exists():
+            r.add("release", "high", path, "missing")
+            continue
+        text = read(path)
+        missing = [n for n in needles if n not in text]
+        if missing:
+            r.add("release", "high", path, f"does not mention {missing}; installers and release disagree on asset names")
+        else:
+            r.add("release", "info", path, "asset name and checksum file agree with the canon")
+
+
+# ---------------------------------------------------------------- live
+
+def fetch(url: str, follow: bool = True) -> tuple[int, dict, bytes]:
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: N802
+            return None
+
+    opener = urllib.request.build_opener() if follow else urllib.request.build_opener(NoRedirect)
+    req = urllib.request.Request(url, headers={"User-Agent": "causari-canon-audit/1.0"})
+    try:
+        with opener.open(req, timeout=30) as resp:
+            return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(200_000)
+    except urllib.error.HTTPError as e:
+        return e.code, {k.lower(): v for k, v in e.headers.items()}, e.read(200_000) if e.fp else b""
+    except Exception as e:  # noqa: BLE001
+        return 0, {"error": str(e)}, b""
+
+
+def check_live(canon: dict, r: Report) -> None:
+    live = canon["live"]
+    base = live["base"].rstrip("/")
+    for path, marker in live["pages"].items():
+        status, headers, body = fetch(base + path)
+        text = body.decode("utf-8", errors="replace")
+        if status != 200:
+            r.add("live", "critical", path, f"HTTP {status} {headers.get('error', '')}")
+            continue
+        if marker not in text:
+            r.add("live", "high", path, f"200 but marker {marker!r} absent; stale deploy?")
+        else:
+            bad = [w for w in live["forbidden_live_words"] if w in text]
+            if bad:
+                r.add("live", "high", path, f"forbidden wording live: {bad}")
+            else:
+                r.add("live", "info", path, f"200, marker present, {len(body)} bytes")
+        for h, want in live["headers"].get(path, {}).items():
+            got = headers.get(h, "")
+            if want not in got:
+                r.add("live", "medium", path, f"header {h}: want {want!r} in {got!r}")
+    for src, dst in live["redirects"].items():
+        status, headers, _ = fetch(base + src, follow=False)
+        loc = headers.get("location", "")
+        if status not in (301, 302, 308) or dst not in loc:
+            r.add("live", "medium", src, f"expected redirect to …{dst}, got HTTP {status} {loc!r}")
+        else:
+            r.add("live", "info", src, f"{status} → {loc}")
+
+
+# ---------------------------------------------------------------- main
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--gate", action="store_true", help="exit 1 on any critical or high finding")
+    ap.add_argument("--live", action="store_true", help="also audit the deployed site")
+    ap.add_argument("--json", action="store_true", help="print findings as JSON")
+    ap.add_argument("--quiet", action="store_true", help="hide info lines")
+    args = ap.parse_args()
+
+    canon = json.loads(read("canon/canon.json"))
+    r = Report()
+    for check in (check_versions, check_forbidden, check_required, check_files, check_html, check_matrix, check_release):
+        try:
+            check(canon, r)
+        except Exception as e:  # noqa: BLE001
+            r.add("tool", "critical", check.__name__, f"check crashed: {e!r}")
+    if args.live:
+        check_live(canon, r)
+
+    if args.json:
+        print(json.dumps(r.findings, indent=1, ensure_ascii=False))
+    else:
+        width = max(len(f["where"]) for f in r.findings) if r.findings else 10
+        for f in sorted(r.findings, key=lambda f: (SEVERITIES.index(f["severity"]), f["area"], f["where"])):
+            if args.quiet and f["severity"] == "info":
+                continue
+            print(f"{f['severity']:<8} {f['area']:<9} {f['where']:<{width}}  {f['message']}")
+        print()
+        print("  ".join(f"{s}={r.count(s)}" for s in SEVERITIES))
+    if args.gate and (r.count("critical") or r.count("high")):
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

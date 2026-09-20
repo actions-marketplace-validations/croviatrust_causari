@@ -1,0 +1,21 @@
+name: surface-audit
+
+# The deployed site against canon/canon.json, once a week and on demand:
+# every page answers with its marker, no forbidden wording is live, renamed
+# asset paths still redirect, security headers are present.
+
+on:
+  schedule:
+    - cron: "41 6 * * 1" # Mondays, after the measurements run
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: audit causari.dev
+        run: python3 scripts/audit_surfaces.py --live --gate | tee "$GITHUB_STEP_SUMMARY"

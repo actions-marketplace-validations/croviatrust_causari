@@ -26,6 +26,15 @@ python3 -m http.server 8080 --directory site
 | `llms.txt`, `robots.txt`, `sitemap.xml` | machine readers |
 | `install.sh`, `install.ps1` | installers, checksum-verified |
 
+## Canon
+
+Every public surface is checked against [`../canon/canon.json`](../canon/canon.json)
+by [`../scripts/audit_surfaces.py`](../scripts/audit_surfaces.py): one version,
+no verdict wording, same agent matrix as the README, every internal link
+resolves, installers agree with the release workflow. `--live` audits the
+deployed site. CI runs the offline check on every push and the live check
+weekly.
+
 ## Identity
 
 The mark is `∵` ("because"): three discs, two causes above one effect. The

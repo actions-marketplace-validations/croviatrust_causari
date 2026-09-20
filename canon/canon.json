@@ -1,0 +1,158 @@
+{
+  "schema": "causari.canon.v1",
+  "revised": "2026-09-20",
+  "identity": {
+    "name": "Causari",
+    "wordmark": "causari",
+    "binary": "causari",
+    "alias": "re",
+    "one_liner": "AI-written code has no author. It has causes. Causari proves them.",
+    "sub_line": "How many lines from AI-tagged commits are still alive in your repo? One command, any git repo, no setup. A count, not a grade.",
+    "domain": "causari.dev",
+    "repo": "https://github.com/croviatrust/causari",
+    "family": "Crovia",
+    "family_url": "https://croviatrust.com",
+    "family_canon": "https://github.com/croviatrust/crovia/blob/main/canon/canon.json",
+    "trademark_holder": "Croviatrust",
+    "security_contact": "security@croviatrust.com"
+  },
+  "glyphs": {
+    "mark": "∵",
+    "proves": "⊢",
+    "separator": "·",
+    "dash": "—",
+    "palette": {
+      "ink": "#0b0d10",
+      "paper": "#f5f4ef",
+      "graphite": "#3b4252",
+      "mist": "#9aa3ad"
+    },
+    "rule": "Numbers never carry colour. Traffic-light glyphs and colour classes on a measurement are defects."
+  },
+  "version_sources": {
+    "rule": "One version everywhere: Cargo.toml is the source; every other file that names a version must match it.",
+    "files": [
+      { "path": "Cargo.toml", "pattern": "^version = \"([0-9]+\\.[0-9]+\\.[0-9]+)\"" },
+      { "path": "site/index.html", "pattern": "\"softwareVersion\": \"([0-9]+\\.[0-9]+\\.[0-9]+)\"" },
+      { "path": "site/index.html", "pattern": "· v([0-9]+\\.[0-9]+\\.[0-9]+)</p>" }
+    ]
+  },
+  "surfaces": {
+    "text": [
+      "README.md",
+      "MANIFESTO.md",
+      "ROADMAP.md",
+      "CONTRIBUTING.md",
+      "DCO.md",
+      "NOTICE",
+      "action.yml",
+      "site/index.html",
+      "site/survival.html",
+      "site/method.html",
+      "site/llms.txt",
+      "site/README.md"
+    ],
+    "html": ["site/index.html", "site/survival.html", "site/method.html"],
+    "required_files": [
+      "site/assets/mark.svg",
+      "site/assets/mark-white.svg",
+      "site/assets/favicon.svg",
+      "site/assets/og.png",
+      "site/_headers",
+      "site/_redirects",
+      "site/llms.txt",
+      "site/robots.txt",
+      "site/sitemap.xml",
+      "site/install.sh",
+      "site/install.ps1",
+      "site/survival-data.json"
+    ],
+    "identical_pairs": [
+      ["scripts/install.sh", "site/install.sh"],
+      ["scripts/install.ps1", "site/install.ps1"]
+    ]
+  },
+  "forbidden_words": {
+    "rule": "A measurement with a verdict attached stops being a measurement. None of these may appear on a public surface, in the README or in CLI output templates.",
+    "words": [
+      "🟢", "🟡", "🔴",
+      "healthy",
+      "high churn",
+      "AI Waste",
+      "waste score",
+      "leaderboard",
+      "zero false attribution",
+      "first production issuer",
+      "reference production issuer",
+      "Trust Plane",
+      "intent-addressable",
+      "Trace intent. Debug causality",
+      "the good virus",
+      "without the agent's cooperation",
+      "no agent integration required",
+      "any agent",
+      "in 10 seconds",
+      "fonts.googleapis.com"
+    ],
+    "allow": {
+      "site/method.html": ["high churn", "healthy"],
+      "ROADMAP.md": ["leaderboard", "healthy", "zero false attribution", "first production issuer", "Trust Plane", "🟢", "🟡", "🔴"],
+      "MANIFESTO.md": ["leaderboard"],
+      "DCO.md": [],
+      "site/survival.html": ["leaderboard"],
+      "site/README.md": ["leaderboard"]
+    }
+  },
+  "required_phrases": {
+    "rule": "Every public surface that shows a number says what kind of number it is.",
+    "by_file": {
+      "README.md": ["not a grade", "What it cannot see", "causari.dev/method"],
+      "site/index.html": ["not a grade", "What it cannot see", "/method", "Signed-off-by|DCO|Apache 2.0"],
+      "site/survival.html": ["counts, not grades", "survival-optout.txt", "/method"],
+      "site/method.html": ["Reproduce or contest", "survival-optout.txt"],
+      "site/llms.txt": ["counts, not grades", "causari.dev/method"],
+      "action.yml": ["--summary"]
+    }
+  },
+  "integration_matrix": {
+    "rule": "The agent rows in README.md and site/index.html are the same set, in the same order, derived from the code.",
+    "agents": ["Claude Code", "Aider", "Codex CLI", "Cursor", "Cline"]
+  },
+  "release": {
+    "asset_pattern": "causari-${TAG}-${TARGET}.tar.gz",
+    "rule": "release.yml, scripts/install.sh, scripts/install.ps1 and action.yml agree on the archive name.",
+    "must_mention": {
+      ".github/workflows/release.yml": ["causari-${TAG}-${{ matrix.target }}", "actions/attest@", "SHA256SUMS.txt"],
+      "scripts/install.sh": ["causari-${VERSION}-${target}.tar.gz", "SHA256SUMS.txt"],
+      "scripts/install.ps1": ["causari-$Version-$target.zip", "SHA256SUMS.txt"],
+      "action.yml": ["causari-$VERSION-$TARGET.tar.gz", "SHA256SUMS.txt"]
+    }
+  },
+  "live": {
+    "base": "https://causari.dev",
+    "pages": {
+      "/": "It has causes",
+      "/survival": "weekly measurements",
+      "/method": "Reproduce or contest",
+      "/llms.txt": "not grades",
+      "/robots.txt": "Sitemap",
+      "/sitemap.xml": "causari.dev/method",
+      "/install.sh": "SHA256SUMS.txt",
+      "/install.ps1": "SHA256SUMS.txt",
+      "/assets/favicon.svg": "<svg",
+      "/assets/mark.svg": "<svg",
+      "/survival-data.json": "{"
+    },
+    "redirects": {
+      "/repo": "/survival",
+      "/assets/icon.svg": "/assets/favicon.svg",
+      "/assets/og-card.png": "/assets/og.png",
+      "/cla": "DCO.md"
+    },
+    "headers": {
+      "/": { "content-security-policy": "default-src 'self'", "x-frame-options": "DENY" },
+      "/install.sh": { "content-type": "text/x-shellscript" }
+    },
+    "forbidden_live_words": ["Trace intent", "fonts.googleapis.com", "og-card.png", "/assets/icon.svg\"", "leaderboard.html", "🟢", "🔴"]
+  }
+}

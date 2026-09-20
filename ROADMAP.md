@@ -98,8 +98,9 @@ public key alone; the first report is deposited with a DOI.
 - [x] DCO instead of CLA.
 - [ ] One legal entity name in NOTICE/trademark (owner ask below).
 - [ ] MCP registry, Claude Code plugin, Cursor MCP directory, awesome lists.
-- [ ] Family canon: `canon.json` + surface audit extended to causari
-      (claims, versions, links, glyphs), run in CI.
+- [x] Family canon: `canon/canon.json` + `scripts/audit_surfaces.py`
+      (claims, versions, links, glyphs, installers vs release), in CI on every
+      push; live site weekly.
 
 Exit: surface audit `critical=0 high=0`; every install path verifies a
 signature; the first external contributor lands a PR without ceremony.

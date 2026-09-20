@@ -62,8 +62,10 @@ jobs:
       - name: upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: re-${{ matrix.target }}
+          name: causari-${{ matrix.target }}
           path: |
+            target/${{ matrix.target }}/release/causari
+            target/${{ matrix.target }}/release/causari.exe
             target/${{ matrix.target }}/release/re
             target/${{ matrix.target }}/release/re.exe
           if-no-files-found: ignore
@@ -78,3 +80,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all-targets -- -D warnings
+
+  # Every public surface against canon/canon.json: one version, no verdict
+  # wording, same agent matrix in README and site, installers agree with the
+  # release workflow, every internal link resolves. Offline; the live site is
+  # audited weekly in surface-audit.yml.
+  canon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 scripts/audit_surfaces.py --gate --quiet
