@@ -90,12 +90,13 @@ public key alone; the first report is deposited with a DOI.
 
 ## Phase 3 — identity and distribution
 
-- [ ] Identity: `∵` mark, monospace wordmark, monochrome palette, glyph set
+- [x] Identity: `∵` mark, monospace wordmark, monochrome palette, glyph set
       (`∵`, `⊢`, `·`, `—`), OG images, audit card, badge, site restyle.
-- [ ] Binary `causari` with `re` as alias; `--help` grouped.
-- [ ] cargo-dist: signed attestations, Homebrew tap, Scoop, non-empty release
-      notes; Action verifies the checksum; crates.io publish.
-- [ ] DCO instead of CLA; one legal entity name in NOTICE/CLA/trademark.
+- [~] Binary `causari` with `re` as alias (done); `--help` grouped.
+- [~] Signed SLSA attestations on every archive, non-empty release notes,
+      Action verifies the checksum (done); Homebrew tap, Scoop, crates.io publish.
+- [x] DCO instead of CLA.
+- [ ] One legal entity name in NOTICE/trademark (owner ask below).
 - [ ] MCP registry, Claude Code plugin, Cursor MCP directory, awesome lists.
 - [ ] Family canon: `canon.json` + surface audit extended to causari
       (claims, versions, links, glyphs), run in CI.
@@ -107,4 +108,4 @@ signature; the first external contributor lands a PR without ceremony.
 
 - crates.io API token (Trusted Publishing preferred) for `causari`.
 - Hugging Face write token for the Crovia dataset mirror (family item).
-- Legal entity name and jurisdiction for NOTICE/CLA/trademark.
+- Legal entity name and jurisdiction for NOTICE and the trademark line.
