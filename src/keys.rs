@@ -53,19 +53,40 @@ pub fn load_or_create(repo: &Repo, name: &str) -> Result<SigningKey> {
 }
 
 /// Write `data` to `path` through a temporary file in the same directory,
-/// so a crash never leaves a half-written file behind.
+/// so a crash never leaves a half-written file behind. The temporary name
+/// carries the pid and a per-process counter, so concurrent writers of the
+/// same path (threads, or two processes) never share a scratch file. Used
+/// for every file whose torn state would be misread as valid content:
+/// objects, refs, HEAD, keys, caches.
 pub fn write_atomic(path: &Path, data: &[u8]) -> Result<()> {
     let dir = path
         .parent()
         .ok_or_else(|| anyhow!("{} has no parent", path.display()))?;
-    let tmp = dir.join(format!(
-        ".{}.tmp-{}",
-        path.file_name().and_then(|n| n.to_str()).unwrap_or("key"),
-        std::process::id()
-    ));
-    std::fs::write(&tmp, data).with_context(|| format!("writing {}", tmp.display()))?;
-    std::fs::rename(&tmp, path).with_context(|| format!("renaming into {}", path.display()))?;
+    let tmp = temp_path_in(dir, path);
+    if let Err(e) = std::fs::write(&tmp, data) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e).with_context(|| format!("writing {}", tmp.display()));
+    }
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e).with_context(|| format!("renaming into {}", path.display()));
+    }
     Ok(())
+}
+
+static TEMP_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn temp_path_in(dir: &Path, target: &Path) -> PathBuf {
+    let n = TEMP_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    dir.join(format!(
+        ".{}.tmp-{}-{}",
+        target
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("file"),
+        std::process::id(),
+        n
+    ))
 }
 
 /// Like `write_atomic`, owner-readable only where the platform supports it.
@@ -73,11 +94,7 @@ pub fn write_secret(path: &Path, data: &[u8]) -> Result<()> {
     let dir = path
         .parent()
         .ok_or_else(|| anyhow!("{} has no parent", path.display()))?;
-    let tmp = dir.join(format!(
-        ".{}.tmp-{}",
-        path.file_name().and_then(|n| n.to_str()).unwrap_or("key"),
-        std::process::id()
-    ));
+    let tmp = temp_path_in(dir, path);
     {
         let mut opts = std::fs::OpenOptions::new();
         opts.write(true).create(true).truncate(true);
