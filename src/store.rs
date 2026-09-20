@@ -30,24 +30,71 @@ impl<'a> Store<'a> {
         valid_id(id) && self.path_for(id).exists()
     }
 
-    /// Write raw bytes; returns the BLAKE3 hex id.
-    /// The first byte stored is a kind marker (1 byte) followed by content.
-    /// We keep blob storage simple: just the raw content (no kind marker for blobs)
-    /// but for structured objects we prefix with the kind to disambiguate during read.
+    /// Write raw bytes and return the blob's id.
+    ///
+    /// Store format v2 hashes `'B' || content`, so a blob whose bytes are
+    /// literally `T{...}` can never share an id with the tree `{...}`.
+    /// Format v1 hashed bare `content`. To keep blob identity stable across
+    /// the upgrade (otherwise every unchanged file of an existing repository
+    /// would look modified in the first post-upgrade snapshot), a blob that
+    /// already exists under its v1 id keeps that id. Only new content gets a
+    /// v2 id. Both forms verify on read.
     pub fn write_blob(&self, content: &[u8]) -> Result<String> {
-        let id = hash_bytes(content);
+        let legacy_id = hash_bytes(content);
+        if self.legacy_blob_present(&legacy_id) {
+            return Ok(legacy_id);
+        }
+        let mut buf = Vec::with_capacity(content.len() + 1);
+        buf.push(b'B');
+        buf.extend_from_slice(content);
+        self.write_object(b'B', &buf)
+    }
+
+    /// True when `id` names an on-disk object that carries the blob marker.
+    /// A v1 blob is `'B' || content` stored under `hash(content)`; the marker
+    /// check is what keeps the F02 collision (blob bytes == marked tree)
+    /// from being resolved in favour of the wrong kind.
+    fn legacy_blob_present(&self, id: &str) -> bool {
+        let path = self.path_for(id);
+        let mut first = [0u8; 1];
+        std::fs::File::open(&path)
+            .and_then(|mut f| {
+                use std::io::Read;
+                f.read_exact(&mut first)
+            })
+            .map(|_| first[0] == b'B')
+            .unwrap_or(false)
+    }
+
+    /// Content-address `stored` (marker already prepended) and persist it.
+    /// If an object with that id already exists it must carry the same
+    /// marker; a mismatch means a legacy (v1) store had an unmarked blob
+    /// hash collide with a structured object, and we refuse to alias it.
+    fn write_object(&self, marker: u8, stored: &[u8]) -> Result<String> {
+        let id = hash_bytes(stored);
         let path = self.path_for(&id);
         if path.exists() {
+            let mut first = [0u8; 1];
+            let ok = std::fs::File::open(&path)
+                .and_then(|mut f| {
+                    use std::io::Read;
+                    f.read_exact(&mut first)
+                })
+                .is_ok();
+            if !ok || first[0] != marker {
+                return Err(anyhow!(
+                    "object {} already exists with a different kind (expected {:?}, found {:?}); store integrity violation",
+                    id,
+                    marker as char,
+                    if ok { first[0] as char } else { '?' }
+                ));
+            }
             return Ok(id);
         }
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        // Blob format: first byte 'B' marker, then raw bytes.
-        let mut buf = Vec::with_capacity(content.len() + 1);
-        buf.push(b'B');
-        buf.extend_from_slice(content);
-        std::fs::write(&path, &buf)?;
+        std::fs::write(&path, stored)?;
         Ok(id)
     }
 
@@ -60,19 +107,10 @@ impl<'a> Store<'a> {
             ObjectKind::Event => b'E',
             ObjectKind::Blob => return Err(anyhow!("use write_blob for blobs")),
         };
-        // Hash includes the marker so a tree and an identical-bytes blob never collide.
         let mut to_hash = Vec::with_capacity(json.len() + 1);
         to_hash.push(marker);
         to_hash.extend_from_slice(&json);
-        let id = hash_bytes(&to_hash);
-        let path = self.path_for(&id);
-        if !path.exists() {
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::write(&path, &to_hash)?;
-        }
-        Ok(id)
+        self.write_object(marker, &to_hash)
     }
 
     pub fn write_tree(&self, tree: &Tree) -> Result<String> {
@@ -95,9 +133,10 @@ impl<'a> Store<'a> {
         }
         let path = self.path_for(id);
         let raw = std::fs::read(&path).with_context(|| format!("reading object {}", id))?;
-        let payload = match raw.first() {
-            Some(b'B') => &raw[1..],
-            Some(b'T' | b'S' | b'E') => raw.as_slice(),
+        let intact = match raw.first() {
+            // Blob: v2 hashes the marked bytes, v1 hashed the bare content.
+            Some(b'B') => hash_bytes(&raw) == id || hash_bytes(&raw[1..]) == id,
+            Some(b'T' | b'S' | b'E') => hash_bytes(&raw) == id,
             _ => {
                 return Err(anyhow!(
                     "object {} has an invalid or missing kind marker",
@@ -105,7 +144,7 @@ impl<'a> Store<'a> {
                 ));
             }
         };
-        if hash_bytes(payload) != id {
+        if !intact {
             return Err(anyhow!(
                 "object {} failed integrity verification (BLAKE3 mismatch)",
                 id
@@ -289,6 +328,61 @@ mod tests {
         let json = crate::object::canonical_json(&tree).unwrap();
         let blob_id = store.write_blob(&json).unwrap();
         assert_ne!(tree_id, blob_id);
+    }
+
+    #[test]
+    fn legacy_v1_blob_keeps_its_id_after_upgrade() {
+        // Store format v1 wrote 'B'||content under hash(content). Re-writing
+        // the same content on a v2 binary must return the v1 id, otherwise
+        // every unchanged file looks modified in the first snapshot after
+        // the upgrade and the causal metadata of that event is wrong.
+        let (_tmp, repo) = test_repo();
+        let store = Store::new(&repo);
+        let content = b"fn main() { println!(\"hello\"); }";
+        let v1_id = hash_bytes(content);
+        let path = store.path_for(&v1_id);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let mut v1_bytes = vec![b'B'];
+        v1_bytes.extend_from_slice(content);
+        std::fs::write(&path, &v1_bytes).unwrap();
+
+        assert_eq!(store.write_blob(content).unwrap(), v1_id);
+        assert_eq!(store.read_blob(&v1_id).unwrap(), content);
+
+        // Brand-new content gets a v2 id and verifies too.
+        let fresh = store.write_blob(b"new file").unwrap();
+        assert_ne!(fresh, hash_bytes(b"new file"));
+        assert_eq!(store.read_blob(&fresh).unwrap(), b"new file");
+    }
+
+    #[test]
+    fn blob_whose_bytes_are_a_marked_tree_does_not_alias_the_tree() {
+        // Regression (F02): a file containing exactly `T{"entries":{}}` used
+        // to hash to the same id as the empty tree object, so recording
+        // succeeded and the next restore failed with "is not a blob".
+        let (_tmp, repo) = test_repo();
+        let store = Store::new(&repo);
+
+        let tree = Tree {
+            entries: BTreeMap::new(),
+        };
+        let tree_id = store.write_tree(&tree).unwrap();
+        let mut evil = vec![b'T'];
+        evil.extend_from_slice(&crate::object::canonical_json(&tree).unwrap());
+
+        let blob_id = store.write_blob(&evil).unwrap();
+        assert_ne!(tree_id, blob_id);
+        assert_eq!(store.read_blob(&blob_id).unwrap(), evil);
+        assert!(store.read_tree(&tree_id).is_ok());
+
+        // And the other way round: writing the blob first must not poison
+        // the tree id either.
+        let (_tmp2, repo2) = test_repo();
+        let store2 = Store::new(&repo2);
+        let blob_first = store2.write_blob(&evil).unwrap();
+        let tree_after = store2.write_tree(&tree).unwrap();
+        assert_ne!(blob_first, tree_after);
+        assert!(store2.read_tree(&tree_after).is_ok());
     }
 
     #[test]
