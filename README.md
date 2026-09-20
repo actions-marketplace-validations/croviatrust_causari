@@ -178,14 +178,21 @@ re pnx prove --asset api_key=.env --assets-dir src/secret/
 re pnx verify .causari/pnx/<run>/proof.json --asset api_key=.env --assets-dir src/secret/
 ```
 
-**Causari Proof.** `re proof generate` signs a summary of the ledger — event
-count, agents, models, files touched, a digest over the exact set of event ids
-— with a dedicated key, domain-separated, canonicalised with CSC-1. `re proof
-verify` fails closed: a proof containing any field the signer did not sign does
-not even parse.
+**Audit seals.** `re audit --seal` writes the audit result as the same kind of
+receipt: a `crovia.seal.v1` over the exact bytes of `re audit --json`, bound to
+the audited commit and the method version, hash-chained with the proxy's
+completion seals under one issuer key per repository. `re seal verify FILE`
+checks it offline; so does the static page
+[causari.dev/verify](https://causari.dev/verify), which makes no network
+request. A valid seal proves that this key signed these numbers for this
+commit and that they were not altered since. It does not prove the numbers
+are true: rerun `re audit` on the commit and compare. (`re proof` is retired
+in favour of this; it exits 2 and names the replacement.)
 
-A proof says *this is what the ledger contained*, signed by this key. It does
-not say the ledger is complete. That distinction is on the output.
+```bash
+re audit --seal --output audit.seal.json
+re seal verify audit.seal.json
+```
 
 ## Experimental
 

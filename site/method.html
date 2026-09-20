@@ -112,7 +112,9 @@
 
   <h2>5. Reproduce or contest any number</h2>
 <pre>curl -fsSL https://causari.dev/install.sh | sh
-re audit owner/repo --json      # the exact bytes behind the row</pre>
+re audit owner/repo --json      # the exact bytes behind the row
+re audit owner/repo --seal      # the same bytes, signed and bound to the commit
+re seal verify audit.seal.json  # or drop the file on causari.dev/verify</pre>
   <p>If your reproduction differs, or a row is wrong, open an issue with the JSON. Corrections
   are made in public and recorded in the data history. Maintainers who do not want their
   repository measured add one line to
