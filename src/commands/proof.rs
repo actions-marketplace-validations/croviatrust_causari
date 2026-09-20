@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use colored::Colorize;
 use std::path::{Path, PathBuf};
 
@@ -50,10 +50,9 @@ fn generate(output: Option<PathBuf>, badge: Option<PathBuf>, no_badge: bool) -> 
         println!("  models:  {}", m.models.join(", "));
     }
     println!(
-        "  skills:  {} total ({} verified, {} proven)",
-        m.skills.total, m.skills.verified, m.skills.proven
+        "  signer:  {} (.causari/keys/proof-signing.pub)",
+        (&env.public_key[..16]).bright_black()
     );
-    println!("  signer:  {}", (&env.public_key[..16]).bright_black());
 
     if !no_badge {
         let badge_path = badge.unwrap_or_else(|| PathBuf::from(DEFAULT_BADGE));
@@ -88,12 +87,16 @@ fn verify(file: Option<PathBuf>, against_repo: bool) -> Result<()> {
     println!("  repo:    {}", m.repo);
     println!("  created: {}", m.generated_at);
     println!(
-        "  attests: {} events · {} agents · {} proven skill(s)",
+        "  attests: {} events · {} agent(s) · {} file(s)",
         m.events,
         m.agents.len(),
-        m.skills.proven
+        m.files_touched
     );
     println!("  signer:  {}", (&env.public_key[..16]).bright_black());
+    println!(
+        "  {} a valid signature means this summary is unaltered since signing; it does not mean the ledger is complete",
+        "scope:".bright_black()
+    );
 
     if against_repo {
         check_against_repo(&path, &env)?;
@@ -106,16 +109,24 @@ fn check_against_repo(_path: &Path, env: &proof::ProofEnvelope) -> Result<()> {
     let store = Store::new(&repo);
     if proof::matches_repo(&repo, &store, env)? {
         println!(
-            "  {} proof matches the current ledger exactly",
+            "  {} the set of reachable event ids in this repository matches the proof's ledger digest",
             "fresh:".green().bold()
+        );
+        println!(
+            "  {} this check covers reachable event ids only — not blob contents or the working tree",
+            "scope:".bright_black()
         );
         Ok(())
     } else {
         println!(
             "  {} ledger has changed since this proof was generated — re-run {}",
-            "stale:".yellow().bold(),
+            "stale:".red().bold(),
             "re proof generate".cyan()
         );
-        Ok(())
+        // Signature already verified above; freshness is a separate,
+        // FAILING check. A CI gate keyed on the exit status must go red.
+        Err(anyhow!(
+            "proof is stale: signature valid, but the repository ledger no longer matches"
+        ))
     }
 }

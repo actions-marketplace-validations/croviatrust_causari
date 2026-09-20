@@ -41,6 +41,35 @@ pub struct TreeEntry {
     pub kind: String,
     /// hex BLAKE3 of the referenced object
     pub id: String,
+    /// Executable bit of a blob (git's 100755 vs 100644). Only the bit is
+    /// stored, never the full mode: full modes depend on the umask of the
+    /// machine that took the snapshot and would make identical content hash
+    /// to different trees. Absent when false, so trees written by older
+    /// binaries keep their ids and old readers ignore it.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub exec: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+impl TreeEntry {
+    pub fn blob(id: String, exec: bool) -> Self {
+        Self {
+            kind: "blob".to_string(),
+            id,
+            exec,
+        }
+    }
+
+    pub fn tree(id: String) -> Self {
+        Self {
+            kind: "tree".to_string(),
+            id,
+            exec: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -124,6 +153,75 @@ pub struct Event {
 
     /// ISO-8601 UTC creation timestamp.
     pub created_at: String,
+
+    /// How this event's attribution was obtained. Absent on events written
+    /// by older binaries (which leaves their object ids unchanged).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evidence: Option<Evidence>,
+}
+
+/// The evidence class of an event's attribution: what the reader is being
+/// asked to believe, and on what basis. Every consumer that prints an
+/// attribution prints this next to it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "class", rename_all = "snake_case")]
+pub enum Evidence {
+    /// The agent runtime stated what it did (a lifecycle hook, an MCP call,
+    /// `re record`). Prompt and path are exact; the snapshot may still carry
+    /// unrelated changes made since the previous event.
+    Declared { source: String },
+    /// A proxy-captured completion was joined to the file change by content
+    /// overlap: `matched` of `considered` inserted lines were found inside
+    /// the completion. A score, not a fact.
+    Correlated {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        exchange_id: Option<String>,
+        matched: usize,
+        considered: usize,
+    },
+    /// An observer recorded the change without any link to a cause
+    /// (`re watch` with no matching completion).
+    Observed { source: String },
+}
+
+impl Evidence {
+    pub fn declared(source: &str) -> Self {
+        Evidence::Declared {
+            source: source.to_string(),
+        }
+    }
+    pub fn observed(source: &str) -> Self {
+        Evidence::Observed {
+            source: source.to_string(),
+        }
+    }
+    /// One-word label for terminal output.
+    pub fn label(&self) -> &'static str {
+        match self {
+            Evidence::Declared { .. } => "declared",
+            Evidence::Correlated { .. } => "correlated",
+            Evidence::Observed { .. } => "observed",
+        }
+    }
+    /// One line for humans: class, source or score.
+    pub fn describe(&self) -> String {
+        match self {
+            Evidence::Declared { source } => format!("declared by {source}"),
+            Evidence::Correlated {
+                matched,
+                considered,
+                ..
+            } => {
+                let pct = if *considered > 0 {
+                    (*matched as f64 / *considered as f64 * 100.0).round() as u32
+                } else {
+                    0
+                };
+                format!("correlated ({matched}/{considered} lines, {pct}%)")
+            }
+            Evidence::Observed { source } => format!("observed by {source}, cause unknown"),
+        }
+    }
 }
 
 /// Canonical JSON serialization (sorted keys, compact).
@@ -163,9 +261,23 @@ pub fn hash_bytes(data: &[u8]) -> String {
 
 /// Resolve a possibly-short id into a full id by scanning objects dir.
 pub fn resolve_id(objects_dir: &std::path::Path, prefix: &str) -> Result<String> {
+    // Ids are lowercase hex. Anything else is rejected up front so the byte
+    // slicing below can never split a multi-byte character (`re show €abc`
+    // used to panic here).
+    if !prefix.is_ascii() || !prefix.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(anyhow!(
+            "invalid id '{}': ids are hexadecimal (0-9 a-f)",
+            prefix
+        ));
+    }
     if prefix.len() < 4 {
         return Err(anyhow!("id prefix too short, need at least 4 chars"));
     }
+    if prefix.len() > 64 {
+        return Err(anyhow!("id prefix too long ({} > 64 chars)", prefix.len()));
+    }
+    let prefix = prefix.to_ascii_lowercase();
+    let prefix = prefix.as_str();
     if prefix.len() == 64 {
         return Ok(prefix.to_string());
     }
@@ -203,6 +315,18 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn resolve_id_rejects_non_hex_and_non_ascii_without_panicking() {
+        let tmp = tempfile::tempdir().unwrap();
+        for bad in ["€abc", "zzzz", "ab", "éééé", "12 4", &"a".repeat(65)] {
+            let err = resolve_id(tmp.path(), bad).unwrap_err();
+            assert!(!err.to_string().is_empty(), "{}", bad);
+        }
+        // A full 64-hex id passes through untouched (case-folded).
+        let full = "AB".repeat(32);
+        assert_eq!(resolve_id(tmp.path(), &full).unwrap(), full.to_lowercase());
+    }
+
+    #[test]
     fn canonical_json_sorts_keys_at_every_level() {
         let v = json!({"z": 1, "a": {"y": 2, "b": [ {"k": 1, "c": 2} ]}});
         let bytes = canonical_json(&v).unwrap();
@@ -232,6 +356,7 @@ mod tests {
             post_snapshot: "s2".into(),
             exit_code: None,
             created_at: "2026-01-01T00:00:00Z".into(),
+            evidence: None,
         };
         let a = canonical_json(&ev).unwrap();
         let b = canonical_json(&ev.clone()).unwrap();

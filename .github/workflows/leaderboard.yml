@@ -1,8 +1,10 @@
-name: survival-leaderboard
+name: survival-measurements
 
-# Weekly public leaderboard of AI code survival across notable open-source
-# repositories. Every number is reproducible by anyone:
+# Weekly measurements of AI code survival across open-source repositories,
+# published as counts (no rank, no verdict) on causari.dev/survival.
+# Every number is reproducible by anyone:
 #   re audit <owner/repo> --json
+# Maintainers opt out with one line in .github/survival-optout.txt.
 on:
   schedule:
     - cron: "17 5 * * 1" # every Monday, 05:17 UTC
@@ -36,7 +38,14 @@ jobs:
       - name: audit repositories
         run: |
           set -uo pipefail
-          mapfile -t REPOS < <(grep -Ev '^\s*(#|$)' .github/leaderboard-repos.txt)
+          mapfile -t ALL < <(grep -Ev '^\s*(#|$)' .github/leaderboard-repos.txt)
+          mapfile -t OPTOUT < <(grep -Ev '^\s*(#|$)' .github/survival-optout.txt || true)
+          REPOS=()
+          for r in "${ALL[@]}"; do
+            skip=false
+            for o in "${OPTOUT[@]:-}"; do [ "${r,,}" = "${o,,}" ] && skip=true; done
+            $skip && echo "opt-out: $r" || REPOS+=("$r")
+          done
           NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo '[]' > /tmp/rows.json
           for repo in "${REPOS[@]}"; do
@@ -52,7 +61,7 @@ jobs:
             fi
             echo "::endgroup::"
           done
-          jq '{generated_at: (.[0].audited_at // ""), tool: "causari", command: "re audit <owner/repo> --json", rows: (sort_by(-(.verified.introduced + .probable.introduced)))}' \
+          jq '{generated_at: (.[0].audited_at // ""), tool: "causari", method: "v2", command: "re audit <owner/repo> --json", rows: (sort_by(.repo))}' \
             /tmp/rows.json > site/survival-data.json
           jq -r '.rows[] | "\(.repo)\tverified:\(.verified.introduced) surv:\(.verified.surviving)\tprobable:\(.probable.introduced) surv:\(.probable.surviving)"' \
             site/survival-data.json
@@ -64,33 +73,54 @@ jobs:
           if ! curl -fsSL "$HIST_URL" -o /tmp/history.json; then
             echo '[]' > /tmp/history.json
           fi
+          # History keeps, per row, the line-weighted rate for continuity with
+          # v1 entries plus the v2 robust figures and the coverage block that
+          # says how the row was measured.
           jq --slurpfile cur site/survival-data.json '
             . + [{
               date: $cur[0].generated_at,
+              method: $cur[0].method,
               rows: [$cur[0].rows[] | {
                 repo,
                 total_commits,
+                method,
+                coverage,
                 verified: {
                   commits: .verified.commits,
                   introduced: .verified.introduced,
                   surviving: .verified.surviving,
-                  survival_rate: .verified.survival_rate
+                  survival_rate: .verified.survival_rate,
+                  capped_survival_rate: .verified.capped_survival_rate,
+                  median_survival: .verified.median_survival,
+                  largest_commit_share: .verified.largest_commit_share
                 }
               }]
             }] | .[-104:]' /tmp/history.json > site/survival-history.json
           jq 'length' site/survival-history.json
 
-      # main is a protected branch (strict CI required), so the refreshed data is
-      # published to a dedicated data branch. The site fetches it from raw GitHub.
+      # main is protected, so the refreshed data is published to a dedicated data
+      # branch that is only ever appended to: what was published, and when, stays
+      # in its history. The site fetches the tip from raw GitHub.
       - name: publish refreshed data
         run: |
           set -euo pipefail
-          git config user.name "causari-leaderboard[bot]"
-          git config user.email "bot@causari.dev"
-          git checkout -B leaderboard-data
+          git config user.name "causari-measurements[bot]"
+          git config user.email "noreply@causari.dev"
+          cp site/survival-data.json /tmp/data.json
+          cp site/survival-history.json /tmp/history.json
+          git fetch origin leaderboard-data || true
+          if git rev-parse --verify origin/leaderboard-data >/dev/null 2>&1; then
+            git checkout -B leaderboard-data origin/leaderboard-data
+          else
+            git checkout --orphan leaderboard-data
+            git rm -rfq . || true
+          fi
+          mkdir -p site
+          cp /tmp/data.json site/survival-data.json
+          cp /tmp/history.json site/survival-history.json
           git add site/survival-data.json site/survival-history.json
           if git diff --cached --quiet; then
             echo "no changes"; exit 0
           fi
-          git commit -m "chore(leaderboard): weekly survival data refresh"
-          git push --force origin leaderboard-data
+          git commit -m "data: weekly survival measurements $(date -u +%Y-%m-%d) (method v2)"
+          git push origin leaderboard-data

@@ -1,10 +1,10 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use colored::Colorize;
 
 use crate::cli::ForkArgs;
 use crate::object::resolve_id;
 use crate::repo::Repo;
-use crate::snapshot::restore_workspace;
+use crate::snapshot::{plan_restore, restore_workspace};
 use crate::store::Store;
 
 /// `re fork <branch-name> [--from <event-id>]`
@@ -20,12 +20,7 @@ pub fn run(args: ForkArgs) -> Result<()> {
     let repo = Repo::discover()?;
     let store = Store::new(&repo);
 
-    if args.name.contains(['/', '\\', ' ', '\t']) || args.name.is_empty() {
-        return Err(anyhow!(
-            "branch name must be a simple identifier (got '{}')",
-            args.name
-        ));
-    }
+    let new_ref = repo.session_ref_path(&args.name)?;
 
     let from_id = match args.from {
         Some(s) => resolve_id(&repo.objects_dir(), &s)?,
@@ -34,25 +29,23 @@ pub fn run(args: ForkArgs) -> Result<()> {
             .ok_or_else(|| anyhow!("no HEAD yet; record an event before forking"))?,
     };
 
-    let new_ref = repo.dir.join("refs").join("sessions").join(&args.name);
     if new_ref.exists() {
         return Err(anyhow!("branch '{}' already exists", args.name));
     }
-    if let Some(parent) = new_ref.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&new_ref, format!("{}\n", from_id))?;
 
-    // Update HEAD to point at the new ref.
-    std::fs::write(
-        repo.head_path(),
-        format!("ref: refs/sessions/{}\n", args.name),
-    )?;
-
-    // Restore workspace to the event's post-state.
+    // Validate every object and restore the workspace FIRST; create the ref
+    // and move HEAD only once the working tree really is at `from_id`.
+    let _lock = repo.lock()?;
     let ev = store.read_event(&from_id)?;
     let snap = store.read_snapshot(&ev.post_snapshot)?;
+    // Whole-graph preflight: no file is touched and no ref is written if
+    // any object is missing/corrupt or a destination is unsafe.
+    plan_restore(&repo, &snap.tree)
+        .with_context(|| "fork source failed preflight; nothing changed".to_string())?;
     let report = restore_workspace(&repo, &snap.tree)?;
+
+    repo.update_session(&args.name, &from_id)?;
+    repo.set_head_to_session(&args.name)?;
 
     println!(
         "{} branch {} from event {}",

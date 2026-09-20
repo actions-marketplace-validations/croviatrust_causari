@@ -1,20 +1,48 @@
 [package]
 name = "causari"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
-description = "Causari — intent-addressable code: bidirectional causal version control for AI-agent actions"
+description = "AI-written code has no author; it has causes. Measures how much AI-tagged code survives in any git repo and records the prompt, model and files behind every agent edit."
 license = "Apache-2.0"
 repository = "https://github.com/croviatrust/causari"
 homepage = "https://causari.dev"
 readme = "README.md"
-keywords = ["agents", "version-control", "provenance", "mcp", "causality"]
+keywords = ["ai", "provenance", "git", "agents", "mcp"]
+default-run = "causari"
 categories = ["development-tools", "command-line-utilities"]
-authors = ["Croviatrust <hello@croviatrust.com>"]
+authors = ["Crovia Trust <info@croviatrust.com>"]
 rust-version = "1.85"
+# The crate is the program and its tests. Site, docs, CI and identity assets
+# ship from the repository, not from crates.io.
+exclude = [
+  "/site",
+  "/docs",
+  "/canon",
+  "/scripts",
+  "/.github",
+  "/.githooks",
+  "/action.yml",
+  "/wrangler.jsonc",
+  "/examples",
+  "/assets/*.png",
+  "/assets/mark-b*",
+  "/assets/mark-c*",
+  "/assets/*-white.svg",
+  "/*.md",
+  "!/README.md",
+  "!/CHANGELOG.md",
+]
+
+# One program, two names. `causari` is the binary; `re` is the short alias every
+# example uses. Both are built from the same main and shipped in every release.
+[[bin]]
+name = "causari"
+path = "src/main.rs"
 
 [[bin]]
 name = "re"
 path = "src/main.rs"
+test = false
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
@@ -23,20 +51,22 @@ serde_json = "1.0"
 blake3 = "1.5"
 anyhow = "1.0"
 thiserror = "2.0"
-walkdir = "2.5"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.4"
 colored = "2.1"
 similar = "3.1"
-notify = "6.1"
-notify-debouncer-mini = "0.7"
+notify = "8.2"
 ctrlc = "3.4"
 toml = "1.1"
 tiny_http = "0.12"
-ureq = "2.12"
-ed25519-dalek = "2"
+ureq = "3.4"
+ed25519-dalek = "3"
 getrandom = "0.4"
 sha2 = "0.11"
+ignore = "0.4"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"

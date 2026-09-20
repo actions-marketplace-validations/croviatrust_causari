@@ -1,774 +1,304 @@
-<p align="center">
-  <img src="assets/logo-readme.png" alt="Causari — intent-addressable code" width="520">
-</p>
+<h1 align="center">∵ causari</h1>
 
-<h3 align="center">How much of your AI-written code actually survives?</h3>
-<p align="center"><em>Find out in 10 seconds — one command, any git repo, zero setup.</em></p>
+<p align="center"><strong>AI-written code has no author. It has causes. Causari proves them.</strong></p>
+<p align="center"><em>How many lines from AI-tagged commits are still alive in your repo? One command, any git repo, no setup. A count, not a grade.</em></p>
 
 <p align="center">
   <a href="https://causari.dev"><strong>causari.dev</strong></a>
   &nbsp;·&nbsp;
+  <a href="https://causari.dev/survival">Weekly measurements</a>
+  &nbsp;·&nbsp;
+  <a href="https://causari.dev/method">Method</a>
+  &nbsp;·&nbsp;
+  <a href="MANIFESTO.md">Manifesto</a>
+  &nbsp;·&nbsp;
+  <a href="ROADMAP.md">Roadmap</a>
+  &nbsp;·&nbsp;
   <a href="https://github.com/croviatrust/causari/releases">Releases</a>
-  &nbsp;·&nbsp;
-  <a href="https://github.com/croviatrust/causari/discussions">Discussions</a>
-  &nbsp;·&nbsp;
-  <a href="#mcp-server">MCP</a>
-  &nbsp;·&nbsp;
-  <a href="LICENSE">License (Apache-2.0)</a>
 </p>
 
 <p align="center">
   <img alt="CI" src="https://github.com/croviatrust/causari/actions/workflows/ci.yml/badge.svg?branch=main">
-  <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-4c1">
-  <img alt="Rust" src="https://img.shields.io/badge/rust-stable-orange">
-  <img alt="Platform" src="https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20windows-blue">
+  <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-3b4252">
+  <img alt="Platform" src="https://img.shields.io/badge/linux%20%7C%20macOS%20%7C%20windows-3b4252">
 </p>
 
 ---
 
 ```bash
-# Linux / macOS
-curl -fsSL https://causari.dev/install.sh | sh
+curl -fsSL https://causari.dev/install.sh | sh     # Linux / macOS (Windows below)
 
-# any repo — yours, or the ones everyone argues about:
 re audit                    # the repo you are in
-re audit vercel/next.js     # any public repo, cloned to a temp dir
+re audit vercel/next.js     # any public repo, cloned to a temp dir and removed after
 ```
-
-Everyone debates how much code AI writes. Nobody measures how much of it
-**survives**. `re audit` reads plain git history — `Co-Authored-By` trailers,
-bot authors, agent markers — and checks every AI-introduced line against
-HEAD. No estimates, no surveys, just git. See the
-[**AI Code Survival Leaderboard**](https://causari.dev/survival) for weekly
-audited numbers on aider, cline, zed and more, or a
-[live PR comment](https://github.com/croviatrust/causari-audit-demo/pull/1)
-posted by the [GitHub Action](https://github.com/marketplace/actions/causari-survival-audit).
-
----
-
-> *Causari* (Latin, deponent verb): *to plead a cause, to argue why.* Because
-> every line of AI-generated code deserves to be defended, traced, and
-> understood.
-
-The audit is only the entry point. Causari records every action an AI agent
-takes on your codebase — not just the bytes that changed, but the **prompt
-that asked**, the **model that answered**, the **files it read**, and the
-**reasoning behind the change**.
-
-**Two capture paths, one ledger.** Where the agent runtime exposes lifecycle
-hooks (Claude Code), Causari plugs in natively: `re hook claude-code` wires
-`UserPromptSubmit`, `PostToolUse` and `SessionStart` into
-`.claude/settings.json`: every prompt and edit is recorded **exactly** —
-deterministic, no heuristic, no confidence score needed — and every new
-session starts pre-briefed with the verified experience of previous ones. Where hooks don't exist (Cursor, Windsurf, Cline,
-Aider, custom scripts), the universal fallback (`re proxy` + `re watch`)
-observes LLM traffic and the filesystem independently, then joins them by
-*content* — the code that appears in your files is found inside the
-completion that produced it seconds earlier. Either way, provenance becomes
-a fact, not a self-report.
-
-You can then ask questions no version control system has ever answered:
-
-```bash
-re audit                      # zero-setup: how much AI code SURVIVED in any
-                              #   git repo — retroactive, works instantly
-re hook  claude-code          # native capture via agent lifecycle hooks —
-                              #   exact, deterministic, no heuristic needed
-re proxy                      # universal fallback: local LLM proxy captures
-                              #   every prompt, token and dollar
-re watch                      # passive recorder + causal join: file changes get
-                              #   attributed to the real prompt, model and cost
-re why    src/auth.ts:42      # who/what produced this exact line?
-re trace  src/auth.ts:42      # full UPSTREAM causal cone: every event that
-                              #   contributed transitively, through reads/writes
-re impact <event-id>          # full DOWNSTREAM cone: what flowed from this action,
-                              #   transitively (causality-aware blast radius)
-re lens   src/auth.ts         # render a file with per-line provenance annotations
-re find   "the JWT refactor"  # search every prompt, reasoning and message
-re bisect --test "npm test"   # find the agent action that broke the build
-re churn                      # measure AI code survival: how much survived vs
-                              #   was rewritten, per agent, with wasted spend
-re report --open              # generate a shareable HTML dashboard of AI waste
-re skill  distill             # turn verified events into signed, reusable skills
-re skill  export <id>         # portable Ed25519 bundle for teammates
-re skill  pull <team-dir>     # sync a shared folder (Dropbox, git, NFS — no server)
-re skill  trust add <label>   # trust an org signing key; unknown signers rejected
-re brief  "auth migration"    # portable Markdown briefing of verified experience —
-                              #   inject into ANY model's context (CLAUDE.md,
-                              #   AGENTS.md, .cursorrules); lessons survive models
-re fork   experiment-claude   # branch into a parallel timeline
-re revert <id>                # undo an action with causal preview of what else
-                              #   you are implicitly undoing
-```
-
-When an agent touches 30 files and something breaks, you don't need to read
-4 000 lines of chat. You ask Causari *why* and *when*.
-
-## `re audit` — try it on any repo, right now
-
-No setup, no ledger, no integration. `re audit` reads your existing **git
-history**, detects AI-authored commits from machine-readable metadata
-(`Co-Authored-By: Claude` trailers, bot author emails, aider markers), and
-measures how many of those lines are **still alive at HEAD** via `git blame`:
 
 ```console
 $ re audit
-Causari Survival Audit
-═══════════════════════════════════════════════════
-  312 commits analyzed (git-only, no Causari setup required)
+∵ causari · AI code survival
+───────────────────────────────────────────────────
+  36 commits analyzed (git metadata only, no setup required)
 
-Verified AI-authored: 41 commits, 6 210 introduced, 4 105 survived (66.1%)
-Probable AI-assisted: 12 commits, 890 introduced, 512 survived (57.5%)
-
+Verified AI-authored: 3 commits, 1773 introduced, 1773 survived (100.0%)
+Probable AI-assisted: none detected
 By agent (verified only)
-  claude-code            5 830 lines,  3 921 survived ( 67.3%)
-  github-copilot           380 lines,    184 survived ( 48.4%)
+  cursor                 1773 lines,   1773 survived (100.0%)
+
+Confidence notes
+  · VERIFIED = explicit metadata (trailers, bot author, etc.)
+  · PROBABLE = weak heuristic; may include human-assisted commits
+  · UNKNOWN commits are excluded from headline numbers
+  · Only lines from AI-tagged commits are measured; inline completions
+    (Copilot, Cursor Tab, …) leave no git trace and are invisible here
+  · A measurement, not a grade: method at https://causari.dev/method
 ```
 
-- `re audit vercel/next.js` audits **any public repo** without touching it —
-  GitHub `owner/repo` shorthand or any git URL, cloned to a temp dir and
-  cleaned up afterwards. Audit the repos everyone argues about.
-- `re audit --badge` writes a shields-style `causari-badge.svg`
-  (`AI survival: 67.3%`) to embed in your README.
-- `re audit --card` writes a shareable SVG survival card.
-- `re audit --json` emits machine-readable output.
-- `re audit --summary` emits Markdown — drop
-  [`.github/workflows/audit.yml`](.github/workflows/audit.yml) into any repo
-  and every PR gets a survival comment automatically.
-- `re audit --save` appends a snapshot so you can track the trend over time.
-
-Every number carries its evidence class: **VERIFIED** (explicit metadata)
-is never mixed with **PROBABLE** (heuristic), and unknown commits never
-enter the headline figures. This is the same "group 0" design rule as the
-rest of Causari: git + filesystem are enough; integrations only add
-precision.
-
-## The Capture Engine — two paths, one ledger
-
-Every provenance tool before Causari had the same fatal dependency: it only
-worked if the agent volunteered its own history. Agents don't. Harnesses
-don't expose reasoning. Nobody reports costs.
-
-Causari removes the dependency with **two capture paths** that feed the same
-append-only ledger:
-
-### Primary: native hooks (`re hook claude-code`) — exact, deterministic
-
-Where the agent runtime exposes lifecycle hooks, Causari plugs in directly.
-No inference, no heuristic, no confidence score — the agent *declares* what
-it did, and Causari records it:
-
-```bash
-$ re hook claude-code
-causari: Claude Code hooks installed in .claude/settings.json
-  UserPromptSubmit → captures every prompt
-  PostToolUse (Edit|Write|MultiEdit|NotebookEdit) → records every edit
-  SessionStart → injects verified experience into every new session
-
-# The agent works normally. Every prompt and edit is recorded, and each
-# new session opens already knowing what earlier sessions proved to work.
-$ re why service.py:2
-service.py:2
-      return {"sha": BUILD_SHA, "uptime": uptime_seconds()}
-
-introduced by 2d070eb8cf
-  agent:     claude-code
-  tool:      Write
-  prompt:    Add a health-check endpoint returning build sha and uptime
-```
-
-The hook path is **deterministic by construction**: the prompt text comes
-from `UserPromptSubmit`, the file path from `PostToolUse`. There is no
-guesswork. Human edits that happen without a hook firing are correctly
-reported as *"no recorded event introduced this line"* — zero false
-attribution.
-
-### Universal fallback: proxy + watch (`re proxy` + `re watch`) — heuristic join
-
-For agents without hook support (Cursor, Windsurf, Cline, Aider, custom
-scripts), Causari observes two independent streams and joins them by content:
-
-```
-   ┌─────────────────────────┐        ┌─────────────────────────┐
-   │        re proxy         │        │        re watch         │
-   │                         │        │                         │
-   │  sees every prompt,     │        │  sees every byte that   │
-   │  completion, token and  │        │  changes on disk        │
-   │  dollar (OpenAI- and    │        │  (snapshots, diffs)     │
-   │  Anthropic-compatible)  │        │                         │
-   └────────────┬────────────┘        └────────────┬────────────┘
-                │                                  │
-                │         CONTENT-BASED JOIN       │
-                └────────────────►◄────────────────┘
-                 the lines inserted in your files
-                 are searched inside the completions
-                 captured moments before — a match is
-                 a causal fingerprint, with confidence
-```
-
-A real session, end to end:
-
-```
-$ re proxy
-causari: LLM capture proxy listening on http://127.0.0.1:4242
-  • gpt-4o  42→18 tok  $0.0003  "Add JWT refresh logic that rotates every 24h"
-
-$ re watch          # in another terminal
-  • 0d47599550  auth.py
-    ↳ intent: "Add JWT refresh logic that rotates every 24h"  gpt-4o (confidence 100%, 5/5 lines)
-
-$ re why auth.py:3
-auth.py:3
-      rotated = rotate_every(session.token, hours=24)
-
-introduced by 0d47599550
-  agent:     proxy-watch
-  model:     gpt-4o
-  prompt:    Add JWT refresh logic that rotates every 24h
-```
-
-Point any agent at the proxy:
-
-```bash
-OPENAI_BASE_URL=http://127.0.0.1:4242/openai/v1
-ANTHROPIC_BASE_URL=http://127.0.0.1:4242/anthropic
-```
-
-The causal join is a **heuristic** — it works well on clean cases but
-degrades honestly on dirty ones. See [Reading the confidence
-score](#reading-the-confidence-score) for real measured numbers and known
-failure modes.
-
-Everything stays on your machine: `.causari/capture/` is a local,
-append-only ledger. No cloud, no telemetry, no API keys touched.
-
-### What Causari captures — and keeping secrets out
-
-Two streams feed the ledger, so it helps to know exactly what each one sees:
-
-- **`re proxy`** records the *prompts, completions, token counts and costs* that
-  pass through it, verbatim. If a secret is pasted into a prompt or echoed in a
-  completion it is captured as-is — Causari does not yet redact prompt or
-  completion text.
-- **`re watch` / `re record`** snapshot your working tree. Excluded by default
-  and never entering a snapshot: `.causari`, `.git`, `node_modules`, `target`,
-  `dist`, `build`, `.next`, `.venv`, `__pycache__`, `.idea`, `.vscode`, and
-  **`.env` / `.env.*` files** (they usually hold credentials). Everything else
-  in the tree is fair game.
-
-Practical guidance:
-
-- Keep real secrets in `.env` / `.env.*` (excluded by default) or outside the
-  repo — not hard-coded in tracked source files, which *are* snapshotted.
-- The whole ledger stays local in `.causari/`, which `re init` now adds to your
-  `.gitignore`, so captured prompts and reasoning are never pushed. If
-  `.causari/` was committed before you upgraded, untrack it with
-  `git rm -r --cached .causari && git commit -m "stop tracking .causari"`.
-- Don't paste API keys, tokens or passwords into prompts while `re proxy` is
-  running, and treat `.causari/capture/` as sensitive.
-
-Configurable ignore patterns and prompt redaction are on the roadmap; today the
-exclusion list above is the built-in default.
-
-### Reading the confidence score
-
-The causal join is a *heuristic*: it attributes a file change to a prompt by
-searching the lines you inserted inside the completions captured moments before.
-The **confidence score** is the fraction of inserted lines it could match back
-to a captured completion (e.g. `confidence 100%, 5/5 lines`).
-
-These numbers are **measured, not theoretical**. A reproducible test harness
-(`examples/real-session/`) exercises four adversarial scenarios against a real
-`re proxy` + `re watch` + mock LLM pipeline:
-
-| Scenario | Confidence | What it means |
-|---|---|---|
-| **Clean** (file == completion verbatim) | **100% (5/5)** | The happy path: every line matches. |
-| **Human manual edit** | no correlation | Correct silence: the edited line never appeared in any completion. No false attribution. |
-| **Formatter reflow** | **50% (3/6)** | A formatter rewrote the model output before it hit disk. Confidence correctly signals degraded correspondence. |
-| **Near-simultaneous prompts** | **75% (3/4)** | Two completions in the window, one file mixes lines from both. The join picks the best-overlap winner — **per-line attribution can be wrong** (the redis line was attributed to the `connect_db` prompt). |
-
-A **high** score means the code on disk is, line for line, what the model
-returned. Confidence drops when:
-
-- **manual edits** — you hand-wrote or tweaked the code, so it never appeared in
-  a completion;
-- **near-simultaneous changes** — two prompts (or a prompt and a manual edit)
-  touched the same file within one snapshot window, so the lines interleave;
-- **post-processing** — a formatter, linter or codemod rewrote the model's
-  output before it reached disk;
-- **coincidental matches** — trivial lines (`}`, blank lines, common imports)
-  can match unrelated completions, so they are down-weighted.
-
-Treat a low score as *"attribution is uncertain here"*, not *"the tool is
-wrong"*: run `re why <file>:<line>` or `re trace` to see the candidate events
-and decide for yourself. Attribution never blocks capture — every change is
-still recorded; only the *link* to a prompt is scored.
-
-**Known failure mode (near-simultaneous prompts):** the current `correlate()`
-picks the single best-matching exchange for the *whole file change*. When one
-file mixes contributions from multiple prompts, individual lines can be
-mis-attributed. A per-line or per-hunk join is on the roadmap. Until then,
-use `re hook claude-code` (deterministic, no heuristic) where available.
-
-### Crovia Seals — a cryptographic receipt for every completion
-
-Causari is the **first production issuer of
-[Crovia Seals](https://croviatrust.com/registry/seal/)** — the open,
-IETF-drafted receipt format for AI outputs
-([draft-crovia-seal-01](https://datatracker.ietf.org/doc/draft-crovia-seal/)).
-One flag turns the proxy into a sealing gateway:
-
-```
-$ re proxy --seal
-causari: Crovia Seal issuer active — pubkey 3fa9c2…
-  • gpt-4o  42→18 tok  $0.0003  "Add JWT refresh logic"  🔏 cs_2026_Q7RM2KJ3VWXA5YBN4CDEFGH2I6
-```
-
-Every completion gets an Ed25519-signed, hash-chained, offline-verifiable
-receipt in `.causari/seal/seals.jsonl`. The seal commits to SHA-256 hashes
-of the exact request and response bytes — **content never leaves your
-machine**. Anyone holding your public key can verify the whole chain
-without a server, an account, or Causari itself:
-
-```
-$ re seal verify
-✓ 128 seal(s) verified — every signature valid, chain contiguous from genesis
-
-$ re seal issuer     # print the pubkey to share with auditors
-$ re seal list       # browse issued receipts
-```
-
-The implementation is proven against the normative conformance vectors
-from [croviatrust/crovia-seal](https://github.com/croviatrust/crovia-seal)
-(CSC-1 canonicalization, domain-separated payloads, fail-closed
-verification). When a regulator, a customer or a court asks *"which model
-wrote this code, and can you prove it?"* — the answer is one file and one
-public key.
-
-## The Experience Layer — skills with earned trust
-
-Recording the past is half the job. The other half is making sure no agent
-ever pays for the same lesson twice.
-
-`re skill distill` walks the ledger and compresses every completed task —
-the prompt that triggered it, the steps that were taken, the files that
-changed — into a **skill**: a unit of experience an agent can recall
-*before* acting. Each skill is signed with the repository's **Ed25519 key**
-at the moment of distillation; edit one byte afterwards and
-`re skill verify` exposes it.
-
-Trust is earned, never claimed:
-
-```
-●  recorded   distilled from the ledger — no success signal yet
-◆  verified   evidence attached: exit code 0, or the work is still
-              alive at the tip of the timeline (it survived)
-★  proven     verified AND recalled 3+ times by agents doing new work
-```
-
-```
-$ re skill distill
-distill: 128 event(s) scanned, 7 new skill(s), 12 already distilled
-  ◆ verified 2ce0c7bbda  add retry with exponential backoff
-
-$ re skill verify
-  ok 2ce0c7bbda  add retry with exponential backoff
-verify: 7 skill(s), every signature valid
-```
-
-The loop closes through MCP: when an agent calls `causari_recall`, **signed
-skills are returned first, ranked by trust** (proven ×4, verified ×2), and
-every recall bumps the skill's use counter — which is exactly how a
-verified skill earns the ★. Agents get measurably cheaper over time, and
-`re churn` shows you the savings in dollars.
-
-### Team skill mesh — no server, no accounts
-
-One engineer's verified fix becomes every agent's instinct — without a
-central SaaS:
-
-```bash
-re skill export 2ce0c7bbda --output jwt-fix.json   # portable bundle
-re skill trust pubkey                             # share your Ed25519 key
-re skill trust add platform <their-pubkey>        # trust a teammate/org key
-re skill import jwt-fix.json                      # verify signature + accept
-re skill pull ~/Dropbox/causari-skills/           # sync a whole team folder
-```
-
-Skills signed by unknown keys are **rejected**, not imported. The mesh is
-cryptographic: Dropbox, git, NFS, S3 — any folder works. Causari verifies
-Ed25519 on every file; tampered bundles fail closed.
-
-Like everything in Causari, skills are local files (`.causari/skills/`),
-self-contained and portable. The signature means a skill can be shared and
-*verified by anyone* — across repos, teams, and orgs, with no central server.
-
-## Causari Proof — verifiable AI provenance, trustless
-
-Every repo can mint a **signed proof of its AI provenance** — how many agent
-actions, which agents and models, how much *verified* experience — bound to the
-exact ledger by a content digest and signed with the repo's Ed25519 key.
-
-```bash
-re proof generate            # → causari-proof.json + causari-proof.svg badge
-re proof verify              # checks the signature offline — no server, no account
-re proof verify --against-repo   # …and confirms it still matches the live ledger
-```
-
-Anyone — a reviewer, an auditor, a stranger reading your PR — can run
-`re proof verify` and confirm the proof was **not altered after signing**. No
-Causari account, no network call, no trust in us. Tamper with a single number
-and verification fails closed.
-
-Drop the badge in your README and every visitor sees it:
-
-```markdown
-[![AI provenance — verified by Causari](causari-proof.svg)](https://causari.dev/verify)
-```
-
-It is agent-agnostic by construction: the proof aggregates the *ledger*, so it
-covers every agent Causari captured — Claude Code, Cursor, Cline, Windsurf, a
-raw `re proxy` — not just one runtime.
-
-**Free forever:** generating and verifying proofs offline. **Commercial (Trust
-Plane):** the hosted public verification page on `causari.dev`, the org-wide
-proof registry, RFC 3161 timestamp anchoring, and audit-grade compliance
-exports.
-
-## What makes it different
-
-Existing tools either track text (git), track sessions (IDE checkpoints), or
-track conversations (LangSmith, Helicone). **None of them connect a line of
-code to the intent that produced it** — and none of them can do it without
-the agent's cooperation. Causari does both:
-
-| You ask… | Causari answers… |
-|---|---|
-| **`re hook claude-code`** | **Native, deterministic capture.** Wires into agent lifecycle hooks — exact prompt and tool attribution, no heuristic, zero false positives on human edits. The recommended primary path. |
-| **`re proxy` + `re watch`** | **Universal fallback.** Prompts, models, tokens and dollars joined to file changes by content correlation — works with any agent, no cooperation required. Heuristic-based; see [confidence score](#reading-the-confidence-score) for measured limits. |
-| `re why src/auth.ts:42` | The prompt, model, agent, tool, and reasoning that wrote that line. |
-| **`re trace src/auth.ts:42`** | **Upstream causal cone.** Every prior event that contributed, transitively, through the files it read or wrote. The intellectual ancestry of a piece of code. |
-| **`re impact <event>`** | **Downstream causal cone.** Every later event that depended, transitively, on what this one produced. The blast radius of an action. |
-| **`re lens src/auth.ts`** | The file rendered with **per-line provenance annotations**: each line painted with the event id that introduced it. |
-| `re find "the JWT refactor"` | Signed **skills first**, then every event — prompt, message, reasoning — ranked by trust and relevance. |
-| `re bisect --test "<cmd>"` | The first agent action whose output fails your tests. |
-| **`re churn`** | **AI Waste Score.** How much AI-written code survived vs was rewritten, per agent. With cost data: dollars spent on code that did not survive. |
-| **`re report --open`** | A **self-contained HTML dashboard** you can paste into Slack, PRs, or board decks — zero external assets, zero cloud calls. |
-| **`re skill distill`** | **Signed experience.** Verified past work compressed into Ed25519-signed skills, recalled by agents (trust-ranked) before they act — the same mistake is never paid twice. |
-| **`re skill export` / `pull`** | **Team skill mesh.** Portable bundles + trusted org keys; sync any shared folder. Unknown signers and tampered files rejected. |
-| **`re proof generate` / `verify`** | **Trustless AI-provenance certificate.** A signed, content-bound proof + embeddable badge that *anyone* can verify offline — no server, no account. Tampering fails closed. |
-| `re fork claude-attempt` | A new timeline you can extend without touching the original. |
-| **`re watch --session bot1`** | **Concurrent multi-agent recording.** One session per agent, lock-serialized commits, shared ancestry — no agent can orphan another's events. |
-| `re sessions` / `re switch <name>` | The fleet overview: every session tip with agent and last activity; jump between timelines. |
-| `re log --all` | The full event DAG across every session, with tip and fork-point markers. |
-| `re diff a..b` | The exact file delta between two agent actions. |
-| `re revert <id>` | Workspace snapped back to the pre-state of that action, **with a causal preview** of every downstream event you are implicitly undoing. |
-
-### The bidirectional causal graph
-
-Most version control is one-dimensional: a chain of commits. Causari is two-dimensional:
-
-```
-                 PAST                            FUTURE
-   ┌──────────────────────────┐  ┌──────────────────────────┐
-   │                          │  │                          │
-   │   re trace foo.rs:42     │  │   re impact <event>      │
-   │                          │  │                          │
-   │   ← prompts & events     │  │   events & prompts →     │
-   │   that produced this     │  │   that flowed from this  │
-   │                          │  │                          │
-   └──────────────┬───────────┘  └─────────────┬────────────┘
-                  │                            │
-                  │       a single event       │
-                  └────────────►●◄─────────────┘
-```
-
-This unlocks a question nothing else can answer:
-
-> *"If I revert this action, what else am I implicitly undoing?"*
-
-`re revert` answers it before touching a single byte.
-
-### Why `re trace` matters
-
-Git blame names one author. `re why` names one event. **`re trace`** reconstructs
-the *intellectual ancestry* of a piece of code:
-
-```
-calc.js:2
-  export function sum(a, b) { return a - b; }
-
-trace: 3 causal contributors found
-
-● 0b8424ee83  align calc.js with updated spec
-   agent: gpt-4o
-   prompt: the spec was updated, make calc.js match
-   because: wrote calc.js:2
-  └─ 45230e9cda  update spec to redefine sum
-     agent: gpt-4o
-     prompt: the team decided sum should compute a-b, update the spec
-     because: wrote spec.md which event 0b8424ee83 read
-  └─ 55a6dd9392  implement calc per spec
-     agent: claude-3.5
-     prompt: implement sum() following the spec in spec.md
-     because: wrote calc.js which event 0b8424ee83 read
-```
-
-The buggy line is not the root cause — the *prompt that asked the agent to
-redefine the spec* is. Causari surfaces it. **You can debug prompts, not just
-code.**
-
-## How it works
-
-Every event is a content-addressable object (BLAKE3) containing:
-
-- `pre_snapshot` and `post_snapshot` — the workspace tree before and after
-- `agent`, `model`, `tool`
-- `prompt` — the user task that triggered the action
-- `reasoning` — the agent's chain-of-thought when exposed
-- `reads`, `writes`, `tokens_in`, `tokens_out`, `cost_usd`
-- `parent` — the previous event in the timeline
-
-Snapshots are incremental (only changed files create new blobs, just like
-git's object store), so the storage cost is bounded by the *delta*, not the
-absolute size of the workspace.
-
-## Causari Log
-
-```
-[09:23:01]  re init
-              → .causari/ repository initialized
-
-[09:24:33]  re record -m "Add JWT refresh logic"
-              → 12 lines in src/auth.ts
-              → agent: claude-3.5-sonnet
-              → prompt: "Add JWT refresh logic that rotates every 24h"
-
-[09:25:12]  re guard
-              ⚠ critical without test: src/auth.ts
-              ⚠ 1 alert(s), 0 warning(s)
-
-[09:25:45]  re why src/auth.ts:5
-              → introduced by a3f7b2c9
-              → prompt: "Add JWT refresh logic that rotates every 24h"
-              → reasoning: The spec calls for refresh tokens...
-              → 3 seconds
-
-[09:26:18]  re trace src/auth.ts:5
-              → a3f7b2c9 "Add JWT refresh"
-                └─ e112706e "Update auth spec"
-                  └─ c13aa663 "Initial scaffold"
-
-[09:27:03]  re guard --badge
-              ✓ .causari/guard-badge.svg generated
-
-[09:27:44]  re impact a3f7b2c9
-              → downstream: 2 events depend on this
-              → c4d1e8f2 "Deploy to staging"
-              → d5e2a1b3 "Fix OAuth scope"
-
-[09:28:19]  re churn
-              causari churn: code survival across 1,284 events
-                AGENT          INTRO  SURVIVED  WASTE    WASTED $
-                claude-3.5     8,210    6,012   26.8%    $164.10
-                gpt-4o         3,400    1,510   55.6%    $116.90
-                cursor         1,120      980   12.5%      $5.50
-
-              AI survival 66.8% · AI Waste Score 33.2%
-              $286.50 of $866.90 spent on code that did not survive
-
-[09:29:02]  re report --open
-              ✓ report written to causari-report.html
-              → opening in browser
-
-[09:29:33]  re revert a3f7b2c9
-              ⚠ preview: 2 downstream events will lose context
-              → confirm with --yes to proceed
-```
-
-Next on the roadmap:
-
-- ~~**Verified skills (experience layer)**: events whose verification passed
-  get promoted into signed, reusable skills the agent can recall *before*
-  acting~~ ✓ shipped: `re skill distill/list/show/verify`, Ed25519
-  signatures, trust ladder (● recorded → ◆ verified → ★ proven),
-  trust-ranked `causari_recall` via MCP
-- ~~**Multi-agent DAG timelines**: concurrent agents, true branching history~~
-  ✓ shipped: `--session`, `re sessions`, `re switch`, `re log --all`
-- ~~**Team skill registry**: share signed skills across an organization —
-  one engineer's verified fix becomes every agent's instinct~~ ✓ shipped:
-  `re skill export/import/pull`, `re skill trust` — Ed25519 mesh, no server
-- ~~**Verifiable provenance certificate**: a signed, content-bound proof of a
-  repo's AI provenance that anyone can verify offline, with an embeddable
-  badge~~ ✓ shipped: `re proof generate/verify`, Ed25519, self-contained SVG,
-  tamper-evident (fails closed)
-- Cryptographic timestamps (RFC 3161) + Ed25519-signed events for
-  audit-grade timelines (EU AI Act, SOC2 for agentic development) — *the paid
-  Trust Plane on top of `re proof`*
-- **Agent Provenance Protocol**: an open spec for the signed,
-  content-addressed event format, so any tool can produce or verify it
-- TUI à la `lazygit` for visual exploration
-- Cross-event semantic search over prompts and diffs (embeddings)
-- Counterfactual `re replay --with <model>` (re-execute past events under different models)
-
-## Plugging Causari into your agent (MCP)
-
-Causari ships its own MCP server. Any agent runtime that speaks MCP
-(Claude Desktop, Claude Code, Cursor, Cline, Windsurf, …) can register
-Causari and get three new tools for free:
-
-| Tool | What the agent uses it for |
-|---|---|
-| `causari_record` | Record one of its own actions into the ledger after each tool call. |
-| `causari_recall` | Find past similar events *before* acting, to avoid repeating mistakes. |
-| `causari_why`    | Inspect the provenance of a line before modifying code it didn't write. |
-
-**Trust model — what each tool can touch.** The server runs locally over stdio
-(newline-delimited JSON-RPC 2.0), makes **no network calls**, and only ever
-reads or writes inside your project and its `.causari/` ledger. Nothing is sent
-to Causari or any third party.
-
-| Tool | Reads | Writes |
-|---|---|---|
-| `causari_record` | your working tree (to snapshot it) + the metadata you pass in | appends one immutable event + snapshot to `.causari/` — **never edits your source files** |
-| `causari_recall` | `.causari/` ledger and signed skills | only bumps a skill's use-counter in `.causari/` (how trust is earned) — never your source |
-| `causari_why`    | `.causari/` ledger + the single file/line you name | nothing |
-
-Get the JSON snippet to paste into your agent's config:
-
-```bash
-re mcp --install
-```
-
-Then in any conversation the agent can call those tools by name. Causari
-silently builds a complete, queryable, causally-linked history of the session.
-
-## CI / GitHub Action
-
-One step in any repo and every pull request gets an AI code-survival
-comment — zero cloud, zero configuration, no Causari setup required:
+Everyone argues about how much code AI writes. Nobody can check the numbers.
+`re audit` reads plain git history — `Co-Authored-By` trailers, bot authors,
+agent markers — finds the commits that carry machine-readable AI authorship,
+and asks `git blame` how many of their lines are still at HEAD. No model, no
+estimate, no survey. Anyone re-runs it and gets the same bytes.
+
+- `--json` the exact bytes behind any published row
+- `--summary` Markdown for CI; `--badge` / `--card` one-colour SVGs
+- `--save` append a snapshot to track your own trend
+
+**What it cannot see**: code from inline completions (Copilot, Cursor Tab,
+Windsurf, …) leaves no git trace and counts as human. Commits without a
+trailer are UNKNOWN. A formatter pass or a moved function counts as a death
+under method v1. One bulk commit can dominate a line-weighted ratio; ratios
+under 5 AI-tagged commits are flagged. All of this is written out at
+[causari.dev/method](https://causari.dev/method), with how to contest a number.
+
+## In CI: a count on every pull request
 
 ```yaml
 # .github/workflows/causari.yml
-name: Causari Audit
-on:
-  pull_request:
-
-permissions:
-  contents: read
-  pull-requests: write
-
+on: pull_request
+permissions: { contents: read, pull-requests: write }
 jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0        # full history: audit reads every commit
+        with: { fetch-depth: 0 }      # the audit reads every commit; shallow clones are wrong
       - uses: croviatrust/causari@v1
 ```
 
-It downloads the prebuilt `re` binary (seconds, no Rust toolchain), runs
-`re audit --summary`, writes the result to the job summary, and posts a
-sticky Markdown comment on the PR with verified survival numbers per agent.
+The [Action](https://github.com/marketplace/actions/causari-survival-audit)
+downloads the prebuilt Linux binary (a few seconds), runs `re audit --summary`,
+writes it to the job summary and posts one sticky comment per PR. No cloud,
+no account. A [live example](https://github.com/croviatrust/causari-audit-demo/pull/1).
 
-For risky-pattern alerts, add `re guard --summary` as an extra step —
-see [`.github/workflows/guard.yml`](.github/workflows/guard.yml).
+## The ledger: from "which commit" to "which prompt"
 
-Keep the badge green on `main`:
-
-```bash
-re guard --badge   # .causari/guard-badge.svg
-```
-
-## Quickstart
-
-### Install (one line)
-
-Linux & macOS:
+The audit works on any history. If you also want to know *why* a line exists
+— the prompt, the model, the files the agent read — Causari records agent
+actions as they happen into a local, append-only ledger (`.causari/`,
+gitignored), with a snapshot of the tree before and after each one.
 
 ```bash
-curl -sSf https://causari.dev/install.sh | sh
+re init                       # create .causari/ (added to .gitignore)
+re hook claude-code           # record every Claude Code prompt and edit, exactly
+re proxy                      # local LLM proxy: prompts, models, tokens, cost
+re watch                      # attribute file changes to captured completions
+
+re why    src/auth.ts:42      # which recorded event introduced this line
+re trace  src/auth.ts:42      # upstream: events that fed into it through reads/writes
+re impact <event-id>          # downstream: what later events depended on it
+re lens   src/auth.ts         # the file annotated line by line with its event
+re find   "the JWT refactor"  # search prompts, messages, reasoning
+re bisect --test "npm test"   # first recorded event that breaks a test
+re revert <id>                # restore the pre-state, with a preview of what else you undo
+re fork / re sessions / re switch / re log --all / re diff a..b
 ```
 
-Windows (PowerShell):
+### What each agent actually gives you today
 
-```powershell
-iwr -useb https://causari.dev/install.ps1 | iex
-```
+Claims about "any agent" are cheap. This table is derived from the code and
+is kept current; if a cell is wrong, open an issue.
 
-Installs a ~800 KB pre-built binary into `~/.local/bin` (or
-`%LOCALAPPDATA%\Programs\causari` on Windows). **The installer verifies the
-binary's SHA-256 against the `SHA256SUMS.txt` published with each
-[release](https://github.com/croviatrust/causari/releases) and refuses to
-install on a mismatch** (set `CAUSARI_SKIP_VERIFY=1` to bypass — not
-recommended).
+| Agent | Prompt + file, exact | Model, tokens, cost | How |
+|---|---|---|---|
+| **Claude Code** | yes, via lifecycle hooks | not yet (edits travel as `tool_use`, which the proxy does not join to files yet) | `re hook claude-code` |
+| **Aider** | heuristic join, measured | yes | `OPENAI_API_BASE` / `ANTHROPIC_API_BASE` → `re proxy` + `re watch` |
+| **Codex CLI**, OpenAI Agents SDK | not yet (Responses API output not parsed) | yes | `OPENAI_BASE_URL` → `re proxy` |
+| **Cursor**, **Windsurf**, **Copilot** | only what the agent self-reports via MCP | no | `re mcp` |
+| **Cline / Roo**, custom scripts, curl | heuristic join when the completion carries the code as text | yes | base URL → `re proxy` + `re watch` |
 
-Prefer to verify by hand before running anything?
+Two evidence classes, and every output says which one it is:
+
+- **Declared** (hooks, MCP, `re record`): the agent stated what it did. Exact
+  prompt and path. If a human edits a file between two hook events, the hook
+  snapshot absorbs that edit into the next agent event — a known limit being
+  fixed in [Phase 1](ROADMAP.md).
+- **Correlated** (proxy + watch): the lines you inserted are searched inside
+  completions captured moments before. A score, not a fact. The adversarial
+  harness in [`examples/real-session/`](examples/real-session/RESULTS.md)
+  gives measured numbers: 100 % on a clean write, 50 % after a formatter pass,
+  wrong per-line attribution when two prompts touch one file in the same
+  window.
+
+Everything stays on your machine. `re proxy` stores prompts and completions
+verbatim; snapshots store every non-ignored file (`.env*`, `node_modules`,
+`target`, `dist`, `build`, `.git` and a few others are excluded by default).
+Treat `.causari/` as sensitive.
+
+## Receipts you can verify without us
+
+**Crovia Seals.** `re proxy --seal` issues a
+[crovia.seal.v1](https://github.com/croviatrust/crovia-seal) receipt for every
+completion: Ed25519-signed, hash-chained, committing to SHA-256 hashes of the
+exact request and response bytes (content never leaves the machine). Each
+recorded exchange carries its `seal_id` and the same hashes, so a receipt can
+be matched to the completion it covers. The implementation passes the
+reference conformance vectors; seals verify under the Python reference
+implementation and vice versa.
 
 ```bash
-VERSION=v0.1.0                        # the release you want
-TARGET=x86_64-unknown-linux-gnu       # your platform triple
+re proxy --seal          # issue a receipt per completion
+re seal verify           # every signature, whole chain, offline
+re seal issuer           # your issuer id and public key (read-only)
+```
+
+**Causari Proof.** `re proof generate` signs a summary of the ledger — event
+count, agents, models, files touched, a digest over the exact set of event ids
+— with a dedicated key, domain-separated, canonicalised with CSC-1. `re proof
+verify` fails closed: a proof containing any field the signer did not sign does
+not even parse.
+
+A proof says *this is what the ledger contained*, signed by this key. It does
+not say the ledger is complete. That distinction is on the output.
+
+## Experimental
+
+These commands exist, work in the demos, and are not yet held to the standard
+above. They are out of the proof and out of the front page until they are.
+
+- `re skill distill / verify / export / import / pull / trust`: signed units
+  of past work; the trust ladder (recorded → verified → proven) currently
+  measures file existence and recall counts, not correctness.
+- `re brief`: a Markdown briefing of past work for a model's context.
+- `re guard`: substring rules over recent changes; gates a build only when
+  asked (`--fail-on alert|warning`); `--json` for machines.
+- `re churn`, `re report`: survival measured over the ledger instead of git,
+  with cost extrapolated from a static price table; `re churn --json`, and
+  `--fail-below <percent>` when a team wants a floor of its own choosing.
+- `re mcp`: stdio MCP server with `causari_record`, `causari_recall`,
+  `causari_why`; `re mcp --install` prints the client config.
+
+## Install
+
+```bash
+# Linux / macOS
+curl -fsSL https://causari.dev/install.sh | sh
+
+# Windows (PowerShell)
+irm https://causari.dev/install.ps1 | iex
+
+# Homebrew (macOS, Linux)
+brew install croviatrust/tap/causari
+
+# Scoop (Windows)
+scoop bucket add causari https://github.com/croviatrust/scoop-bucket && scoop install causari
+
+# crates.io (Rust 1.85+)
+cargo install causari --locked
+
+# from source
+cargo install --git https://github.com/croviatrust/causari --locked
+```
+
+One program under two names: `causari` is the binary, `re` is the short alias
+every example uses. Both are in every archive and both are installed. One
+static binary, about 5 MB, for Linux (x86_64, aarch64), macOS (x86_64, Apple
+silicon) and Windows (x86_64), installed to `~/.local/bin` (or
+`%LOCALAPPDATA%\Programs\causari`). The installer checks the archive's
+SHA-256 against the `SHA256SUMS.txt` published with each release and refuses
+to install on a mismatch. From v0.2.0, every archive and the sums file carry a
+signed SLSA build-provenance attestation from the release workflow:
+
+```bash
+gh attestation verify causari-v0.2.0-x86_64-unknown-linux-gnu.tar.gz --repo croviatrust/causari
+```
+
+By hand:
+
+```bash
+VERSION=$(curl -fsSL https://api.github.com/repos/croviatrust/causari/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+TARGET=x86_64-unknown-linux-gnu
 base="https://github.com/croviatrust/causari/releases/download/$VERSION"
-curl -sSfLO "$base/re-$VERSION-$TARGET.tar.gz"
-curl -sSfLO "$base/SHA256SUMS.txt"
-sha256sum --ignore-missing -c SHA256SUMS.txt   # expect: OK
-tar -xzf "re-$VERSION-$TARGET.tar.gz" && install -m755 re ~/.local/bin/re
+curl -fsSLO "$base/causari-$VERSION-$TARGET.tar.gz" && curl -fsSLO "$base/SHA256SUMS.txt"
+sha256sum --ignore-missing -c SHA256SUMS.txt && tar -xzf "causari-$VERSION-$TARGET.tar.gz" && install -m755 causari re ~/.local/bin/
 ```
 
-Or build from source and skip pre-built binaries entirely:
+The [Homebrew tap](https://github.com/croviatrust/homebrew-tap) and the
+[Scoop bucket](https://github.com/croviatrust/scoop-bucket) render their
+manifests from each release's `SHA256SUMS.txt` and re-render every six hours.
+The crate is published from the release tag through crates.io Trusted
+Publishing (`.github/workflows/publish-crate.yml`): no long-lived token exists.
 
-```bash
-cargo install --git https://github.com/croviatrust/causari
-# or, with a local clone:
-cargo build --release
-./target/release/re --help
+### As an MCP server
+
+`re mcp` speaks MCP over stdio and exposes `causari_record`, `causari_recall`
+and `causari_why`; `re mcp --install` prints the configuration block for
+Claude Desktop, Cursor, Windsurf and Cline. The server is listed in the
+[MCP Registry](https://registry.modelcontextprotocol.io) from
+[`server.json`](server.json):
+
+- MCP Registry name: mcp-name: io.github.croviatrust/causari
+- One-click for Cursor: [Add causari to Cursor](https://cursor.com/en/install-mcp?name=causari&config=eyJjb21tYW5kIjoicmUiLCJhcmdzIjpbIm1jcCJdfQ%3D%3D)
+  (registers `re mcp`; the binary must be on `PATH`)
+
+### As a Claude Code plugin
+
+The repository is also a plugin marketplace. Inside Claude Code:
+
+```
+/plugin marketplace add croviatrust/causari
+/plugin install causari@croviatrust
 ```
 
-On first run, `re init` creates the `.causari/` ledger and adds it to your
-`.gitignore` automatically, so the prompts and reasoning it captures are never
-committed.
+The plugin installs the four hooks that `re hook claude-code` writes by hand
+(prompt, pre-state, post-state, session briefing), the MCP server, and a
+skill that tells the model when `why`, `trace`, `recall` and `record` are the
+right tool. It needs the `re` binary on `PATH`; without it, or in a project
+without `re init`, every hook is a silent no-op.
 
-Scripted demos live in `scripts/` and `examples/`:
+Demos: `scripts/demo*.sh|ps1` (mock LLM included), `examples/real-session/`
+(the adversarial harness), `scripts/recovery_lab.py` (revert/bisect stress
+lab).
 
-- **`examples/real-session/`** — **adversarial test harness with real measured
-  numbers.** Exercises the causal join on clean, human-edited, formatter-reflowed,
-  and near-simultaneous scenarios; compares hook vs proxy paths. See
-  [`RESULTS.md`](examples/real-session/RESULTS.md) for the findings.
-- **`demo-capture.ps1`** — the capture engine end to end: mock LLM upstream,
-  `re proxy`, `re watch`, content-based causal join (`mock-llm.py` included)
-- **`demo.sh`** / **`demo.ps1`** — full happy-path with `re why` and `re bisect`
-- **`demo-trace.sh`** / **`demo-trace.ps1`** — upstream causal cone (`re trace`)
-- **`demo-bidir.sh`** / **`demo-bidir.ps1`** — bidirectional causality
-  (`re impact`, `re lens`, causality-aware `re revert`)
-- **`demo-mcp.sh`** / **`demo-mcp.ps1`** — MCP server end-to-end via JSON-RPC
+## How it works, in one paragraph
 
-Causari runs natively on **Linux, macOS, and Windows** — the binary is a
-single ~2 MB executable with no runtime dependencies.
+Every recorded event is a content-addressed object (BLAKE3) with the tree
+before, the tree after, the agent, model and tool, the prompt, declared reads
+and writes, tokens and cost, and a parent. Sessions are refs; forks are
+implicit. `re why` finds the first event on the current chain whose
+before/after diff inserted the line; `re trace` follows reads and writes
+backwards from there; `re impact` forwards. Unchanged files share blobs
+between snapshots. The full design, and its current limits, are in
+[`docs/review-2026-09-20/`](docs/review-2026-09-20/).
+
+## Where this is going
+
+Causari does not compete with provenance trackers (Agent Trace, git-ai,
+`Assisted-by:` trailers, Entire checkpoints); it reads them, measures with a
+public method, and signs the result so a third party can verify it offline.
+Next: `git blame -w -M -C` and per-commit caps in the audit; Agent Trace and
+`Assisted-by:` readers; the audit result as a Seal; a PNX witness mode in
+the proxy that proves what an agent session did *not* send to the model.
+Phases and exit criteria: [`ROADMAP.md`](ROADMAP.md).
+
+## Family
+
+Causari is part of [Crovia](https://croviatrust.com), one grammar in three
+tenses: **TACET** proves a model's silence about its training data, **PNX**
+proves an agent's egress carried no protected bytes, **Causari** proves why a
+line of code exists and whether it is still there. Same rules everywhere:
+reproducible numbers, no verdicts, offline verification, limits stated first.
 
 ## License
 
-Causari is released under the **Apache License 2.0** (see `LICENSE`) —
-free and open source, forever, for any use: personal, commercial, at any
-scale. Fork it, embed it, ship it.
-
-**The experience layer (skills) is and will remain free** in the `re`
-binary — distillation, Ed25519 signing, verification and recall all run
-locally and cost nothing. What will be commercial is the **Trust Plane**
-built on top of it: organization-wide signed skill registries, RFC 3161
-timestamping, fleet dashboards and audit-grade compliance exports. The
-free tool creates the experience; the paid plane lets a company trust it
-at scale.
-
-"Causari" is a trademark of Croviatrust; the Apache License does not grant
-trademark rights (see `NOTICE`).
-
-Contributing? See `CONTRIBUTING.md`.
-
----
-
-Causari is built by [Croviatrust](https://croviatrust.com) — the team behind
-**Crovia**, the public transparency ledger for AI training data. Same DNA,
-different layer: Crovia proves what models learned; **Causari proves what
-agents did.**
+Apache-2.0 (see `LICENSE`). "Causari" is a trademark of Crovia Trust; the
+license does not grant trademark rights (see `NOTICE`). Contributing: see
+`CONTRIBUTING.md`.

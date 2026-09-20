@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.croviatrust/causari",
+  "title": "Causari",
+  "description": "Records what an AI agent did in a repo (prompt, model, files) and answers why a line exists.",
+  "websiteUrl": "https://causari.dev",
+  "repository": {
+    "url": "https://github.com/croviatrust/causari",
+    "source": "github"
+  },
+  "version": "0.1.5",
+  "packages": [
+    {
+      "registryType": "cargo",
+      "registryBaseUrl": "https://crates.io",
+      "identifier": "causari",
+      "version": "0.1.5",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp",
+          "description": "Run the stdio MCP server (the same binary is also the `re` command line)."
+        }
+      ]
+    }
+  ]
+}

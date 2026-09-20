@@ -35,6 +35,11 @@ pub fn list_sessions(repo: &Repo) -> Result<Vec<Session>> {
             Some(s) => s.to_string(),
             None => continue,
         };
+        // Transient CAS guards (`<name>.cas`) and anything else that is not
+        // a legal session name are not sessions.
+        if crate::repo::validate_session_name(&name).is_err() {
+            continue;
+        }
         let head = repo.session_head(&name)?;
         out.push(Session { name, head });
     }
@@ -134,6 +139,7 @@ mod tests {
             post_snapshot: "post".into(),
             exit_code: None,
             created_at: ts.into(),
+            evidence: None,
         }
     }
 

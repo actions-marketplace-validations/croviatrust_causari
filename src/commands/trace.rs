@@ -1,13 +1,12 @@
 use anyhow::{Context, Result, anyhow};
 use colored::Colorize;
-use similar::{ChangeTag, TextDiff};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::cli::TraceArgs;
-use crate::object::Event;
+use crate::provenance::{chain_to, find_line_origin, parse_spec};
 use crate::repo::Repo;
-use crate::snapshot::{effective_reads, effective_writes, flatten_tree};
+use crate::snapshot::{effective_reads, effective_writes};
 use crate::store::Store;
 
 /// `re trace path/to/file.rs:42`
@@ -49,25 +48,16 @@ pub fn run(args: TraceArgs) -> Result<()> {
     }
     let target_line = current_lines[line_no - 1].to_string();
 
-    // 1. Resolve the writer event W by walking history.
+    // 1. Resolve the writer event W: the same answer `re why` gives.
     let head = repo.head_event()?;
-    let mut writer: Option<String> = None;
-    let mut cur = head.clone();
-    while let Some(id) = cur {
-        let ev = store.read_event(&id)?;
-        if event_introduced_line(&store, &ev, &rel_path, &target_line)? {
-            writer = Some(id.clone());
-            break;
-        }
-        cur = ev.parent;
-    }
-    let writer_id = writer.ok_or_else(|| {
+    let (origin, _) = find_line_origin(&store, head.as_deref(), &rel_path, &target_line)?;
+    let writer_id = origin.map(|o| o.id).ok_or_else(|| {
         anyhow!("no recorded event introduced this line — it predates the first `re record`")
     })?;
 
     // 2. Build a fast lookup of (file path -> ordered list of event ids that wrote it),
     //    walking the whole chain from the head event so we can do last_writer_before(F, E).
-    let chain = full_chain(&store, head.as_deref())?;
+    let chain = chain_to(&store, head.as_deref())?;
     let writer_history = build_writer_history(&store, &chain)?;
     let chain_order: HashMap<String, usize> = chain
         .iter()
@@ -138,29 +128,6 @@ struct ConeNode {
     upstream: Vec<(PathBuf, String)>,
 }
 
-fn parse_spec(spec: &str) -> Result<(String, usize)> {
-    let (file, line) = spec
-        .rsplit_once(':')
-        .ok_or_else(|| anyhow!("expected <file>:<line>, got '{}'", spec))?;
-    let line_no: usize = line
-        .parse()
-        .with_context(|| format!("'{}' is not a valid line number", line))?;
-    Ok((file.to_string(), line_no))
-}
-
-/// Walk from `head` backwards collecting all event ids, returned oldest-first.
-fn full_chain(store: &Store, head: Option<&str>) -> Result<Vec<String>> {
-    let mut out = Vec::new();
-    let mut cur = head.map(String::from);
-    while let Some(id) = cur {
-        let ev = store.read_event(&id)?;
-        out.push(id);
-        cur = ev.parent;
-    }
-    out.reverse();
-    Ok(out)
-}
-
 /// For every file, the list of (chain_position, event_id) that wrote it,
 /// in chronological order (oldest first).
 fn build_writer_history(
@@ -176,39 +143,6 @@ fn build_writer_history(
         }
     }
     Ok(out)
-}
-
-fn event_introduced_line(store: &Store, ev: &Event, rel: &Path, target: &str) -> Result<bool> {
-    let pre_snap = store.read_snapshot(&ev.pre_snapshot)?;
-    let post_snap = store.read_snapshot(&ev.post_snapshot)?;
-    let pre_tree = flatten_tree(store, &pre_snap.tree)?;
-    let post_tree = flatten_tree(store, &post_snap.tree)?;
-
-    let post_text = match post_tree.get(rel) {
-        Some(id) => String::from_utf8(store.read_blob(id)?).unwrap_or_default(),
-        None => return Ok(false),
-    };
-    let pre_text = match pre_tree.get(rel) {
-        Some(id) => String::from_utf8(store.read_blob(id)?).unwrap_or_default(),
-        None => String::new(),
-    };
-
-    if pre_text == post_text {
-        return Ok(false);
-    }
-
-    let pre_lines: HashSet<&str> = pre_text.lines().collect();
-    let post_has = post_text.lines().any(|l| l == target);
-    if !post_has {
-        return Ok(false);
-    }
-    if !pre_lines.contains(target) {
-        return Ok(true);
-    }
-    let diff = TextDiff::from_lines(&pre_text, &post_text);
-    Ok(diff
-        .iter_all_changes()
-        .any(|c| c.tag() == ChangeTag::Insert && c.value().trim_end_matches('\n') == target))
 }
 
 fn print_cone(

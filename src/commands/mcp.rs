@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use crate::cli::McpArgs;
 use crate::object::{Event, Snapshot};
 use crate::repo::Repo;
-use crate::snapshot::{flatten_tree, snapshot_workspace};
+use crate::snapshot::snapshot_workspace;
 use crate::store::Store;
 
 /// `re mcp` — start an MCP (Model Context Protocol) server on stdio.
@@ -239,6 +239,7 @@ fn tool_record(args: &Value) -> Result<String> {
             .and_then(|v| v.as_i64())
             .map(|n| n as i32),
         created_at: Utc::now().to_rfc3339(),
+        evidence: Some(crate::object::Evidence::declared("mcp")),
     };
     let id = crate::commit::commit_event(&repo, &store, &event, session.as_deref())?;
     Ok(format!(
@@ -271,10 +272,9 @@ fn tool_recall(args: &Value) -> Result<String> {
     // 1. SKILLS first — distilled, signed experience outranks raw events.
     //    Every recall bumps the skill's use counter, which is how a verified
     //    skill earns the ★ proven trust level over time.
-    let skills = crate::skill::load_skills(&repo)?;
+    let skills = crate::skill::load_admissible_skills(&repo)?;
     let mut skill_hits: Vec<(usize, &String, &crate::skill::SkillEnvelope)> = skills
         .iter()
-        .filter(|(_, env)| crate::skill::verify_envelope(env).is_ok())
         .map(|(id, env)| (crate::skill::score_skill(env, &terms), id, env))
         .filter(|(score, _, _)| *score > 0)
         .collect();
@@ -288,12 +288,14 @@ fn tool_recall(args: &Value) -> Result<String> {
         ));
         for (score, id, env) in skill_hits.iter().take(limit) {
             let trust = env.trust();
+            let (badge, label) = if env.is_failed() {
+                ("✗", "FAILED — do not repeat this approach")
+            } else {
+                (trust.badge(), trust.as_str())
+            };
             out.push_str(&format!(
                 "\n## [{}] {} {} — {}\n",
-                score,
-                trust.badge(),
-                trust.as_str(),
-                env.skill.title
+                score, badge, label, env.skill.title
             ));
             out.push_str(&format!("- skill: {}\n", &id[..10]));
             if let Some(a) = &env.skill.agent {
@@ -314,8 +316,11 @@ fn tool_recall(args: &Value) -> Result<String> {
                 ));
             }
             out.push_str(&format!(
-                "- evidence: exit_zero={} survived={} uses={}\n",
-                env.skill.verification.exit_zero, env.skill.verification.survived, env.stats.uses
+                "- evidence: exit_zero={} survived={} failed={} uses={}\n",
+                env.skill.verification.exit_zero,
+                env.skill.verification.survived,
+                env.skill.verification.failed,
+                env.stats.uses
             ));
             let _ = crate::skill::record_use(&repo, id);
         }
@@ -372,8 +377,6 @@ fn tool_recall(args: &Value) -> Result<String> {
 }
 
 fn tool_why(args: &Value) -> Result<String> {
-    use similar::{ChangeTag, TextDiff};
-
     let repo = Repo::discover()?;
     let store = Store::new(&repo);
 
@@ -402,44 +405,25 @@ fn tool_why(args: &Value) -> Result<String> {
     }
     let target = lines[line_no - 1].to_string();
 
-    let mut cur = repo.head_event()?;
-    while let Some(id) = cur {
-        let ev = store.read_event(&id)?;
-        let pre_snap = store.read_snapshot(&ev.pre_snapshot)?;
-        let post_snap = store.read_snapshot(&ev.post_snapshot)?;
-        let pre_tree = flatten_tree(&store, &pre_snap.tree)?;
-        let post_tree = flatten_tree(&store, &post_snap.tree)?;
-        let post_text = match post_tree.get(&rel) {
-            Some(id) => String::from_utf8(store.read_blob(id)?).unwrap_or_default(),
-            None => {
-                cur = ev.parent;
-                continue;
-            }
-        };
-        let pre_text = match pre_tree.get(&rel) {
-            Some(id) => String::from_utf8(store.read_blob(id)?).unwrap_or_default(),
-            None => String::new(),
-        };
-        if pre_text == post_text {
-            cur = ev.parent;
-            continue;
-        }
-        let appears = post_text.lines().any(|l| l == target);
-        if !appears {
-            cur = ev.parent;
-            continue;
-        }
-        let pre_has = pre_text.lines().any(|l| l == target);
-        let introduced = if !pre_has {
-            true
-        } else {
-            TextDiff::from_lines(&pre_text, &post_text)
-                .iter_all_changes()
-                .any(|c| c.tag() == ChangeTag::Insert && c.value().trim_end_matches('\n') == target)
-        };
-        if introduced {
+    let head = repo.head_event()?;
+    let (origin, _) = crate::provenance::find_line_origin(&store, head.as_deref(), &rel, &target)?;
+    match origin {
+        Some(o) => {
+            let (id, ev) = (o.id, o.event);
             let mut out = format!("# {}:{}\n```\n{}\n```\n\n", file, line_no, target);
             out.push_str(&format!("Introduced by event `{}`\n", &id[..10]));
+            out.push_str(&format!(
+                "- evidence: {}\n",
+                ev.evidence
+                    .as_ref()
+                    .map(|e| e.describe())
+                    .unwrap_or_else(|| "unrecorded (older event)".to_string())
+            ));
+            if ev.parent.is_none() {
+                out.push_str(
+                    "- note: root event — the line was present when recording started; the agent named may not have written it\n",
+                );
+            }
             if let Some(a) = &ev.agent {
                 out.push_str(&format!("- agent: {}\n", a));
             }
@@ -458,14 +442,13 @@ fn tool_why(args: &Value) -> Result<String> {
             if let Some(r) = &ev.reasoning {
                 out.push_str(&format!("- reasoning: {}\n", r));
             }
-            return Ok(out);
+            Ok(out)
         }
-        cur = ev.parent;
+        None => Ok(format!(
+            "no recorded event introduced {}:{} (the line predates the first `re record`, or was written without a recorder running)",
+            file, line_no
+        )),
     }
-    Ok(format!(
-        "no recorded event introduced {}:{} (the line predates the first `re record`)",
-        file, line_no
-    ))
 }
 
 fn print_install_snippet() -> Result<()> {

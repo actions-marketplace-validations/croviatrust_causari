@@ -7,10 +7,10 @@ and we want to keep it that way — please read this first.
 
 - **Causari is licensed under Apache-2.0** (see [`LICENSE`](LICENSE) and
   [`NOTICE`](NOTICE)) — free for any use, personal or commercial, at any
-  scale. "Causari" is a trademark of Croviatrust.
-- **All contributions require a signed CLA** ([`CLA.md`](CLA.md)). The first
-  PR you open will be commented automatically with the CLA bot — confirm and
-  you only sign once.
+  scale. "Causari" is a trademark of Crovia Trust.
+- **Contributions are certified with the DCO** ([`DCO.md`](DCO.md)): add
+  `Signed-off-by` to each commit with `git commit -s`. No agreement to sign,
+  no bot to talk to; CI checks the trailer. Your code stays Apache 2.0.
 - **English only** in code, comments, commits, issues and PRs.
 
 ## Quick start
@@ -51,8 +51,9 @@ pwsh scripts\demo-mcp.ps1
 ## What we accept
 
 - Bug fixes with a regression test.
-- New CLI subcommands that fit the **causal-provenance** thesis (don't bolt
-  on unrelated features — open an issue first).
+- New CLI subcommands that fit the thesis in [`MANIFESTO.md`](MANIFESTO.md)
+  (don't bolt on unrelated features — open an issue first). Nothing that
+  turns a measurement into a verdict: no ranks, no colour on numbers.
 - New MCP tools that expose existing functionality to agent runtimes.
 - Documentation, examples, demo scripts.
 - Performance work backed by a benchmark.
@@ -75,7 +76,7 @@ pwsh scripts\demo-mcp.ps1
 - [ ] If you touched MCP tools, you regenerated the install snippet and
       tested with at least one runtime (Claude Desktop, Cursor, Cline,
       Windsurf).
-- [ ] You signed the CLA.
+- [ ] Every commit is signed off (`git commit -s`, see [`DCO.md`](DCO.md)).
 
 ## Reporting security issues
 

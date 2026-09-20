@@ -24,6 +24,6 @@
 ## Checklist
 
 - [ ] I read [`CONTRIBUTING.md`](../CONTRIBUTING.md).
-- [ ] I signed the [CLA](../CLA.md).
+- [ ] Every commit is signed off (`git commit -s`, see [DCO.md](../DCO.md)).
 - [ ] My change is in scope (causal provenance / agent observability / MCP).
 - [ ] No new dependencies, OR I justified them in the PR description.

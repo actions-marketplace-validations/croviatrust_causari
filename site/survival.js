@@ -1,6 +1,10 @@
+// Weekly measurements of AI code survival. Counts, not grades: no rank, no
+// colour, no verdict. Rows are alphabetical; the reader judges.
 (async function () {
   const tbody = document.querySelector("#lb tbody");
   const meta = document.getElementById("lb-meta");
+  const SAMPLE_FLOOR = 5; // below this many AI-tagged commits a ratio is not shown
+
   try {
     const sources = [
       "https://raw.githubusercontent.com/croviatrust/causari/leaderboard-data/site/survival-data.json",
@@ -15,52 +19,39 @@
     }
     if (!data) throw new Error("no data source");
 
-    // Weekly history (optional): used to show trend vs previous audit.
-    let prevRates = {};
-    try {
-      const hres = await fetch("https://raw.githubusercontent.com/croviatrust/causari/leaderboard-data/site/survival-history.json", { cache: "no-cache" });
-      if (hres.ok) {
-        const hist = await hres.json();
-        if (Array.isArray(hist) && hist.length >= 2) {
-          for (const r of hist[hist.length - 2].rows || []) {
-            if (r.verified && r.verified.introduced > 0) prevRates[r.repo] = r.verified.survival_rate ?? 0;
-          }
-        }
-      }
-    } catch (_) { /* trend is optional */ }
-
-    const rows = (data.rows || []).filter(r => r.total_commits > 0);
+    const rows = (data.rows || [])
+      .filter(r => r.total_commits > 0)
+      .sort((a, b) => a.repo.localeCompare(b.repo));
     if (!rows.length) throw new Error("empty");
 
-    // Rank: repos with verified AI lines first (by survival rate desc), then no-signal.
-    const signal = rows.filter(r => r.verified.introduced > 0)
-      .sort((a, b) => (b.verified.survival_rate ?? 0) - (a.verified.survival_rate ?? 0));
-    const silent = rows.filter(r => r.verified.introduced === 0);
-
     const fmt = n => n.toLocaleString("en-US");
-    const rateCell = r => {
-      if (r.verified.introduced === 0) return '<span class="lb-rate none">no signal</span>';
-      const pct = Math.round((r.verified.survival_rate ?? 0) * 1000) / 10;
-      const cls = pct >= 70 ? "hi" : pct >= 40 ? "mid" : "lo";
-      let trend = "";
-      const prev = prevRates[r.repo];
-      if (prev !== undefined) {
-        const delta = Math.round(((r.verified.survival_rate ?? 0) - prev) * 1000) / 10;
-        if (delta >= 0.1) trend = ` <span class="lb-trend up" title="+${delta} pts vs last week">\u25B2</span>`;
-        else if (delta <= -0.1) trend = ` <span class="lb-trend down" title="${delta} pts vs last week">\u25BC</span>`;
+    const ratio = r => {
+      const v = r.verified;
+      if (v.introduced === 0) return '<span class="lb-none">— no git signal</span>';
+      if (v.commits < SAMPLE_FLOOR) {
+        return `<span class="lb-none" title="Fewer than ${SAMPLE_FLOOR} AI-tagged commits: a single commit can dominate, so no ratio is reported">— n &lt; ${SAMPLE_FLOOR}</span>`;
       }
-      return `<span class="lb-rate ${cls}">${pct}%</span>${trend}<span class="lb-bar" style="width:${Math.max(4, pct * 0.6)}px"></span>`;
+      const pct = Math.round((v.survival_rate ?? 0) * 1000) / 10;
+      return `<span class="lb-ratio">${pct}%</span>`;
+    };
+    const largest = r => {
+      // The per-agent split is the only decomposition the current data carries;
+      // when one agent holds nearly every introduced line, say so.
+      const agents = Object.values(r.by_agent || {});
+      if (!agents.length || r.verified.introduced === 0) return "";
+      const max = Math.max(...agents.map(a => a.introduced || 0));
+      const share = max / r.verified.introduced;
+      return share >= 0.9 && agents.length > 1 ? `<span class="lb-note" title="${Math.round(share * 100)}% of introduced lines come from one agent">one agent ≥ 90%</span>` : "";
     };
 
-    tbody.innerHTML = [...signal, ...silent].map((r, i) => `
+    tbody.innerHTML = rows.map(r => `
       <tr>
-        <td>${i + 1}</td>
-        <td><a href="/repo?r=${r.repo}">${r.repo}</a> <a href="https://github.com/${r.repo}" rel="noopener" title="View on GitHub" style="opacity:.45">↗</a></td>
+        <td><a href="https://github.com/${r.repo}" rel="noopener">${r.repo}</a></td>
         <td>${fmt(r.total_commits)}</td>
         <td>${fmt(r.verified.commits)}${r.probable.commits ? ` <span class="muted">(+${fmt(r.probable.commits)} probable)</span>` : ""}</td>
         <td>${fmt(r.verified.introduced)}</td>
         <td>${fmt(r.verified.surviving)}</td>
-        <td>${rateCell(r)}</td>
+        <td>${ratio(r)} ${largest(r)}</td>
         <td><code class="lb-repro" title="Click to copy" data-repo="${r.repo}">re audit ${r.repo}</code></td>
       </tr>`).join("");
 
@@ -70,10 +61,10 @@
     });
 
     if (data.generated_at) {
-      meta.textContent = `Last audited ${new Date(data.generated_at).toUTCString()} · ${rows.length} repositories · powered by the open-source Causari CLI`;
+      meta.textContent = `Measured ${new Date(data.generated_at).toUTCString()} · ${rows.length} repositories · method v1 · alphabetical, unranked`;
     }
   } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#64748b;">First audit run is in progress — check back soon, or run <code>re audit owner/repo</code> yourself.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;">No measurement published yet. Run <code>re audit owner/repo</code> yourself.</td></tr>';
   }
 })();
 document.getElementById("year").textContent = new Date().getFullYear();

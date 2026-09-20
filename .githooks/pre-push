@@ -13,4 +13,7 @@ cargo clippy --all-targets -- -D warnings
 echo "[pre-push] cargo test"
 cargo test
 
+echo "[pre-push] python3 scripts/audit_surfaces.py --gate --quiet"
+python3 scripts/audit_surfaces.py --gate --quiet
+
 echo "[pre-push] all checks passed."

@@ -1,52 +1,28 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>AI Code Survival Leaderboard — Causari</title>
+  <title>AI code survival · weekly measurements — causari</title>
 
-  <meta name="description" content="How much AI-written code actually survives in the world's most-watched open-source repositories? Weekly audit, every number reproducible with one command: re audit <owner/repo>." />
-  <meta name="theme-color" content="#0a0e1f" />
-  <meta name="color-scheme" content="dark light" />
+  <meta name="description" content="Weekly measurements of how many lines from AI-tagged commits are still at HEAD in open-source repositories. Counts, not grades. Every row reproducible: re audit <owner/repo>." />
+  <meta name="theme-color" content="#0b0d10" />
+  <meta name="color-scheme" content="light dark" />
 
-  <meta property="og:title" content="AI Code Survival Leaderboard" />
-  <meta property="og:description" content="How much AI-written code is still alive at HEAD in famous open-source repos? Audited weekly. Reproduce any row: re audit <owner/repo>." />
+  <meta property="og:title" content="AI code survival · weekly measurements" />
+  <meta property="og:description" content="How many lines from AI-tagged commits are still at HEAD, measured weekly from git metadata alone. Unranked. Reproduce any row: re audit <owner/repo>." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://causari.dev/survival" />
-  <meta property="og:image" content="https://causari.dev/assets/og-card.png" />
-  <meta property="og:site_name" content="Causari" />
+  <meta property="og:image" content="https://causari.dev/assets/og.png" />
+  <meta property="og:site_name" content="causari" />
 
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="AI Code Survival Leaderboard" />
-  <meta name="twitter:description" content="How much AI-written code is still alive at HEAD in famous open-source repos? Audited weekly, reproducible with one command." />
-  <meta name="twitter:image" content="https://causari.dev/assets/og-card.png" />
+  <meta name="twitter:title" content="AI code survival · weekly measurements" />
+  <meta name="twitter:description" content="Lines from AI-tagged commits still at HEAD, measured weekly from git metadata alone. Counts, not grades." />
+  <meta name="twitter:image" content="https://causari.dev/assets/og.png" />
 
-  <link rel="icon" type="image/svg+xml" href="/assets/icon.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" />
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
   <link rel="stylesheet" href="/styles.css" />
-  <style>
-    .lb-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-    .lb-table th, .lb-table td { padding: 0.65rem 0.9rem; text-align: right; white-space: nowrap; }
-    .lb-table th:first-child, .lb-table td:first-child,
-    .lb-table th:nth-child(2), .lb-table td:nth-child(2) { text-align: left; }
-    .lb-table tbody tr { border-top: 1px solid rgba(148,163,184,0.12); }
-    .lb-table code { font-family: "JetBrains Mono", monospace; font-size: 0.85em; }
-    .lb-rate { font-weight: 700; font-family: "JetBrains Mono", monospace; }
-    .lb-rate.hi { color: #22c55e; }
-    .lb-rate.mid { color: #f59e0b; }
-    .lb-rate.lo { color: #ef4444; }
-    .lb-rate.none { color: #64748b; font-weight: 400; }
-    .lb-trend { font-size: 0.75em; vertical-align: middle; }
-    .lb-trend.up { color: #22c55e; }
-    .lb-trend.down { color: #ef4444; }
-    .lb-bar { display: inline-block; height: 6px; border-radius: 3px; background: linear-gradient(90deg,#22c55e,#4ade80); vertical-align: middle; margin-left: 0.5rem; }
-    .lb-meta { color: #94a3b8; font-size: 0.85rem; margin-top: 1rem; }
-    .lb-repro { cursor: pointer; }
-    .lb-repro:hover { text-decoration: underline; }
-    .lb-scroll { overflow-x: auto; }
-  </style>
 </head>
 <body>
 
@@ -54,16 +30,17 @@
 
 <header class="nav" role="banner">
   <div class="container nav-inner">
-    <a href="/" class="brand" aria-label="Causari home">
-      <img src="/assets/icon.svg" alt="" width="32" height="32" />
-      <span class="brand-name">Causari</span>
+    <a href="/" class="brand" aria-label="causari home">
+      <img src="/assets/mark.svg" alt="" width="26" height="26" class="mark-light" />
+      <img src="/assets/mark-white.svg" alt="" width="26" height="26" class="mark-dark" />
+      <span class="brand-name">causari</span>
     </a>
     <nav class="nav-links" aria-label="Primary">
-      <a href="/#audit">Audit</a>
-      <a href="/#capture">Capture</a>
-      <a href="/#skills">Skills</a>
-      <a href="/#what">Features</a>
-      <a href="https://github.com/croviatrust/causari" rel="noopener">Docs</a>
+      <a href="/#audit" class="hide-sm">audit</a>
+      <a href="/survival" aria-current="page">measurements</a>
+      <a href="/method">method</a>
+      <a href="https://github.com/croviatrust/causari" rel="noopener">source</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
     </nav>
   </div>
 </header>
@@ -73,41 +50,62 @@
 <section class="section">
   <div class="container">
     <div class="section-head">
-      <p class="eyebrow">Audited weekly · zero self-reporting</p>
-      <h2>The AI Code Survival Leaderboard</h2>
-      <p class="lede">Everyone argues about how much code AI really writes. Nobody measures how much
-      of it <strong>survives</strong>. We audit the most-watched open-source repositories every week:
-      AI-authored commits detected from verifiable git metadata only
-      (<code>Co-Authored-By</code> trailers, bot authors, aider markers), and every AI-introduced
-      line checked against HEAD. <strong>No estimates. No surveys. Just git.</strong></p>
+      <p class="eyebrow">Measured weekly · git metadata only · unranked</p>
+      <h2>AI code survival: weekly measurements</h2>
+      <p class="lede">For each repository: how many lines were introduced by commits that carry
+      machine-readable AI authorship metadata (<code>Co-Authored-By</code> trailers, bot authors,
+      aider markers), and how many of those lines <code>git blame</code> still attributes to
+      them at HEAD. <strong>These are counts, not grades.</strong> There is no rank, no colour and
+      no verdict on this page; rows are alphabetical. Every row is reproducible with one
+      command and the <a href="/method">method and its limits</a> are public.</p>
     </div>
 
     <div class="lb-scroll">
       <table class="lb-table" id="lb">
         <thead>
           <tr>
-            <th>#</th>
             <th>Repository</th>
             <th>Commits</th>
-            <th>AI commits</th>
-            <th>AI lines introduced</th>
-            <th>Still alive at HEAD</th>
-            <th>Survival</th>
+            <th>AI-tagged commits</th>
+            <th>Lines introduced</th>
+            <th>Still at HEAD</th>
+            <th>Ratio</th>
             <th>Reproduce</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td colspan="8" style="text-align:center;color:#64748b;">Loading data…</td></tr>
+          <tr><td colspan="7" class="muted" style="text-align:center">Loading data…</td></tr>
         </tbody>
       </table>
     </div>
 
     <p class="lb-meta" id="lb-meta"></p>
-    <p class="lb-meta">Methodology: only <strong>VERIFIED</strong> evidence (explicit git metadata) is
-    ranked; PROBABLE (heuristic) counts are shown for context but never mixed in. Repositories with no
-    verifiable AI metadata show "no signal" — absence of evidence, not evidence of absence.
-    Want your repo listed? <a href="https://github.com/croviatrust/causari/edit/main/.github/leaderboard-repos.txt" rel="noopener">Open a pull request</a>
-    adding one line, or audit it yourself in 10 seconds: <code>re audit owner/repo</code>.</p>
+
+    <div class="lb-limits">
+      <h3>Read this before reading the numbers</h3>
+      <ul>
+        <li><strong>Only tagged commits are measured.</strong> Code from inline completions
+        (Copilot, Cursor Tab, Windsurf, …) leaves no git trace and is invisible here. "No git
+        signal" means absence of metadata, not absence of AI.</li>
+        <li><strong>One commit can dominate a row.</strong> Ratios are line-weighted. A single
+        bulk commit (a vendored tree, a docs snapshot, a generated bundle) can account for almost
+        every introduced line; the row then measures that commit, not the project. Ratios are
+        withheld below 5 AI-tagged commits, and rows where one agent holds ≥ 90 % of introduced
+        lines are marked. Method v2 will cap per-commit weight and report intervals.</li>
+        <li><strong>Survival is not quality.</strong> Deleted lines include removed features,
+        moved code and rewritten prototypes; surviving lines include dead code. A formatter pass
+        or a move between files counts as a death under method v1 (<code>git blame</code> without
+        <code>-w -M -C</code>); method v2 fixes this.</li>
+        <li><strong>Peer-reviewed context.</strong> Independent research on 201 projects
+        (<a href="https://arxiv.org/abs/2601.16809" rel="noopener">arXiv 2601.16809</a>) finds
+        agent-authored code is modified <em>less</em> often than human code. Read these counts
+        alongside it.</li>
+        <li><strong>Your repository, your call.</strong> Repositories are added by pull request.
+        A maintainer can have theirs removed by adding one line to
+        <a href="https://github.com/croviatrust/causari/edit/main/.github/survival-optout.txt" rel="noopener"><code>.github/survival-optout.txt</code></a>;
+        the next weekly run honours it, no questions asked.</li>
+      </ul>
+    </div>
   </div>
 </section>
 
@@ -115,11 +113,12 @@
 
 <footer class="footer">
   <div class="container foot-bottom">
-    <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Croviatrust</a>. <em>Causari</em> is a trademark of Croviatrust.</p>
-    <p class="muted">Every row reproducible: <code>re audit &lt;owner/repo&gt;</code> · <a href="/">causari.dev</a></p>
+    <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Crovia</a> · <em>causari</em> is a trademark of Crovia Trust.</p>
+    <p class="muted">Every row reproducible: <code>re audit &lt;owner/repo&gt;</code> · <a href="/method">method</a> · <a href="/">causari.dev</a></p>
   </div>
 </footer>
 
+<script src="/app.js" defer></script>
 <script src="/survival.js" defer></script>
 </body>
 </html>

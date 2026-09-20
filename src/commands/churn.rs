@@ -120,12 +120,21 @@ pub fn run(args: ChurnArgs) -> Result<()> {
     let analysis = match analyze(&repo, &store)? {
         Some(a) => a,
         None => {
-            println!("{} no events recorded yet.", "churn:".yellow().bold());
-            return Ok(());
+            if args.json {
+                println!(
+                    "{}",
+                    serde_json::json!({ "events": 0, "by_agent": {}, "overall": null })
+                );
+            } else {
+                eprintln!("{} no events recorded yet.", "churn:".yellow().bold());
+            }
+            std::process::exit(3);
         }
     };
 
-    if args.summary {
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&to_json(&analysis))?);
+    } else if args.summary {
         print_summary(&analysis.by_agent, &analysis.overall, analysis.has_cost);
     } else {
         print_terminal(
@@ -136,7 +145,50 @@ pub fn run(args: ChurnArgs) -> Result<()> {
         );
     }
 
+    if let Some(threshold) = args.fail_below {
+        let overall = &analysis.overall;
+        if overall.introduced > 0 && overall.survival_rate() * 100.0 < threshold {
+            eprintln!(
+                "churn: AI survival {:.1}% is below --fail-below {:.1}%",
+                overall.survival_rate() * 100.0,
+                threshold
+            );
+            std::process::exit(1);
+        }
+    }
+
     Ok(())
+}
+
+fn stat_json(stat: &Stat) -> serde_json::Value {
+    let mut v = serde_json::json!({
+        "introduced": stat.introduced,
+        "surviving": stat.surviving,
+        "events": stat.events,
+        "survival_rate": if stat.introduced == 0 { serde_json::Value::Null } else { stat.survival_rate().into() },
+    });
+    if stat.has_cost {
+        v["cost_usd"] = stat.cost.into();
+        v["cost_usd_not_surviving"] = stat.wasted_cost.into();
+    }
+    v
+}
+
+/// Machine-readable analysis: counts and rates only, no verdicts.
+pub(crate) fn to_json(analysis: &Analysis) -> serde_json::Value {
+    let by_agent: serde_json::Map<String, serde_json::Value> = analysis
+        .by_agent
+        .iter()
+        .map(|(agent, stat)| (agent.clone(), stat_json(stat)))
+        .collect();
+    let mut overall = stat_json(&analysis.overall);
+    overall["events"] = analysis.n_events.into();
+    serde_json::json!({
+        "events": analysis.n_events,
+        "by_agent": by_agent,
+        "overall": overall,
+        "note": "lines introduced by AI-attributed events and still present in the latest recorded state; a count, not a grade",
+    })
 }
 
 /// Run the full-history survival analysis. Returns `None` when the ledger has
@@ -317,14 +369,10 @@ fn replay_diff(
     (result, inserts)
 }
 
-fn status_label(waste: f64) -> colored::ColoredString {
-    if waste >= 0.40 {
-        format!("{:.1}%", waste * 100.0).red().bold()
-    } else if waste >= 0.20 {
-        format!("{:.1}%", waste * 100.0).yellow().bold()
-    } else {
-        format!("{:.1}%", waste * 100.0).green().bold()
-    }
+/// The share of introduced lines no longer present, as plain text. No colour:
+/// what counts as too much depends on the repository, not on this tool.
+fn not_surviving_label(waste: f64) -> String {
+    format!("{:.1}%", waste * 100.0)
 }
 
 fn print_terminal(
@@ -348,9 +396,9 @@ fn print_terminal(
             "INTRO".bold(),
             "SURVIVED".bold(),
             "SURVIVAL".bold(),
-            "WASTE".bold(),
+            "GONE".bold(),
             "COST $".bold(),
-            "WASTED $".bold()
+            "GONE $".bold()
         );
     } else {
         println!(
@@ -359,7 +407,7 @@ fn print_terminal(
             "INTRO".bold(),
             "SURVIVED".bold(),
             "SURVIVAL".bold(),
-            "WASTE".bold()
+            "GONE".bold()
         );
     }
 
@@ -372,9 +420,9 @@ fn print_terminal(
                 stat.introduced,
                 stat.surviving,
                 survival.cyan(),
-                status_label(stat.waste_rate()),
+                not_surviving_label(stat.waste_rate()),
                 format!("{:.2}", stat.cost),
-                format!("{:.2}", stat.wasted_cost).red()
+                format!("{:.2}", stat.wasted_cost)
             );
         } else {
             println!(
@@ -383,7 +431,7 @@ fn print_terminal(
                 stat.introduced,
                 stat.surviving,
                 survival.cyan(),
-                status_label(stat.waste_rate())
+                not_surviving_label(stat.waste_rate())
             );
         }
     }
@@ -398,53 +446,51 @@ fn print_terminal(
     }
 
     println!(
-        "{} {}   {} {}",
-        "AI survival:".bold(),
-        format!("{:.1}%", overall.survival_rate() * 100.0)
-            .green()
-            .bold(),
-        "AI Waste Score:".bold(),
-        status_label(overall.waste_rate())
+        "{} {} of {} AI-attributed lines still present ({:.1}%)",
+        "survival:".bold(),
+        overall.surviving,
+        overall.introduced,
+        overall.survival_rate() * 100.0
     );
     if overall.has_cost {
         println!(
-            "{} ${:.2} of ${:.2} spent on code that did not survive",
-            "wasted spend:".bold(),
+            "{} ${:.2} of ${:.2} went to lines that are no longer present",
+            "cost:".bold(),
             overall.wasted_cost,
             overall.cost
         );
     } else {
         println!(
-            "{} record `cost_usd`/`tokens_out` per event to see wasted spend in dollars.",
+            "{} record `cost_usd`/`tokens_out` per event to see the same split in dollars.",
             "tip:".bright_black()
         );
     }
+    println!(
+        "{} a count, not a grade: rewritten code is not wasted code.",
+        "note:".bright_black()
+    );
 }
 
 fn print_summary(by_agent: &BTreeMap<String, Stat>, overall: &Stat, has_cost: bool) {
     let waste = overall.waste_rate();
-    let status = if overall.introduced == 0 {
-        "ℹ️ no AI-attributed code"
-    } else if waste >= 0.40 {
-        "🔴 high waste"
-    } else if waste >= 0.20 {
-        "🟡 moderate waste"
-    } else {
-        "🟢 healthy"
-    };
 
-    println!("## Causari Churn — {}", status);
+    println!("## Causari churn — AI code survival");
     println!();
-    if overall.introduced > 0 {
+    if overall.introduced == 0 {
+        println!("No AI-attributed lines recorded yet.");
+        println!();
+    } else {
         println!(
-            "**AI survival: {:.1}%** · **AI Waste Score: {:.1}%**",
+            "**{} of {} AI-attributed lines still present ({:.1}%)** · {:.1}% no longer present",
+            overall.surviving,
+            overall.introduced,
             overall.survival_rate() * 100.0,
             waste * 100.0
         );
         if overall.has_cost {
             println!();
             println!(
-                "💸 **${:.2}** of **${:.2}** spent on code that did not survive.",
+                "**${:.2}** of **${:.2}** went to lines that are no longer present.",
                 overall.wasted_cost, overall.cost
             );
         }
@@ -452,10 +498,10 @@ fn print_summary(by_agent: &BTreeMap<String, Stat>, overall: &Stat, has_cost: bo
     }
 
     if has_cost {
-        println!("| Agent | Introduced | Survived | Survival | Waste | Cost $ | Wasted $ |");
+        println!("| Agent | Introduced | Survived | Survival | Gone | Cost $ | Gone $ |");
         println!("|---|---:|---:|---:|---:|---:|---:|");
     } else {
-        println!("| Agent | Introduced | Survived | Survival | Waste |");
+        println!("| Agent | Introduced | Survived | Survival | Gone |");
         println!("|---|---:|---:|---:|---:|");
     }
 
@@ -483,7 +529,9 @@ fn print_summary(by_agent: &BTreeMap<String, Stat>, overall: &Stat, has_cost: bo
         }
     }
     println!();
-    println!("<sub>Powered by [Causari](https://causari.dev)</sub>");
+    println!(
+        "<sub>A count, not a grade · reproduce with `re churn --json` · [causari.dev/method](https://causari.dev/method)</sub>"
+    );
 }
 
 fn truncate(s: &str, max: usize) -> String {

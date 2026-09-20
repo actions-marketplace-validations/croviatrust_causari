@@ -2,11 +2,14 @@ use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "re",
+    name = "causari",
+    bin_name = "re",
     version,
-    about = "Causari — intent-addressable code for AI agents",
-    long_about = "Causari records every action an AI agent takes on your codebase \
-                  and lets you inspect, diff, and revert them like git commits."
+    about = "AI-written code has no author. It has causes. Causari proves them.",
+    long_about = "Causari measures how many lines from AI-tagged commits are still alive in a \
+                  git repository (`re audit`, any repo, no setup), and records the prompt, \
+                  model and files behind every agent edit into a local, append-only ledger \
+                  you can query like git. `causari` and `re` are the same program."
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -147,6 +150,11 @@ pub struct LogArgs {
 pub struct ShowArgs {
     /// Event id (full or short prefix)
     pub id: String,
+
+    /// Print the event as JSON (every recorded field, including prompt,
+    /// model, tokens, cost and evidence class)
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Args, Debug)]
@@ -157,6 +165,10 @@ pub struct RevertArgs {
     /// Skip confirmation prompt
     #[arg(long)]
     pub yes: bool,
+
+    /// Validate the full restore and show file counts without changing files
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 #[derive(Args, Debug)]
@@ -264,6 +276,16 @@ pub struct ChurnArgs {
     /// Emit a Markdown summary (for CI / PR comments)
     #[arg(long)]
     pub summary: bool,
+
+    /// Emit the analysis as JSON (per-agent and overall counts)
+    #[arg(long, conflicts_with = "summary")]
+    pub json: bool,
+
+    /// Exit 1 when the overall survival rate of AI-attributed lines is
+    /// below this percentage (0-100). Without it the command never fails
+    /// on the numbers; exit 3 means there is nothing to measure yet.
+    #[arg(long, value_name = "PERCENT")]
+    pub fail_below: Option<f64>,
 }
 
 #[derive(Args, Debug)]
@@ -313,6 +335,11 @@ pub struct AuditArgs {
     /// Save this audit snapshot for trend comparison next time
     #[arg(long)]
     pub save: bool,
+
+    /// Measure a shallow clone anyway (history is truncated; the report
+    /// carries coverage.shallow = true). Prefer `git fetch --unshallow`.
+    #[arg(long)]
+    pub allow_shallow: bool,
 }
 
 #[derive(Args, Debug)]
@@ -328,6 +355,15 @@ pub struct GuardArgs {
     /// Emit Markdown summary to stdout (for CI / PR comments)
     #[arg(long)]
     pub summary: bool,
+
+    /// Emit findings as JSON
+    #[arg(long, conflicts_with_all = ["summary", "badge"])]
+    pub json: bool,
+
+    /// Exit 1 when at least one finding of this severity or higher exists
+    /// (`alert` or `warning`). Without it the exit code only reports errors.
+    #[arg(long, value_name = "SEVERITY", value_parser = ["alert", "warning"])]
+    pub fail_on: Option<String>,
 }
 
 #[derive(Args, Debug)]
@@ -351,7 +387,7 @@ pub struct ProxyArgs {
     pub seal: bool,
 
     /// Issuer id embedded in emitted seals
-    /// (default: urn:crovia:seal-issuer:causari)
+    /// (default: urn:crovia:seal-issuer:causari:<first 12 hex of your pubkey>)
     #[arg(long)]
     pub seal_issuer: Option<String>,
 }
@@ -389,7 +425,7 @@ pub struct HookArgs {
 
 #[derive(Args, Debug)]
 pub struct HookEventArgs {
-    /// Hook kind: user-prompt | post-tool
+    /// Hook kind: user-prompt | pre-tool | post-tool | session-start
     pub kind: String,
 }
 

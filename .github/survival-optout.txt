@@ -1,0 +1,3 @@
+# Repositories whose maintainers asked not to be measured on causari.dev/survival.
+# One `owner/repo` per line. Honoured by the next weekly run; never re-added.
+# To be removed: open a pull request adding your repository here. No questions asked.

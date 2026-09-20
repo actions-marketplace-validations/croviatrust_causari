@@ -1,0 +1,35 @@
+{
+  "description": "Causari capture: prompt, pre-state, post-state and a session briefing. Every command is a no-op when the project has no .causari ledger, and exits 0 when the re binary is missing.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "re hook-event user-prompt 2>/dev/null || true" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "re hook-event pre-tool 2>/dev/null || true" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "re hook-event post-tool 2>/dev/null || true" }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "re hook-event session-start 2>/dev/null || true" }
+        ]
+      }
+    ]
+  }
+}
