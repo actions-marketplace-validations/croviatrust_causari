@@ -6,7 +6,7 @@
 <p align="center">
   <a href="https://causari.dev"><strong>causari.dev</strong></a>
   &nbsp;·&nbsp;
-  <a href="https://causari.dev/survival">Weekly measurements</a>
+  <a href="https://causari.dev/reports/survival/">Weekly Survival Report</a>
   &nbsp;·&nbsp;
   <a href="https://causari.dev/method">Method</a>
   &nbsp;·&nbsp;

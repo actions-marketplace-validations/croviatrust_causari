@@ -81,9 +81,10 @@ one-file change in < 50 ms; the adversarial harness passes on Linux.
       session; `re pnx prove/verify` via `crovia-tacet`; the GitHub Action
       can attach a PNX proof to a PR.
 - [~] **Weekly Survival Report** replaces the leaderboard: static page, card,
-      RSS, Zenodo deposit with DOI, same pipeline as the Crovia Silence
-      Report; counts and intervals, no ranks; technical report positioned
-      against arXiv 2601.16809 and GitClear.
+      Atom feed, JSON, Zenodo deposit with DOI, same pipeline as the Crovia
+      Silence Report; counts and intervals, no ranks; positioned against
+      arXiv 2601.16809 and GitClear (`docs/survival-report.md`). Report #1
+      published; the DOI waits for the `ZENODO_TOKEN` secret (owner ask).
 - [ ] Hook targets: Cursor `hooks.json`, Gemini CLI.
 - [ ] Ledger events optionally stored in `refs/notes/causari` so provenance
       travels with `git push`.

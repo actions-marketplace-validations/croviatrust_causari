@@ -7,8 +7,11 @@
 > Apache-2.0, local-first, no telemetry, verifiable offline.
 
 Ways to use Causari without installing anything:
-- Weekly measurements on open-source repositories: https://causari.dev/survival
-  (unranked, method and limits at https://causari.dev/method)
+- Weekly Survival Report on open-source repositories:
+  https://causari.dev/reports/survival/ (numbered, dated, citable; counts
+  and intervals, no ranks; Atom feed at /reports/survival/feed.xml, JSON at
+  /reports/survival/latest.json, a Zenodo DOI per report; method and limits
+  at https://causari.dev/method)
 - Add one CI step to any repo: `uses: croviatrust/causari@v1` posts the
   survival counts on every pull request.
 
@@ -42,6 +45,7 @@ and says so; a survival ratio is a count, not a quality judgement.
 ## Docs
 - [README](https://github.com/croviatrust/causari#readme): full command reference
 - [Method](https://causari.dev/method): detection rules, computation, limits, how to contest a number
+- [Survival Report](https://causari.dev/reports/survival/): weekly counts, archive, feed, DOIs; how it is made: https://github.com/croviatrust/causari/blob/main/docs/survival-report.md
 - [Manifesto](https://github.com/croviatrust/causari/blob/main/MANIFESTO.md)
 - [Roadmap](https://github.com/croviatrust/causari/blob/main/ROADMAP.md)
 - [GitHub Action](https://github.com/marketplace/actions/causari-survival-audit)

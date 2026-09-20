@@ -1,3 +1,4 @@
-# Repositories whose maintainers asked not to be measured on causari.dev/survival.
-# One `owner/repo` per line. Honoured by the next weekly run; never re-added.
+# Repositories whose maintainers asked not to be measured in the Survival Report
+# (causari.dev/reports/survival/). One `owner/repo` per line, case-insensitive.
+# Honoured by the next weekly run and by the report generator; never re-added.
 # To be removed: open a pull request adding your repository here. No questions asked.

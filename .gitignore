@@ -44,3 +44,8 @@ npm-debug.log*
 .dev.vars*
 !.dev.vars.example
 !.env.example
+
+# Python bytecode from scripts/ and scripts/tests/
+__pycache__/
+*.pyc
+.pytest_cache/

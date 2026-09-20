@@ -4,8 +4,8 @@
 
 # Repository & community
 /github         https://github.com/croviatrust/causari                              302
-/repo           /survival                                                            301
-/repo/*         /survival                                                            301
+/repo           /reports/survival/                                                   301
+/repo/*         /reports/survival/                                                   301
 /discussions    https://github.com/croviatrust/causari/discussions                  302
 /issues         https://github.com/croviatrust/causari/issues                       302
 
@@ -43,3 +43,10 @@
 /assets/og-card.png   /assets/og.png        301
 # Note: apex/www canonicalization is handled by Cloudflare's "Bulk Redirects"
 # at the DNS/zone level, not here. _redirects only accepts relative source paths.
+
+# survival-report: begin (managed by scripts/survival_report.py)
+/survival             /reports/survival/                 301
+/survival-data.json   /reports/survival/latest.json      301
+/report               /reports/survival/2026/01/   302
+/report/latest        /reports/survival/2026/01/   302
+# survival-report: end

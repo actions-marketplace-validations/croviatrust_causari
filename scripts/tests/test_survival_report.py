@@ -1,0 +1,378 @@
+#!/usr/bin/env python3
+"""Tests for scripts/survival_report.py and scripts/zenodo_deposit.py.
+
+Standard library only (unittest); pytest runs them too:
+
+    python3 -m unittest scripts/tests/test_survival_report.py
+    python3 -m pytest scripts/tests -q
+
+Every test builds a report from a synthetic run directory into a scratch
+site, so nothing under site/ is touched.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+import tempfile
+import unittest
+import xml.etree.ElementTree as ET
+from html.parser import HTMLParser
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+SCRIPTS = HERE.parent
+ROOT = SCRIPTS.parent
+sys.path.insert(0, str(SCRIPTS))
+
+import survival_report as sr  # noqa: E402
+import zenodo_deposit as zd  # noqa: E402
+
+CANON = json.loads((ROOT / "canon" / "canon.json").read_text(encoding="utf-8"))
+FORBIDDEN = CANON["forbidden_words"]["words"]
+
+
+def stat(commits: int, introduced: int, surviving: int) -> dict:
+    rate = surviving / introduced if introduced else None
+    return {
+        "commits": commits, "introduced": introduced, "surviving": surviving, "survival_rate": rate,
+        "median_survival": rate, "capped_survival_rate": rate, "cap_lines": 100 if introduced else None,
+        "largest_commit_share": 0.3 if introduced else None,
+    }
+
+
+def audit(commits: int, introduced: int, surviving: int, agent: str = "claude-code", shallow: bool = False) -> dict:
+    return {
+        "method": "v2", "total_commits": commits * 10,
+        "verified": stat(commits, introduced, surviving), "probable": stat(0, 0, 0),
+        "by_agent": {agent: stat(commits, introduced, surviving)},
+        "coverage": {"method": "v2", "blame_flags": ["-w", "-M", "-C"], "ignore_revs_file": False,
+                     "shallow": shallow, "sample_floor": 5, "small_sample": commits < 5},
+    }
+
+
+REPOS = {
+    "zeta/last": audit(20, 1000, 600),
+    "Alpha/first": audit(10, 500, 400, agent="cursor"),
+    "mid/one": audit(12, 800, 200, agent="aider"),
+    "mid/small": audit(3, 50, 10, agent="aider"),
+    "mid/shallow": audit(30, 900, 100, shallow=True),
+    "opt/out": audit(9, 100, 50, agent="devin"),
+}
+
+
+class Scratch:
+    """A run directory, an empty site and a repo root with an opt-out file."""
+
+    def __init__(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        self.run = base / "run"
+        self.site = base / "site"
+        self.root = base / "root"
+        self.run.mkdir()
+        self.site.mkdir()
+        (self.root / ".github").mkdir(parents=True)
+        for repo, a in REPOS.items():
+            (self.run / f"{sr.repo_slug(repo)}.json").write_text(json.dumps(a), encoding="utf-8")
+        (self.run / "run.json").write_text(json.dumps({
+            "generated_at": "2026-09-21T05:17:00Z", "tool": "causari", "tool_version": "0.1.5", "method": "v2",
+            "command": "re audit <owner/repo> --json", "repos": list(REPOS), "failed": ["gone/repo"], "opted_out": ["skipped/early"],
+        }), encoding="utf-8")
+        (self.root / ".github" / "survival-optout.txt").write_text("# comment\n\nOPT/out\n", encoding="utf-8")
+        # the static parts of the real site the generator amends
+        (self.site / "_redirects").write_text("/github https://github.com/croviatrust/causari 302\n", encoding="utf-8")
+        (self.site / "sitemap.xml").write_text(
+            '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            "  <url><loc>https://causari.dev/</loc></url>\n</urlset>\n", encoding="utf-8")
+
+    def build(self, number: int = 1, date: str = "2026-09-21") -> dict:
+        rc = sr.main(["--site", str(self.site), "--root", str(self.root), "build", "--run", str(self.run),
+                      "--number", str(number), "--date", date, "--no-png"])
+        assert rc == 0
+        return json.loads((self.site / "reports" / "survival" / f"{date[:4]}" / f"{number:02d}" / "report.json").read_text(encoding="utf-8"))
+
+    def close(self) -> None:
+        self.tmp.cleanup()
+
+
+class TextOnly(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+
+def visible_text(html: str) -> str:
+    p = TextOnly()
+    p.feed(html)
+    return "".join(p.parts)
+
+
+class BuildTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.s = Scratch()
+        cls.f = cls.s.build()
+        cls.dir = cls.s.site / "reports" / "survival" / "2026" / "01"
+        cls.page = (cls.dir / "index.html").read_text(encoding="utf-8")
+        cls.archive = (cls.s.site / "reports" / "survival" / "index.html").read_text(encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.s.close()
+
+    def test_alphabetical_order_never_by_rate(self) -> None:
+        repos = [r["repo"] for r in self.f["repositories"]]
+        self.assertEqual(repos, ["Alpha/first", "mid/one", "zeta/last"])
+        self.assertEqual(repos, sorted(repos, key=str.lower))
+        rates = [r["verified"]["survival_rate"] for r in self.f["repositories"]]
+        self.assertNotEqual(rates, sorted(rates))
+        self.assertNotEqual(rates, sorted(rates, reverse=True))
+        # and the page shows them in the same order
+        positions = [self.page.index(f">{r}</a>") for r in repos]
+        self.assertEqual(positions, sorted(positions))
+
+    def test_small_sample_measured_but_not_aggregated(self) -> None:
+        self.assertEqual([r["repo"] for r in self.f["not_aggregated"]], ["mid/small"])
+        self.assertNotIn("mid/small", [r["repo"] for r in self.f["repositories"]])
+        self.assertEqual(self.f["aggregate"]["repositories"], 3)
+        self.assertEqual(self.f["aggregate"]["introduced"], 1000 + 500 + 800)
+        self.assertEqual(self.f["aggregate"]["surviving"], 600 + 400 + 200)
+        self.assertIn("Measured but not aggregated", self.page)
+
+    def test_shallow_excluded_with_note(self) -> None:
+        self.assertEqual(self.f["excluded"]["shallow"], ["mid/shallow"])
+        for group in ("repositories", "not_aggregated"):
+            self.assertNotIn("mid/shallow", [r["repo"] for r in self.f[group]])
+        self.assertIn("mid/shallow", self.page)
+        self.assertIn("Shallow clones", self.page)
+
+    def test_optout_honoured(self) -> None:
+        for group in ("repositories", "not_aggregated"):
+            self.assertNotIn("opt/out", [r["repo"] for r in self.f[group]])
+        self.assertNotIn("opt/out", self.page)
+        self.assertEqual(self.f["excluded"]["opted_out"], 2)  # one from the run dir, one the workflow skipped
+        self.assertFalse((self.dir / "repos" / "opt__out.json").exists())
+
+    def test_failed_listed(self) -> None:
+        self.assertEqual(self.f["excluded"]["failed"], ["gone/repo"])
+        self.assertIn("gone/repo", self.page)
+
+    def test_no_rank_column_no_colour(self) -> None:
+        header = re.search(r'<table class="lb-table" id="repos">.*?</thead>', self.page, re.S).group(0)
+        self.assertNotIn("Rank", header)
+        self.assertNotIn("#</th>", header)
+        for token in ("color:", "background:", "🟢", "🟡", "🔴", "class=\"good\"", "class=\"bad\""):
+            self.assertNotIn(token, self.page)
+
+    def test_forbidden_words_absent_from_generated_html(self) -> None:
+        for html in (self.page, self.archive):
+            text = visible_text(html)
+            for word in FORBIDDEN:
+                for m in re.finditer(re.escape(word), text):
+                    before = text[max(0, m.start() - 1):m.start()]
+                    self.assertIn(before, ('"', "'", "\u201c", "\u2018", "`", "\u00ab"),
+                                  f"forbidden word {word!r} used bare in generated HTML")
+
+    def test_every_number_links_to_reproduction(self) -> None:
+        for r in self.f["repositories"] + self.f["not_aggregated"]:
+            self.assertEqual(r["reproduce"], f"re audit {r['repo']} --json")
+            self.assertTrue((self.dir / r["audit_file"]).exists())
+            self.assertIn(f'href="{r["audit_file"]}"', self.page)
+            self.assertIn(f"re audit {r['repo']} --json", self.page)
+
+    def test_method_section(self) -> None:
+        self.assertIn('href="/method"', self.page)
+        self.assertIn("method v2", self.page)
+        self.assertIn("causari 0.1.5", self.page)
+        self.assertIn("git blame -w -M -C", self.page)
+        self.assertIn("95th percentile", self.page)
+        self.assertIn("10,000 lines", self.page)
+        self.assertIn("counts, not grades", self.page)
+        self.assertIn("survival-optout.txt", self.page)
+
+    def test_interval_labelled_as_sample_not_population(self) -> None:
+        note = self.f["aggregate"]["interval_method"]["note"]
+        self.assertIn("sampled repositories", note)
+        self.assertIn("not all AI-assisted code", note)
+        self.assertIn("seed 1", note)
+        self.assertEqual(self.f["aggregate"]["interval_method"]["resamples"], 2000)
+
+    def test_by_agent_alphabetical_and_summed(self) -> None:
+        self.assertEqual(list(self.f["by_agent"]), ["aider", "claude-code", "cursor"])
+        self.assertEqual(self.f["by_agent"]["aider"]["introduced"], 800)  # mid/small is not aggregated
+
+    def test_outputs_exist(self) -> None:
+        for name in ("index.html", "report.json", "report.md", "card.svg"):
+            self.assertTrue((self.dir / name).exists(), name)
+        base = self.s.site / "reports" / "survival"
+        for name in ("index.html", "feed.xml", "latest.json"):
+            self.assertTrue((base / name).exists(), name)
+        latest = json.loads((base / "latest.json").read_text(encoding="utf-8"))
+        self.assertEqual(latest["id"], "2026/01")
+        ET.fromstring((self.dir / "card.svg").read_text(encoding="utf-8"))
+
+    def test_atom_feed_valid(self) -> None:
+        ns = {"a": "http://www.w3.org/2005/Atom"}
+        root = ET.parse(self.s.site / "reports" / "survival" / "feed.xml").getroot()
+        self.assertEqual(root.tag, "{http://www.w3.org/2005/Atom}feed")
+        for tag in ("title", "id", "updated"):
+            self.assertIsNotNone(root.find(f"a:{tag}", ns), tag)
+        self.assertEqual(root.find("a:link[@rel='self']", ns).get("href"), "https://causari.dev/reports/survival/feed.xml")
+        entries = root.findall("a:entry", ns)
+        self.assertEqual(len(entries), 1)
+        e = entries[0]
+        self.assertEqual(e.find("a:id", ns).text, "https://causari.dev/reports/survival/2026/01/")
+        self.assertTrue(e.find("a:link[@rel='alternate']", ns).get("href").startswith("https://causari.dev/"))
+        self.assertIn("Survival Report #1", e.find("a:title", ns).text)
+
+    def test_redirects_and_sitemap(self) -> None:
+        redirects = (self.s.site / "_redirects").read_text(encoding="utf-8")
+        for pattern in (r"^/survival\s+/reports/survival/\s+301$",
+                        r"^/report\s+/reports/survival/2026/01/\s+302$",
+                        r"^/survival-data\.json\s+/reports/survival/latest\.json\s+301$"):
+            self.assertIsNotNone(re.search(pattern, redirects, re.M), pattern)
+        self.assertIn("/github https://github.com/croviatrust/causari 302", redirects)  # untouched
+        sitemap = ET.parse(self.s.site / "sitemap.xml").getroot()
+        locs = [u.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc").text for u in sitemap]
+        self.assertIn("https://causari.dev/reports/survival/", locs)
+        self.assertIn("https://causari.dev/reports/survival/2026/01/", locs)
+        self.assertIn("https://causari.dev/", locs)
+
+    def test_rebuild_is_idempotent(self) -> None:
+        before = {p.name: p.read_bytes() for p in (self.s.site / "reports" / "survival").iterdir() if p.is_file()}
+        sr.rebuild(self.s.site)
+        after = {p.name: p.read_bytes() for p in (self.s.site / "reports" / "survival").iterdir() if p.is_file()}
+        self.assertEqual(before, after)
+        redirects = (self.s.site / "_redirects").read_text(encoding="utf-8")
+        self.assertEqual(redirects.count(sr.REDIRECT_BEGIN), 1)
+
+
+class IntervalTests(unittest.TestCase):
+    def test_reproducible_with_seed(self) -> None:
+        pairs = [(1000 + 37 * k, 600 - 41 * k + 13 * (k % 3)) for k in range(12)]
+        a = sr.bootstrap_rate(pairs, seed=7)
+        b = sr.bootstrap_rate(pairs, seed=7)
+        self.assertEqual(a, b)
+        c = sr.bootstrap_rate(pairs, seed=8)
+        self.assertNotEqual(a, c)
+        self.assertLessEqual(a["low"], sum(s for _, s in pairs) / sum(i for i, _ in pairs))
+        self.assertGreaterEqual(a["high"], sum(s for _, s in pairs) / sum(i for i, _ in pairs))
+
+    def test_same_report_number_same_bytes(self) -> None:
+        s1, s2 = Scratch(), Scratch()
+        try:
+            f1, f2 = s1.build(number=3), s2.build(number=3)
+            self.assertEqual(f1["aggregate"], f2["aggregate"])
+            self.assertEqual(f1["aggregate"]["interval_method"]["seed"], 3)
+            j1 = (s1.site / "reports" / "survival" / "2026" / "03" / "report.json").read_bytes()
+            j2 = (s2.site / "reports" / "survival" / "2026" / "03" / "report.json").read_bytes()
+            self.assertEqual(j1, j2)
+        finally:
+            s1.close()
+            s2.close()
+
+    def test_no_interval_for_one_repository(self) -> None:
+        self.assertIsNone(sr.bootstrap_rate([(100, 50)], seed=1))
+        self.assertIsNone(sr.bootstrap_median([0.5], seed=1))
+
+
+class GuardTests(unittest.TestCase):
+    def test_refuses_to_overwrite_a_different_report(self) -> None:
+        s = Scratch()
+        try:
+            s.build(number=1)
+            # the directory of #7 already holds report #1: refuse, never overwrite
+            (s.site / "reports" / "survival" / "2026" / "01").rename(s.site / "reports" / "survival" / "2026" / "07")
+            with self.assertRaises(SystemExit):
+                sr.main(["--site", str(s.site), "--root", str(s.root), "build", "--run", str(s.run),
+                         "--number", "7", "--date", "2026-09-21", "--no-png"])
+            self.assertEqual(json.loads((s.site / "reports" / "survival" / "2026" / "07" / "report.json").read_text())["number"], 1)
+        finally:
+            s.close()
+
+    def test_next_number_counts_directories(self) -> None:
+        s = Scratch()
+        try:
+            self.assertEqual(sr.next_number(s.site), 1)
+            s.build(number=1)
+            self.assertEqual(sr.next_number(s.site), 2)
+        finally:
+            s.close()
+
+    def test_from_existing_refuses_v1_data(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "survival-data.json"
+            src.write_text(json.dumps({"generated_at": "2026-08-25T18:00:49Z", "rows": [
+                {"repo": "a/b", "total_commits": 10, "verified": stat(6, 100, 50), "probable": stat(0, 0, 0), "by_agent": {}}]}))
+            self.assertEqual(sr.from_existing(src, Path(tmp) / "out"), 3)
+            self.assertFalse((Path(tmp) / "out" / "run.json").exists())
+
+    def test_from_existing_accepts_v2_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "survival-data.json"
+            src.write_text(json.dumps({"generated_at": "2026-09-01T00:00:00Z", "tool_version": "0.1.5",
+                                       "rows": [{"repo": "a/b", "audited_at": "x", **audit(6, 100, 50)}]}))
+            self.assertEqual(sr.from_existing(src, Path(tmp) / "out"), 0)
+            self.assertTrue((Path(tmp) / "out" / "a__b.json").exists())
+            self.assertEqual(json.loads((Path(tmp) / "out" / "run.json").read_text())["repos"], ["a/b"])
+
+
+class ZenodoTests(unittest.TestCase):
+    def test_dry_run_payload_without_token(self) -> None:
+        s = Scratch()
+        try:
+            s.build()
+            d = s.site / "reports" / "survival" / "2026" / "01"
+            import contextlib
+            import io
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = zd.main(["--site", str(s.site), "--dry-run", str(d)])
+            self.assertEqual(rc, 0)
+            payload = json.loads(out.getvalue())
+            self.assertTrue(payload["dry_run"])
+            meta = payload["metadata"]
+            self.assertEqual(meta["creators"], [{"name": "Crovia Trust", "affiliation": "Crovia Trust"}])
+            self.assertEqual(meta["license"], "cc-by-4.0")
+            self.assertEqual(meta["upload_type"], "publication")
+            self.assertIn("Survival Report #1", meta["title"])
+            self.assertEqual(payload["version"], "#1")
+            paths = {f["path"] for f in payload["files"]}
+            self.assertTrue({"report.json", "report.md", "MANIFEST.json"} <= paths)
+            self.assertIn("repos/Alpha__first.json", paths)
+            # no token, not a dry run: refused, nothing written
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(zd.main(["--site", str(s.site), str(d)]), 2)
+        finally:
+            s.close()
+
+    def test_write_back_puts_doi_on_every_surface(self) -> None:
+        s = Scratch()
+        try:
+            f = s.build()
+            d = s.site / "reports" / "survival" / "2026" / "01"
+            rec = {"doi": "10.5281/zenodo.99999", "concept_doi": "10.5281/zenodo.99998", "html": "https://zenodo.org/records/99999",
+                   "id": 99999, "version": "#1", "sandbox": False, "published_at": "2026-09-21T06:00:00Z"}
+            zd.write_back(d, f, rec, s.site)
+            self.assertEqual(json.loads((d / "report.json").read_text())["doi"], "10.5281/zenodo.99999")
+            self.assertIn("https://doi.org/10.5281/zenodo.99999", (d / "index.html").read_text())
+            self.assertIn("10.5281/zenodo.99999", (d / "report.md").read_text())
+            self.assertIn("10.5281/zenodo.99999", (s.site / "reports" / "survival" / "index.html").read_text())
+            self.assertEqual(json.loads((s.site / "reports" / "survival" / "latest.json").read_text())["doi"], "10.5281/zenodo.99999")
+            self.assertIn("10.5281/zenodo.99999", (s.site / "reports" / "survival" / "feed.xml").read_text())
+        finally:
+            s.close()
+
+    def test_content_hash_ignores_manifest(self) -> None:
+        files = {"report.json": b"{}", "MANIFEST.json": b"a"}
+        self.assertEqual(zd.content_hash(files), zd.content_hash({"report.json": b"{}", "MANIFEST.json": b"b"}))
+        self.assertNotEqual(zd.content_hash(files), zd.content_hash({"report.json": b"{ }"}))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,154 @@
+name: survival-report
+
+# Weekly Survival Report: a numbered, dated, citable report of AI code
+# survival across open-source repositories, published as a static page, an
+# OG card, an Atom feed, a JSON dataset and a Zenodo deposit with a DOI.
+# Counts and intervals, no ranks, no verdicts. Every number is reproducible
+# by anyone:
+#   re audit <owner/repo> --json
+# Maintainers opt out with one line in .github/survival-optout.txt.
+#
+# Method v2 refuses shallow clones, so every repository is cloned in full
+# before it is measured. The report is committed to main, append-only.
+on:
+  schedule:
+    - cron: "17 5 * * 1" # every Monday, 05:17 UTC
+  workflow_dispatch:
+    inputs:
+      deposit:
+        description: "Deposit on Zenodo (needs ZENODO_TOKEN; ZENODO_SANDBOX=1 for the sandbox)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+# Two runs must never race on the report number or on the push to main.
+concurrency:
+  group: survival-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: install latest causari release
+        run: |
+          set -euo pipefail
+          TAG="$(gh release list --repo croviatrust/causari --limit 20 \
+            --json tagName --jq '[.[].tagName | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))][0]')"
+          echo "installing causari from release $TAG"
+          gh release download "$TAG" --repo croviatrust/causari \
+            --pattern "causari-${TAG}-x86_64-unknown-linux-gnu.tar.gz" --pattern 'SHA256SUMS.txt' --dir /tmp/causari
+          (cd /tmp/causari && grep " causari-${TAG}-x86_64-unknown-linux-gnu.tar.gz\$" SHA256SUMS.txt | sha256sum -c -)
+          tar -xzf /tmp/causari/*.tar.gz -C /tmp/causari
+          for name in causari re; do
+            BIN="$(find /tmp/causari -name "$name" -type f | head -n1)"
+            sudo install -m 0755 "$BIN" "/usr/local/bin/$name"
+          done
+          re --version
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: python dependencies (card.png)
+        run: python3 -m pip install --quiet pillow
+
+      # Full clone per repository (never shallow), one `re audit --json`
+      # each, the exact bytes kept for the report. Opt-outs are skipped here
+      # and dropped again by the generator, so the list is honoured either way.
+      - name: audit repositories
+        run: |
+          set -uo pipefail
+          RUN=/tmp/run; mkdir -p "$RUN"
+          mapfile -t ALL < <(grep -Ev '^\s*(#|$)' .github/survival-repos.txt)
+          mapfile -t OPTOUT < <(grep -Ev '^\s*(#|$)' .github/survival-optout.txt || true)
+          REPOS=(); OPTED=()
+          for r in "${ALL[@]}"; do
+            skip=false
+            for o in "${OPTOUT[@]:-}"; do [ -n "$o" ] && [ "${r,,}" = "${o,,}" ] && skip=true; done
+            if $skip; then echo "opt-out: $r"; OPTED+=("$r"); else REPOS+=("$r"); fi
+          done
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          FAILED=()
+          for repo in "${REPOS[@]}"; do
+            slug="${repo/\//__}"
+            echo "::group::auditing $repo"
+            CLONE="/tmp/clones/$slug"
+            rm -rf "$CLONE"
+            if timeout 1800 git clone --quiet --single-branch "https://github.com/$repo" "$CLONE" \
+               && (cd "$CLONE" && git fetch --quiet origin '+refs/notes/ai:refs/notes/ai' 2>/dev/null || true) \
+               && timeout 3600 re audit "$CLONE" --json > "$RUN/$slug.json" 2>"$RUN/$slug.err"; then
+              jq -r '"\(.total_commits) commits · verified \(.verified.commits) commits, \(.verified.introduced) introduced, \(.verified.surviving) surviving · shallow=\(.coverage.shallow) small_sample=\(.coverage.small_sample)"' "$RUN/$slug.json"
+            else
+              echo "audit failed for $repo (skipped):"
+              tail -n 3 "$RUN/$slug.err" 2>/dev/null || true
+              rm -f "$RUN/$slug.json"
+              FAILED+=("$repo")
+            fi
+            rm -rf "$CLONE"
+            echo "::endgroup::"
+          done
+          jq -n --arg now "$NOW" --arg ver "$(re --version | awk '{print $2}')" \
+            --argjson repos "$(printf '%s\n' "${REPOS[@]}" | jq -R . | jq -s .)" \
+            --argjson failed "$(printf '%s\n' "${FAILED[@]:-}" | grep -v '^$' | jq -R . | jq -s .)" \
+            --argjson opted "$(printf '%s\n' "${OPTED[@]:-}" | grep -v '^$' | jq -R . | jq -s .)" \
+            '{generated_at: $now, tool: "causari", tool_version: $ver, method: "v2",
+              command: "re audit <owner/repo> --json", repos: $repos, failed: $failed, opted_out: $opted}' \
+            > "$RUN/run.json"
+          cat "$RUN/run.json"
+          ls "$RUN"/*__*.json | wc -l
+
+      # Report number = existing report directories + 1; the generator refuses
+      # to overwrite a directory that already holds a different report.
+      - name: build the report
+        id: build
+        run: |
+          set -euo pipefail
+          python3 scripts/survival_report.py build --run /tmp/run
+          DIR="site/reports/survival/$(jq -r .id site/reports/survival/latest.json)"
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          python3 scripts/audit_surfaces.py --gate --quiet
+          {
+            echo "## $(jq -r .title "$DIR/report.json") · $(jq -r .date "$DIR/report.json")"
+            echo
+            sed -n '/^## Aggregate/,/^## Repositories/p' "$DIR/report.md" | sed '$d'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # main is append-only for reports: a plain commit and push, never a
+      # force-push. If the branch protection rejects the bot, allow the
+      # GitHub Actions app to bypass it or use a PAT in secrets.
+      - name: commit the report to main
+        run: |
+          set -euo pipefail
+          git config user.name "causari-report[bot]"
+          git config user.email "noreply@causari.dev"
+          git add site/reports/survival site/_redirects site/sitemap.xml
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -s -m "report: $(jq -r .title "${{ steps.build.outputs.dir }}/report.json") ($(jq -r .date "${{ steps.build.outputs.dir }}/report.json"), method v2)"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: deposit on Zenodo
+        if: ${{ github.event_name == 'schedule' || inputs.deposit }}
+        env:
+          ZENODO_TOKEN: ${{ secrets.ZENODO_TOKEN }}
+          ZENODO_SANDBOX: ${{ vars.ZENODO_SANDBOX }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ZENODO_TOKEN:-}" ]; then
+            echo "::notice title=Zenodo deposit skipped::ZENODO_TOKEN is not set. Add it under Settings → Secrets to mint a DOI for each report; the report itself is published without it."
+            python3 scripts/zenodo_deposit.py --dry-run "${{ steps.build.outputs.dir }}" > /tmp/zenodo-dry.json
+            jq '{report, version, files: (.files | length), title: .metadata.title}' /tmp/zenodo-dry.json
+            exit 0
+          fi
+          python3 scripts/zenodo_deposit.py "${{ steps.build.outputs.dir }}" | tee /tmp/zenodo.log
+          git add site/reports/survival site/_redirects site/sitemap.xml
+          if git diff --cached --quiet; then echo "nothing to write back"; exit 0; fi
+          git commit -s -m "report: DOI $(jq -r '.doi // "n/a"' /tmp/zenodo.log) for $(jq -r .title "${{ steps.build.outputs.dir }}/report.json")"
+          git pull --rebase origin main
+          git push origin HEAD:main
