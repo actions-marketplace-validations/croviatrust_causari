@@ -133,9 +133,20 @@ fn route(url: &str, cfg: &ProxyConfig) -> (String, String) {
     }
 }
 
-/// Endpoints whose traffic is a model completion worth capturing.
-fn is_completion_path(path: &str) -> bool {
-    path.contains("/chat/completions") || path.contains("/messages") || path.contains("/responses")
+/// Requests whose response is a model completion worth capturing: a POST
+/// to a completion endpoint. Substring matching used to record
+/// `/v1/messages/count_tokens` (no completion, no usage) and
+/// `GET /v1/responses/{id}` (a replay of a completion already captured)
+/// as exchanges of their own.
+fn is_completion_request(method: &Method, path: &str) -> bool {
+    if *method != Method::Post {
+        return false;
+    }
+    let path = path.split(['?', '#']).next().unwrap_or("");
+    let path = path.strip_suffix('/').unwrap_or(path);
+    ["/chat/completions", "/messages", "/responses"]
+        .iter()
+        .any(|suffix| path.ends_with(suffix))
 }
 
 /// A reader that copies every byte it serves into a shared buffer.
@@ -286,7 +297,7 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
     request.respond(response)?;
 
     // Response fully streamed — now parse the copy and write the exchange.
-    if !is_completion_path(&upstream_path) || status >= 400 {
+    if !is_completion_request(&method, &upstream_path) || status >= 400 {
         return Ok(());
     }
     let bytes = captured
@@ -385,5 +396,45 @@ fn format_tokens(tin: Option<u64>, tout: Option<u64>) -> String {
         (Some(i), None) => format!("{} tok in", i),
         (None, Some(o)) => format!("{} tok out", o),
         (None, None) => "tokens n/a".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn completion_requests_are_posts_to_completion_endpoints() {
+        let post = Method::Post;
+        assert!(is_completion_request(&post, "/v1/chat/completions"));
+        assert!(is_completion_request(&post, "/v1/messages"));
+        assert!(is_completion_request(&post, "/v1/responses"));
+        assert!(is_completion_request(&post, "/v1/responses/"));
+        assert!(is_completion_request(&post, "/v1/messages?beta=true"));
+        assert!(is_completion_request(
+            &post,
+            "/openai/deployments/gpt-4o/chat/completions?api-version=2024-10-21"
+        ));
+    }
+
+    #[test]
+    fn side_endpoints_and_reads_are_not_completions() {
+        let post = Method::Post;
+        assert!(!is_completion_request(&post, "/v1/messages/count_tokens"));
+        assert!(!is_completion_request(&post, "/v1/messages/batches"));
+        assert!(!is_completion_request(
+            &post,
+            "/v1/responses/resp_123/cancel"
+        ));
+        assert!(!is_completion_request(&post, "/v1/embeddings"));
+        assert!(!is_completion_request(
+            &Method::Get,
+            "/v1/responses/resp_123"
+        ));
+        assert!(!is_completion_request(&Method::Get, "/v1/responses"));
+        assert!(!is_completion_request(
+            &Method::Delete,
+            "/v1/responses/resp_123"
+        ));
     }
 }
