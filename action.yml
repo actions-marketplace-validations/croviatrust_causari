@@ -4,7 +4,8 @@ description: >-
   still alive at HEAD. Sticky PR comment + job summary.
   Check out with full history (actions/checkout `fetch-depth: 0`): the
   audit refuses shallow clones because a truncated history misstates
-  every count.
+  every count. Optionally verifies a PNX proof (crovia.pnx.v1) produced
+  in the job and attaches its verdict to the same comment.
 author: "Crovia Trust"
 branding:
   icon: "activity"
@@ -19,6 +20,30 @@ inputs:
     description: "Causari release tag to install (default: latest)"
     required: false
     default: "latest"
+  pnx-proof:
+    description: >-
+      Path of a PNX proof (crovia.pnx.v1, bare or inside a Crovia Seal) written
+      earlier in the job by `re pnx prove` or `tacet-pnx prove`. When set, the
+      proof is verified offline with `re pnx verify` and its verdict is appended
+      to the job summary and the PR comment. Empty: no PNX section.
+    required: false
+    default: ""
+  pnx-assets:
+    description: >-
+      Newline-separated protected assets the proof lists: `LABEL=PATH` entries
+      or directories (label = path relative to the directory). With them the
+      fingerprints are recomputed from the bytes; without them only the paths
+      of the listed keys are checked and the verdict carries a warning saying
+      so. Asset bytes never enter the summary or the comment.
+    required: false
+    default: ""
+  pnx-fail-on-present:
+    description: >-
+      Fail the step unless the proof is valid and every asset absent. Default
+      "false": only an invalid proof fails the step; a present, undetectable or
+      partially covered asset is reported and the step passes.
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -62,6 +87,46 @@ runs:
       run: |
         re audit --summary | tee causari-audit.md
         cat causari-audit.md >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Verify PNX proof
+      if: inputs.pnx-proof != ''
+      shell: bash
+      env:
+        PNX_PROOF: ${{ inputs.pnx-proof }}
+        PNX_ASSETS: ${{ inputs.pnx-assets }}
+        PNX_FAIL_ON_PRESENT: ${{ inputs.pnx-fail-on-present }}
+      # Exit codes of `re pnx verify` (same as tacet-pnx): 0 valid and every
+      # asset absent, 1 valid but an asset present / undetectable / partial,
+      # 2 invalid. The section goes into the same file as the audit so the
+      # sticky comment carries both.
+      run: |
+        set +e
+        ARGS=()
+        while IFS= read -r line; do
+          line="${line#"${line%%[![:space:]]*}"}"
+          [ -z "$line" ] && continue
+          if [ -d "$line" ]; then ARGS+=(--assets-dir "$line"); else ARGS+=(--asset "$line"); fi
+        done <<< "$PNX_ASSETS"
+        NO_COLOR=1 re pnx verify "$PNX_PROOF" ${ARGS[@]+"${ARGS[@]}"} > pnx-verify.txt 2>&1
+        CODE=$?
+        cat pnx-verify.txt
+        {
+          echo
+          echo "## PNX — Proof of Non-Exfiltration"
+          echo
+          echo '```'
+          cat pnx-verify.txt
+          echo '```'
+        } > pnx-section.md
+        cat pnx-section.md >> causari-audit.md
+        cat pnx-section.md >> "$GITHUB_STEP_SUMMARY"
+        if [ "$CODE" -eq 2 ]; then
+          echo "::error::PNX proof $PNX_PROOF is invalid or unverifiable"; exit 2
+        fi
+        if [ "$CODE" -eq 1 ] && [ "$PNX_FAIL_ON_PRESENT" = "true" ]; then
+          echo "::error::PNX proof $PNX_PROOF is valid but not every asset is proven absent"; exit 1
+        fi
+        exit 0
 
     - name: Comment on PR
       if: inputs.comment == 'true' && github.event_name == 'pull_request'
