@@ -61,6 +61,7 @@ fn main() -> Result<()> {
         Command::Report(args) => commands::report::run(args),
         Command::Proxy(args) => commands::proxy::run(args),
         Command::Seal(args) => commands::seal::run(args),
+        Command::Pnx(args) => commands::pnx::run(args),
         Command::Hook(args) => commands::hook::run(args),
         Command::HookEvent(args) => commands::hook::run_event(args),
     }

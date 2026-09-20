@@ -689,7 +689,7 @@ fn verdict_for(class: Detection, present: bool) -> &'static str {
 /// `present` if any asset is present, `absent` if every asset is absent,
 /// otherwise `mixed` (including the degenerate empty proof).
 fn overall_verdict(verdicts: &[&str]) -> &'static str {
-    if verdicts.iter().any(|v| *v == VERDICT_PRESENT) {
+    if verdicts.contains(&VERDICT_PRESENT) {
         VERDICT_PRESENT
     } else if !verdicts.is_empty() && verdicts.iter().all(|v| *v == VERDICT_ABSENT) {
         VERDICT_ABSENT

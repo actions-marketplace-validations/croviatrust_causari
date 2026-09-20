@@ -26,7 +26,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::keys;
-use crate::pnx::{Hash, NORMALIZE_JSON_STRINGS, PROFILE, Params, Witness, prefixed};
+use crate::pnx::{Hash, PROFILE, Params, Witness};
 use crate::repo::Repo;
 
 /// Name of the dedicated witness key under `.causari/keys/`. Never the seal

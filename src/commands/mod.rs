@@ -12,6 +12,7 @@ pub mod init;
 pub mod lens;
 pub mod log;
 pub mod mcp;
+pub mod pnx;
 pub mod proof;
 pub mod proxy;
 pub mod record;
