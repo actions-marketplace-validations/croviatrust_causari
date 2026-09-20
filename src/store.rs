@@ -333,10 +333,7 @@ mod tests {
         let mut entries = BTreeMap::new();
         entries.insert(
             "main.rs".to_string(),
-            TreeEntry {
-                kind: "blob".into(),
-                id: "ff".repeat(32),
-            },
+            TreeEntry::blob("ff".repeat(32), false),
         );
         let tree_id = store.write_tree(&Tree { entries }).unwrap();
         let tree = store.read_tree(&tree_id).unwrap();
@@ -479,13 +476,7 @@ mod tests {
         let (_tmp, repo) = test_repo();
         let store = Store::new(&repo);
         let mut entries = BTreeMap::new();
-        entries.insert(
-            "x".to_string(),
-            TreeEntry {
-                kind: "blob".into(),
-                id: "ab".repeat(32),
-            },
-        );
+        entries.insert("x".to_string(), TreeEntry::blob("ab".repeat(32), false));
         let tree = Tree { entries };
         let id = store.write_tree(&tree).unwrap();
         std::fs::write(store.path_for(&id), b"T{\"entr").unwrap();

@@ -38,6 +38,94 @@ pub fn is_ignored(rel_path: &Path) -> bool {
     })
 }
 
+/// Can a single path component be stored in a tree AND recreated on every
+/// platform we restore on? One rule shared by snapshot and restore: a name
+/// the snapshot accepts but the restore rejects would make the whole
+/// snapshot unrestorable (B2). Rejects Windows-hostile names (trailing `.`
+/// or space, `:`, `\`), control characters, separators and `.`/`..`.
+pub fn is_portable_name(name: &str) -> bool {
+    !(name.is_empty()
+        || name == "."
+        || name == ".."
+        || name.ends_with(['.', ' '])
+        || name.chars().any(char::is_control)
+        || name.contains(['/', '\\', ':', '\0'])
+        || Path::new(name).is_absolute())
+}
+
+/// The name of a directory entry as it would be stored in a tree, or None
+/// when the entry cannot be captured (non-UTF-8 or unportable name). Paths
+/// that return None are skipped by snapshots and left alone by restores.
+fn capturable_name(name: &std::ffi::OsStr) -> Option<&str> {
+    name.to_str().filter(|s| is_portable_name(s))
+}
+
+/// Warn once per process about each path that was left out of snapshots
+/// because its name cannot be restored. Stderr only, so `re` commands
+/// stay scriptable, and once only, so `re watch` does not repeat it.
+fn warn_skipped(rel: &Path) {
+    static WARNED: std::sync::Mutex<std::collections::BTreeSet<String>> =
+        std::sync::Mutex::new(std::collections::BTreeSet::new());
+    let key = rel.to_string_lossy().into_owned();
+    let first = match WARNED.lock() {
+        Ok(mut set) => set.insert(key.clone()),
+        Err(_) => true,
+    };
+    if first {
+        eprintln!(
+            "warning: {:?} left out of snapshots: name is not restorable on every platform (trailing '.'/space, ':', '\\', control or non-UTF-8 characters)",
+            key
+        );
+    }
+}
+
+#[cfg(unix)]
+fn is_executable(meta: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    meta.permissions().mode() & 0o111 != 0
+}
+
+#[cfg(not(unix))]
+fn is_executable(_meta: &std::fs::Metadata) -> bool {
+    false
+}
+
+/// Does the file at `path` carry the wanted executable bit? Always true
+/// where the platform has no such bit, so restores never report a mode
+/// change they cannot make.
+fn exec_matches(path: &Path, exec: bool) -> bool {
+    if cfg!(unix) {
+        std::fs::metadata(path)
+            .map(|m| is_executable(&m) == exec)
+            .unwrap_or(false)
+    } else {
+        true
+    }
+}
+
+/// Set or clear the executable bit like git does: `x` is granted wherever
+/// `r` already is, so the umask the file was created with is respected.
+#[cfg(unix)]
+fn set_exec(path: &Path, exec: bool) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = std::fs::metadata(path)?.permissions().mode();
+    let wanted = if exec {
+        mode | ((mode & 0o444) >> 2)
+    } else {
+        mode & !0o111
+    };
+    if wanted != mode {
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(wanted))
+            .with_context(|| format!("setting mode of {}", path.display()))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_exec(_path: &Path, _exec: bool) -> Result<()> {
+    Ok(())
+}
+
 /// Build a tree object recursively from a directory.
 /// Returns the tree id.
 fn build_tree(store: &Store, root: &Path, dir: &Path) -> Result<String> {
@@ -49,9 +137,13 @@ fn build_tree(store: &Store, root: &Path, dir: &Path) -> Result<String> {
         if is_ignored(rel) {
             continue;
         }
-        let name = match entry.file_name().to_str() {
+        let file_name = entry.file_name();
+        let name = match capturable_name(&file_name) {
             Some(s) => s.to_string(),
-            None => continue, // skip non-utf8 names for now
+            None => {
+                warn_skipped(rel);
+                continue;
+            }
         };
         let ft = entry.file_type()?;
         if ft.is_symlink() {
@@ -60,24 +152,15 @@ fn build_tree(store: &Store, root: &Path, dir: &Path) -> Result<String> {
         }
         if ft.is_dir() {
             let child_id = build_tree(store, root, &path)?;
-            entries.insert(
-                name,
-                TreeEntry {
-                    kind: "tree".to_string(),
-                    id: child_id,
-                },
-            );
+            entries.insert(name, TreeEntry::tree(child_id));
         } else if ft.is_file() {
+            let meta = entry
+                .metadata()
+                .with_context(|| format!("stat {}", path.display()))?;
             let bytes =
                 std::fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
             let blob_id = store.write_blob(&bytes)?;
-            entries.insert(
-                name,
-                TreeEntry {
-                    kind: "blob".to_string(),
-                    id: blob_id,
-                },
-            );
+            entries.insert(name, TreeEntry::blob(blob_id, is_executable(&meta)));
         }
     }
     let tree = Tree { entries };
@@ -112,16 +195,28 @@ pub fn plan_restore(repo: &Repo, tree_id: &str) -> Result<RestoreReport> {
     let mut report = RestoreReport::default();
     let mut targets = std::collections::HashSet::new();
     validate_restore_tree(&store, &repo.root, tree_id, 0, &mut targets, &mut report)?;
-    for entry in WalkDir::new(&repo.root).into_iter().filter_entry(|e| {
-        let rel = e.path().strip_prefix(&repo.root).unwrap_or(e.path());
-        !is_ignored(rel)
-    }) {
+    for entry in WalkDir::new(&repo.root)
+        .into_iter()
+        .filter_entry(|e| restorable_walk_entry(&repo.root, e))
+    {
         let entry = entry?;
         if entry.file_type().is_file() && !targets.contains(entry.path()) {
             report.files_deleted += 1;
         }
     }
     Ok(report)
+}
+
+/// Restore walks the workspace with exactly the snapshot's eyes: whatever
+/// a snapshot would skip (ignored paths, uncapturable names) a restore
+/// must not delete, otherwise "sync the workspace to the snapshot" erases
+/// files that were never in any snapshot.
+fn restorable_walk_entry(root: &Path, e: &walkdir::DirEntry) -> bool {
+    if e.depth() == 0 {
+        return true;
+    }
+    let rel = e.path().strip_prefix(root).unwrap_or(e.path());
+    !is_ignored(rel) && capturable_name(e.file_name()).is_some()
 }
 
 fn validate_restore_tree(
@@ -139,15 +234,7 @@ fn validate_restore_tree(
     let tree = store.read_tree(tree_id)?;
     for (name, entry) in tree.entries {
         // Validate portable single components, including Windows separators/ADS.
-        if name.is_empty()
-            || name == "."
-            || name == ".."
-            || name.ends_with(['.', ' '])
-            || name.chars().any(char::is_control)
-            || name.contains(['/', '\\', ':', '\0'])
-            || Path::new(&name).is_absolute()
-            || is_ignored(Path::new(&name))
-        {
+        if !is_portable_name(&name) || is_ignored(Path::new(&name)) {
             bail!("unsafe or protected snapshot entry: {:?}", name);
         }
         let path = dir.join(&name);
@@ -158,7 +245,9 @@ fn validate_restore_tree(
                 let target = store.read_blob(&entry.id)?;
                 targets.insert(path.clone());
                 match std::fs::read(&path) {
-                    Ok(current) if current == target => report.files_unchanged += 1,
+                    Ok(current) if current == target && exec_matches(&path, entry.exec) => {
+                        report.files_unchanged += 1
+                    }
                     Ok(_) => report.files_written += 1,
                     Err(e) if e.kind() == std::io::ErrorKind::NotFound => report.files_written += 1,
                     Err(e) => return Err(e).with_context(|| format!("reading {}", path.display())),
@@ -220,18 +309,21 @@ fn restore_tree(
             }
             "blob" => {
                 let target = store.read_blob(&entry.id)?;
-                let needs_write = match std::fs::read(&path) {
-                    Ok(current) => current != target,
-                    Err(_) => true,
+                let same_content = match std::fs::read(&path) {
+                    Ok(current) => current == target,
+                    Err(_) => false,
                 };
-                if needs_write {
+                if !same_content {
                     if let Some(parent) = path.parent() {
                         std::fs::create_dir_all(parent)?;
                     }
                     std::fs::write(&path, &target)?;
-                    report.files_written += 1;
-                } else {
+                }
+                if same_content && exec_matches(&path, entry.exec) {
                     report.files_unchanged += 1;
+                } else {
+                    set_exec(&path, entry.exec)?;
+                    report.files_written += 1;
                 }
             }
             _ => {}
@@ -250,10 +342,10 @@ fn cleanup_extras(
     let target_paths = collect_paths(store, &PathBuf::new(), tree_id)?;
     let target_set: std::collections::HashSet<PathBuf> = target_paths.into_iter().collect();
 
-    for entry in WalkDir::new(&repo.root).into_iter().filter_entry(|e| {
-        let rel = e.path().strip_prefix(&repo.root).unwrap_or(e.path());
-        !is_ignored(rel)
-    }) {
+    for entry in WalkDir::new(&repo.root)
+        .into_iter()
+        .filter_entry(|e| restorable_walk_entry(&repo.root, e))
+    {
         let entry = entry?;
         if !entry.file_type().is_file() {
             continue;
@@ -543,13 +635,7 @@ mod tests {
         ] {
             let tree = store
                 .write_tree(&Tree {
-                    entries: BTreeMap::from([(
-                        name.into(),
-                        TreeEntry {
-                            kind: "blob".into(),
-                            id: blob.clone(),
-                        },
-                    )]),
+                    entries: BTreeMap::from([(name.into(), TreeEntry::blob(blob.clone(), false))]),
                 })
                 .unwrap();
             assert!(
@@ -564,6 +650,7 @@ mod tests {
                     TreeEntry {
                         kind: "unknown".into(),
                         id: blob,
+                        exec: false,
                     },
                 )]),
             })
@@ -586,6 +673,142 @@ mod tests {
             std::fs::read_to_string(outside.path().join("file")).unwrap(),
             "external"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unportable_names_are_skipped_at_snapshot_time_so_snapshots_stay_restorable() {
+        // Regression (B2): build_tree accepted any name the filesystem
+        // allowed, validate_restore_tree rejected several of them, and one
+        // such file disabled revert/bisect/switch/fork for every snapshot.
+        let (_tmp, repo) = test_repo();
+        let store = Store::new(&repo);
+        write(&repo, "good.rs", "fn main() {}");
+        write(&repo, "dir/also good", "x");
+        for bad in [
+            "trailing.",
+            "trailing ",
+            "colon:name",
+            "back\\slash",
+            "ctl\u{1}char",
+        ] {
+            write(&repo, bad, "unportable");
+            write(&repo, &format!("dir/{bad}"), "unportable");
+        }
+        std::fs::create_dir(repo.root.join("baddir.")).unwrap();
+        write(&repo, "baddir./inside", "unportable dir");
+
+        let tree = snapshot_workspace(&repo).unwrap();
+        let mut paths: Vec<String> = flatten_tree(&store, &tree)
+            .unwrap()
+            .keys()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        paths.sort();
+        assert_eq!(paths, vec!["dir/also good", "good.rs"]);
+
+        // The snapshot is restorable, and the restore leaves the skipped
+        // files alone: they were never captured, so deleting them would be
+        // data loss.
+        write(&repo, "good.rs", "changed");
+        let plan = plan_restore(&repo, &tree).unwrap();
+        assert_eq!(
+            (plan.files_written, plan.files_deleted, plan.files_unchanged),
+            (1, 0, 1)
+        );
+        restore_workspace(&repo, &tree).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(repo.root.join("trailing.")).unwrap(),
+            "unportable"
+        );
+        assert_eq!(
+            std::fs::read_to_string(repo.root.join("baddir./inside")).unwrap(),
+            "unportable dir"
+        );
+        assert_eq!(snapshot_workspace(&repo).unwrap(), tree);
+    }
+
+    #[test]
+    fn tree_ids_are_unchanged_when_no_executable_bit_is_set() {
+        // The exec field is absent from the canonical JSON when false, so
+        // every tree written by an older binary keeps its id.
+        let entries = BTreeMap::from([(
+            "main.rs".to_string(),
+            TreeEntry::blob("ab".repeat(32), false),
+        )]);
+        let json = crate::object::canonical_json(&Tree { entries }).unwrap();
+        assert_eq!(
+            String::from_utf8(json).unwrap(),
+            format!(
+                r#"{{"entries":{{"main.rs":{{"id":"{}","kind":"blob"}}}}}}"#,
+                "ab".repeat(32)
+            )
+        );
+        let with_exec =
+            BTreeMap::from([("run.sh".to_string(), TreeEntry::blob("cd".repeat(32), true))]);
+        let json = crate::object::canonical_json(&Tree { entries: with_exec }).unwrap();
+        assert!(String::from_utf8(json).unwrap().contains(r#""exec":true"#));
+
+        // Old trees without the field deserialize with exec = false.
+        let old: Tree =
+            serde_json::from_str(r#"{"entries":{"a":{"id":"x","kind":"blob"}}}"#).unwrap();
+        assert!(!old.entries["a"].exec);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn executable_bit_is_captured_and_restored() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_tmp, repo) = test_repo();
+        let store = Store::new(&repo);
+        write(&repo, "run.sh", "#!/bin/sh\necho hi\n");
+        write(&repo, "lib.rs", "pub fn f() {}");
+        let sh = repo.root.join("run.sh");
+        std::fs::set_permissions(&sh, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let tree = snapshot_workspace(&repo).unwrap();
+        let root = store.read_tree(&tree).unwrap();
+        assert!(root.entries["run.sh"].exec);
+        assert!(!root.entries["lib.rs"].exec);
+
+        // Flipping only the mode is a change the snapshot sees …
+        std::fs::set_permissions(&sh, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_ne!(snapshot_workspace(&repo).unwrap(), tree);
+
+        // … and the restore repairs, counting it as a write in both the plan
+        // and the actual restore.
+        let plan = plan_restore(&repo, &tree).unwrap();
+        assert_eq!((plan.files_written, plan.files_unchanged), (1, 1));
+        let report = restore_workspace(&repo, &tree).unwrap();
+        assert_eq!((report.files_written, report.files_unchanged), (1, 1));
+        assert_ne!(
+            std::fs::metadata(&sh).unwrap().permissions().mode() & 0o111,
+            0
+        );
+        assert_eq!(snapshot_workspace(&repo).unwrap(), tree);
+
+        // A non-executable entry clears a stray bit, and a deleted executable
+        // comes back executable.
+        std::fs::set_permissions(
+            repo.root.join("lib.rs"),
+            std::fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+        std::fs::remove_file(&sh).unwrap();
+        restore_workspace(&repo, &tree).unwrap();
+        assert_eq!(
+            std::fs::metadata(repo.root.join("lib.rs"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o111,
+            0
+        );
+        assert_ne!(
+            std::fs::metadata(&sh).unwrap().permissions().mode() & 0o111,
+            0
+        );
+        assert_eq!(snapshot_workspace(&repo).unwrap(), tree);
     }
 
     #[test]
