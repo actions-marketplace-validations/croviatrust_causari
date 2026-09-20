@@ -1065,8 +1065,44 @@ pub fn blame_head(dir: &Path, ignore_revs: Option<&Path>) -> Result<Vec<String>>
     Ok(owners)
 }
 
+/// True when the repository is a shallow clone. Its history is truncated:
+/// commits at the boundary appear to introduce every line of their tree and
+/// blame cannot look past them, so every figure would be wrong.
+pub fn is_shallow(dir: &Path) -> bool {
+    match git(dir, &["rev-parse", "--is-shallow-repository"]) {
+        Ok(out) => out.trim() == "true",
+        // git before 2.15 lacks the query; the marker file is the fallback.
+        Err(_) => git(dir, &["rev-parse", "--git-path", "shallow"])
+            .map(|p| dir.join(p.trim()).exists())
+            .unwrap_or_else(|_| dir.join(".git").join("shallow").exists()),
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct AuditOptions {
+    /// Measure a shallow clone anyway; the report then carries
+    /// `coverage.shallow = true`.
+    pub allow_shallow: bool,
+}
+
 /// Full Group-0 audit of a git repository: no ledger, no hooks, no proxy.
-pub fn audit_repo(dir: &Path) -> Result<SurvivalReport> {
+pub fn audit_repo(dir: &Path, opts: &AuditOptions) -> Result<SurvivalReport> {
+    let shallow = is_shallow(dir);
+    if shallow && !opts.allow_shallow {
+        anyhow::bail!(
+            "refusing to audit a shallow clone: its history is truncated, so introduced and \
+             surviving line counts would be wrong.\n  Fetch the full history first: \
+             `git fetch --unshallow` (in GitHub Actions: `fetch-depth: 0` on actions/checkout), \
+             or pass --allow-shallow to measure anyway and have the report say so."
+        );
+    }
+    if shallow {
+        eprintln!(
+            "warning: shallow clone; history is truncated and the figures below are partial \
+             (coverage.shallow = true)"
+        );
+    }
+
     let commits = read_commits(dir)?;
     let mut detections: HashMap<String, Detection> = HashMap::new();
     let mut with_intro: Vec<(CommitMeta, u64)> = Vec::new();
@@ -1100,6 +1136,7 @@ pub fn audit_repo(dir: &Path) -> Result<SurvivalReport> {
     let head_owners = blame_head(dir, ignore_revs.as_deref())?;
     let mut report = compute_survival(&with_intro, &detections, &head_owners);
     report.coverage.ignore_revs_file = ignore_revs.is_some();
+    report.coverage.shallow = shallow;
     Ok(report)
 }
 
@@ -1856,7 +1893,7 @@ mod tests {
         .unwrap();
         commit_all(dir, "simplify refresh by hand");
 
-        let report = audit_repo(dir).expect("audit must succeed");
+        let report = audit_repo(dir, &AuditOptions::default()).expect("audit must succeed");
 
         assert_eq!(report.total_commits, 3);
         assert_eq!(report.verified.commits, 1);
@@ -1888,7 +1925,7 @@ mod tests {
         .unwrap();
         commit_all(dir, "re-indent by hand");
 
-        let report = audit_repo(dir).expect("audit must succeed");
+        let report = audit_repo(dir, &AuditOptions::default()).expect("audit must succeed");
         assert_eq!(report.verified.introduced, 3);
         assert_eq!(report.verified.surviving, 3);
     }
@@ -1915,7 +1952,7 @@ mod tests {
         .unwrap();
         commit_all(dir, "move rotation into credentials module");
 
-        let report = audit_repo(dir).expect("audit must succeed");
+        let report = audit_repo(dir, &AuditOptions::default()).expect("audit must succeed");
         assert_eq!(report.verified.introduced, 4);
         assert_eq!(report.verified.surviving, 4);
     }
@@ -1934,7 +1971,7 @@ mod tests {
         commit_all(dir, "reformat quotes");
         let reformat = head_hash(dir);
 
-        let without = audit_repo(dir).unwrap();
+        let without = audit_repo(dir, &AuditOptions::default()).unwrap();
         assert_eq!(without.verified.surviving, 1);
 
         std::fs::write(
@@ -1943,7 +1980,7 @@ mod tests {
         )
         .unwrap();
         assert!(ignore_revs_file(dir).is_some());
-        let with = audit_repo(dir).unwrap();
+        let with = audit_repo(dir, &AuditOptions::default()).unwrap();
         assert_eq!(with.verified.introduced, 2);
         assert_eq!(with.verified.surviving, 2);
         assert!(with.coverage.ignore_revs_file);
@@ -1964,7 +2001,7 @@ mod tests {
         // itself is part of this commit's introduced lines).
         std::fs::write(dir.join("x.py"), "x = 1\n").unwrap();
         commit_all(dir, &format!("add x{CLAUDE_TRAILER}"));
-        let report = audit_repo(dir).unwrap();
+        let report = audit_repo(dir, &AuditOptions::default()).unwrap();
         assert!(report.verified.introduced > 0);
         assert_eq!(report.verified.surviving, report.verified.introduced);
     }

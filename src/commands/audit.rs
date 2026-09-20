@@ -9,7 +9,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::audit::{CAP_CEILING_LINES, IGNORE_REVS_FILE, SurvivalReport, SurvivalStat, audit_repo};
+use crate::audit::{
+    AuditOptions, CAP_CEILING_LINES, IGNORE_REVS_FILE, SurvivalReport, SurvivalStat, audit_repo,
+};
 use crate::cli::AuditArgs;
 
 /// Best-effort temp-clone guard: removes the checkout when the audit is done.
@@ -99,7 +101,10 @@ fn report_json(report: &SurvivalReport) -> Result<serde_json::Value> {
 
 pub fn run(args: AuditArgs) -> Result<()> {
     let (dir, _tmp) = resolve_target(args.target.as_deref())?;
-    let report = audit_repo(&dir).context("audit failed")?;
+    let opts = AuditOptions {
+        allow_shallow: args.allow_shallow,
+    };
+    let report = audit_repo(&dir, &opts).context("audit failed")?;
 
     if args.json {
         serde_json::to_writer_pretty(std::io::stdout(), &report_json(&report)?)?;
@@ -228,6 +233,9 @@ fn print_terminal(report: &SurvivalReport) {
             String::new()
         }
     );
+    if report.coverage.shallow {
+        println!("  · Shallow clone: history is truncated, the figures above are partial");
+    }
     println!("  · A measurement, not a grade: method at https://causari.dev/method");
 }
 
@@ -242,6 +250,13 @@ fn print_summary(report: &SurvivalReport) {
         report.total_commits
     );
     println!();
+    if report.coverage.shallow {
+        println!(
+            "_Shallow clone: history is truncated and these figures are partial. \
+             Use `fetch-depth: 0` or `git fetch --unshallow` for a full measurement._"
+        );
+        println!();
+    }
 
     if v.commits > 0 {
         println!(
