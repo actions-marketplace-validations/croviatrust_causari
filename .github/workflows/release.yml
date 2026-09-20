@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   build:
@@ -48,23 +50,35 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.cross }}" = "true" ]; then
-            cross build --release --target ${{ matrix.target }}
+            cross build --release --locked --target ${{ matrix.target }}
           else
-            cargo build --release --target ${{ matrix.target }}
+            cargo build --release --locked --target ${{ matrix.target }}
           fi
 
-      # Asset naming matches scripts/install.sh and scripts/install.ps1:
-      #   re-<tag>-<target>.tar.gz (unix) / re-<tag>-<target>.zip (windows)
+      # One archive per target, holding both names of the program:
+      #   causari-<tag>-<target>.tar.gz  (unix)   → causari, re
+      #   causari-<tag>-<target>.zip     (windows) → causari.exe, re.exe
+      # scripts/install.sh, scripts/install.ps1 and action.yml read these names.
       - name: package
         shell: bash
         run: |
           mkdir -p dist
           TAG="${GITHUB_REF_NAME}"
+          OUT="target/${{ matrix.target }}/release"
           if [ "${{ runner.os }}" = "Windows" ]; then
-            7z a "dist/re-${TAG}-${{ matrix.target }}.zip" "./target/${{ matrix.target }}/release/re.exe"
+            7z a "dist/causari-${TAG}-${{ matrix.target }}.zip" "./$OUT/causari.exe" "./$OUT/re.exe"
           else
-            tar -C "target/${{ matrix.target }}/release" -czf "dist/re-${TAG}-${{ matrix.target }}.tar.gz" re
+            tar -C "$OUT" -czf "dist/causari-${TAG}-${{ matrix.target }}.tar.gz" causari re
           fi
+          ls -la dist
+
+      # SLSA build provenance, signed by GitHub's Sigstore instance. Anyone can
+      # check an archive with:
+      #   gh attestation verify causari-<tag>-<target>.tar.gz --repo croviatrust/causari
+      - name: attest build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/*
 
       - name: upload artifact for checksums
         uses: actions/upload-artifact@v4
@@ -91,10 +105,61 @@ jobs:
       - name: generate SHA256SUMS.txt
         run: |
           cd dist
-          sha256sum re-* > SHA256SUMS.txt
+          sha256sum causari-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
+
+      - name: attest checksums
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/SHA256SUMS.txt
 
       - name: upload to release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/SHA256SUMS.txt
+
+  notes:
+    name: release notes
+    needs: checksums
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Non-empty release notes, always: the CHANGELOG section for this tag if
+      # one exists, otherwise the commit subjects since the previous tag.
+      - name: assemble notes
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          {
+            if [ -f CHANGELOG.md ] && awk -v t="## ${TAG#v}" 'index($0,t)==1{f=1;next} /^## /{f=0} f' CHANGELOG.md | grep -q .; then
+              awk -v t="## ${TAG#v}" 'index($0,t)==1{f=1;next} /^## /{f=0} f' CHANGELOG.md
+            else
+              PREV="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+              echo "## Changes"
+              echo
+              if [ -n "$PREV" ]; then
+                git log --no-merges --format='- %s' "${PREV}..${TAG}"
+              else
+                git log --no-merges --format='- %s' "${TAG}"
+              fi
+            fi
+            echo
+            echo "## Install"
+            echo
+            echo '```sh'
+            echo "curl -fsSL https://causari.dev/install.sh | CAUSARI_VERSION=${TAG} sh"
+            echo '```'
+            echo
+            echo "Every archive holds two names of the same program, \`causari\` and \`re\`."
+            echo "Checksums are in \`SHA256SUMS.txt\`; archives and checksums carry a signed"
+            echo "SLSA provenance attestation: \`gh attestation verify <file> --repo ${GITHUB_REPOSITORY}\`."
+          } > notes.md
+          cat notes.md
+
+      - name: publish notes
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: notes.md

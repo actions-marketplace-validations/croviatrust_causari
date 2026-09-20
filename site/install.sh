@@ -10,9 +10,13 @@
 #   CAUSARI_BIN_DIR      install location (default: $HOME/.local/bin)
 #   CAUSARI_SKIP_VERIFY  set to 1 to bypass the sha256 check (not recommended)
 #
-# The binary's sha256 is verified against the signed SHA256SUMS.txt published
-# with each GitHub release. Prefer building from source if you want to review
-# the code first:  cargo install --git https://github.com/croviatrust/causari
+# What you get: one program under two names, `causari` and `re` (the short
+# alias every example uses). The archive's sha256 is verified against the
+# SHA256SUMS.txt published with each release; both carry a signed SLSA
+# provenance attestation you can check with
+#   gh attestation verify <file> --repo croviatrust/causari
+# Prefer building from source if you want to review the code first:
+#   cargo install --git https://github.com/croviatrust/causari
 # =============================================================
 set -eu
 
@@ -48,10 +52,19 @@ fi
 say "installing $REPO $VERSION ($target)"
 
 # ---- download ----
-url="https://github.com/$REPO/releases/download/$VERSION/re-${VERSION}-${target}.tar.gz"
+# Releases from v0.2.0 ship causari-<tag>-<target>.tar.gz (causari + re);
+# older ones shipped re-<tag>-<target>.tar.gz (re only). Try the new name first.
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-curl -sSfL "$url" -o "$tmp/re.tar.gz" || die "download failed: $url"
+base="https://github.com/$REPO/releases/download/$VERSION"
+asset=""
+for candidate in "causari-${VERSION}-${target}.tar.gz" "re-${VERSION}-${target}.tar.gz"; do
+  if curl -sSfL "$base/$candidate" -o "$tmp/causari.tar.gz" 2>/dev/null; then
+    asset="$candidate"
+    break
+  fi
+done
+[ -n "$asset" ] || die "download failed: $base/causari-${VERSION}-${target}.tar.gz"
 
 # ---- verify sha256 (required by default) ----
 if [ "${CAUSARI_SKIP_VERIFY:-0}" = "1" ]; then
@@ -60,12 +73,12 @@ else
   sums_url="https://github.com/$REPO/releases/download/$VERSION/SHA256SUMS.txt"
   curl -sSfL "$sums_url" -o "$tmp/SHA256SUMS.txt" \
     || die "could not download SHA256SUMS.txt for $VERSION — refusing to install unverified (set CAUSARI_SKIP_VERIFY=1 to override, or build from source: cargo install --git https://github.com/$REPO)"
-  expected="$(grep "re-${VERSION}-${target}.tar.gz" "$tmp/SHA256SUMS.txt" | awk '{print $1}')"
-  [ -n "$expected" ] || die "no checksum for re-${VERSION}-${target}.tar.gz in SHA256SUMS.txt — refusing to install unverified"
+  expected="$(grep " \*\{0,1\}${asset}\$" "$tmp/SHA256SUMS.txt" | awk '{print $1}')"
+  [ -n "$expected" ] || die "no checksum for ${asset} in SHA256SUMS.txt — refusing to install unverified"
   if command -v sha256sum >/dev/null 2>&1; then
-    actual="$(sha256sum "$tmp/re.tar.gz" | awk '{print $1}')"
+    actual="$(sha256sum "$tmp/causari.tar.gz" | awk '{print $1}')"
   elif command -v shasum >/dev/null 2>&1; then
-    actual="$(shasum -a 256 "$tmp/re.tar.gz" | awk '{print $1}')"
+    actual="$(shasum -a 256 "$tmp/causari.tar.gz" | awk '{print $1}')"
   else
     die "neither sha256sum nor shasum is available to verify the download — install one, or set CAUSARI_SKIP_VERIFY=1 to override"
   fi
@@ -74,11 +87,20 @@ else
 fi
 
 # ---- extract & install ----
-tar -xzf "$tmp/re.tar.gz" -C "$tmp"
+tar -xzf "$tmp/causari.tar.gz" -C "$tmp"
 mkdir -p "$BIN_DIR"
+[ -f "$tmp/re" ] || die "archive did not contain the re binary"
 mv "$tmp/re" "$BIN_DIR/re"
 chmod +x "$BIN_DIR/re"
-say "installed $BIN_DIR/re"
+if [ -f "$tmp/causari" ]; then
+  mv "$tmp/causari" "$BIN_DIR/causari"
+  chmod +x "$BIN_DIR/causari"
+  say "installed $BIN_DIR/causari and $BIN_DIR/re (same program)"
+else
+  # Older release: only `re` shipped. Provide `causari` as a hard link.
+  ln -f "$BIN_DIR/re" "$BIN_DIR/causari" 2>/dev/null || cp "$BIN_DIR/re" "$BIN_DIR/causari"
+  say "installed $BIN_DIR/re (and $BIN_DIR/causari as an alias)"
+fi
 
 # ---- PATH check ----
 case ":$PATH:" in
@@ -92,4 +114,4 @@ esac
 
 # ---- post ----
 "$BIN_DIR/re" --version 2>/dev/null || true
-say "done. Run: re init"
+say "done. Try: re audit"

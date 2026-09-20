@@ -197,12 +197,18 @@ irm https://causari.dev/install.ps1 | iex
 cargo install --git https://github.com/croviatrust/causari --locked
 ```
 
-One static binary, about 5 MB, for Linux (x86_64, aarch64), macOS (x86_64,
-Apple silicon) and Windows (x86_64), installed to `~/.local/bin` (or
+One program under two names: `causari` is the binary, `re` is the short alias
+every example uses. Both are in every archive and both are installed. One
+static binary, about 5 MB, for Linux (x86_64, aarch64), macOS (x86_64, Apple
+silicon) and Windows (x86_64), installed to `~/.local/bin` (or
 `%LOCALAPPDATA%\Programs\causari`). The installer checks the archive's
 SHA-256 against the `SHA256SUMS.txt` published with each release and refuses
-to install on a mismatch. The sums file is not yet signed; signed attestations
-are in [Phase 3](ROADMAP.md).
+to install on a mismatch. From v0.2.0, every archive and the sums file carry a
+signed SLSA build-provenance attestation from the release workflow:
+
+```bash
+gh attestation verify causari-v0.2.0-x86_64-unknown-linux-gnu.tar.gz --repo croviatrust/causari
+```
 
 By hand:
 
@@ -210,9 +216,12 @@ By hand:
 VERSION=$(curl -fsSL https://api.github.com/repos/croviatrust/causari/releases/latest | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
 TARGET=x86_64-unknown-linux-gnu
 base="https://github.com/croviatrust/causari/releases/download/$VERSION"
-curl -fsSLO "$base/re-$VERSION-$TARGET.tar.gz" && curl -fsSLO "$base/SHA256SUMS.txt"
-sha256sum --ignore-missing -c SHA256SUMS.txt && tar -xzf "re-$VERSION-$TARGET.tar.gz" && install -m755 re ~/.local/bin/re
+curl -fsSLO "$base/causari-$VERSION-$TARGET.tar.gz" && curl -fsSLO "$base/SHA256SUMS.txt"
+sha256sum --ignore-missing -c SHA256SUMS.txt && tar -xzf "causari-$VERSION-$TARGET.tar.gz" && install -m755 causari re ~/.local/bin/
 ```
+
+Homebrew, Scoop and crates.io are on the [roadmap](ROADMAP.md); they will be
+listed here when they exist.
 
 Demos: `scripts/demo*.sh|ps1` (mock LLM included), `examples/real-session/`
 (the adversarial harness), `scripts/recovery_lab.py` (revert/bisect stress

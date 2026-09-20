@@ -2,15 +2,22 @@
 name = "causari"
 version = "0.1.5"
 edition = "2024"
-description = "Causari — intent-addressable code: bidirectional causal version control for AI-agent actions"
+description = "AI-written code has no author; it has causes. Measures how much AI-tagged code survives in any git repo and records the prompt, model and files behind every agent edit."
 license = "Apache-2.0"
 repository = "https://github.com/croviatrust/causari"
 homepage = "https://causari.dev"
 readme = "README.md"
-keywords = ["agents", "version-control", "provenance", "mcp", "causality"]
+keywords = ["ai", "provenance", "git", "agents", "mcp"]
+default-run = "causari"
 categories = ["development-tools", "command-line-utilities"]
 authors = ["Croviatrust <hello@croviatrust.com>"]
 rust-version = "1.85"
+
+# One program, two names. `causari` is the binary; `re` is the short alias every
+# example uses. Both are built from the same main and shipped in every release.
+[[bin]]
+name = "causari"
+path = "src/main.rs"
 
 [[bin]]
 name = "re"

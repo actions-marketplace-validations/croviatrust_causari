@@ -2,11 +2,14 @@ use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "re",
+    name = "causari",
+    bin_name = "re",
     version,
-    about = "Causari — intent-addressable code for AI agents",
-    long_about = "Causari records every action an AI agent takes on your codebase \
-                  and lets you inspect, diff, and revert them like git commits."
+    about = "AI-written code has no author. It has causes. Causari proves them.",
+    long_about = "Causari measures how many lines from AI-tagged commits are still alive in a \
+                  git repository (`re audit`, any repo, no setup), and records the prompt, \
+                  model and files behind every agent edit into a local, append-only ledger \
+                  you can query like git. `causari` and `re` are the same program."
 )]
 pub struct Cli {
     #[command(subcommand)]
