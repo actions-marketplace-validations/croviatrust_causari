@@ -28,7 +28,7 @@
     </a>
     <nav class="nav-links" aria-label="Primary">
       <a href="/#audit" class="hide-sm">audit</a>
-      <a href="/survival">measurements</a>
+      <a href="/reports/survival/">reports</a>
       <a href="/method" aria-current="page">method</a>
       <a href="https://github.com/croviatrust/causari" rel="noopener">source</a>
       <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
@@ -38,7 +38,7 @@
 
 <main id="main" class="m-wrap">
   <h1>Method</h1>
-  <p class="m-version">v1 · applies to <code>re audit</code> in every 0.1.x release · this page changes only when the method does</p>
+  <p class="m-version">v2 · applies to <code>re audit</code> from 0.1.5 and to every <a href="/reports/survival/">Survival Report</a> · sections 1–4 describe v1; the v2 paragraph below lists exactly what changed · this page changes only when the method does</p>
 
   <p>Causari publishes counts about repositories that are not ours. The only honest way to do
   that is to publish, next to every number, exactly how it was obtained, what it cannot see,
@@ -99,11 +99,15 @@
     than last week's adopters. Method v1 does not normalise for age.</p>
   </div>
 
-  <p><strong>Method v2</strong> (in progress) caps per-commit weight, reports medians and
-  bootstrap intervals alongside the line-weighted ratio, runs blame with <code>-w -M -C</code>,
-  parses the trailer block with git's own rules, reads <code>Assisted-by:</code> and Agent Trace
-  records, and refuses shallow clones. Every published row will carry the method version that
-  produced it.</p>
+  <p id="v2"><strong>Method v2</strong> (current) caps per-commit weight (a commit weighs at most the
+  95th percentile of per-commit introduced counts in its repository, never more than 10,000 lines)
+  and reports the capped ratio, the median per-commit ratio and the largest commit's share
+  alongside the line-weighted ratio; runs blame with <code>-w -M -C</code> and honours
+  <code>.git-blame-ignore-revs</code>; parses the trailer block with git's own rules; reads
+  <code>Assisted-by:</code>; refuses shallow clones; and writes a <code>coverage</code> block into
+  every result. The weekly <a href="/reports/survival/">Survival Report</a> adds bootstrap intervals
+  over the sampled repositories. Every published number carries the method version that produced
+  it.</p>
 
   <h2>5. Reproduce or contest any number</h2>
 <pre>curl -fsSL https://causari.dev/install.sh | sh
@@ -129,7 +133,7 @@ re audit owner/repo --json      # the exact bytes behind the row</pre>
 <footer class="footer">
   <div class="container foot-bottom">
     <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Crovia</a> · <em>causari</em> is a trademark of Crovia Trust.</p>
-    <p class="muted"><a href="/survival">Measurements</a> · <a href="/">causari.dev</a></p>
+    <p class="muted"><a href="/reports/survival/">Survival Report</a> · <a href="/">causari.dev</a></p>
   </div>
 </footer>
 <script src="/app.js" defer></script>
