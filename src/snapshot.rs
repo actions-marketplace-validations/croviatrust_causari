@@ -1,17 +1,21 @@
 use anyhow::{Context, Result, bail};
+use ignore::Match;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 use crate::object::{Tree, TreeEntry};
 use crate::repo::Repo;
 use crate::store::Store;
 
-/// Default ignore patterns. Kept simple on purpose for the MVP.
-/// We will switch to full .gitignore semantics in a later pass.
+/// Never captured, at any depth, whatever `.gitignore` says: the ledger
+/// itself, git's own store, and dotenv files.
+const ALWAYS_EXCLUDED: &[&str] = &[".causari", ".git"];
+
+/// Built-in exclusions. In a git work tree they apply at the top level only
+/// (lowest precedence, so a `!/dist/` line in `.gitignore` re-includes a
+/// tracked `dist/`); outside git they are the whole rule, see `is_ignored`.
 const DEFAULT_IGNORES: &[&str] = &[
-    ".causari",
-    ".git",
     "node_modules",
     "target",
     "dist",
@@ -23,6 +27,18 @@ const DEFAULT_IGNORES: &[&str] = &[
     ".vscode",
 ];
 
+/// Well-known build-output directory names, excluded at any depth by the
+/// cheap rule (`is_ignored`) because they are huge and churn constantly.
+const BUILD_DIRS: &[&str] = &[
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    ".venv",
+    "__pycache__",
+];
+
 /// Dotenv files usually hold secrets (API keys, DB URLs). Keep `.env` and its
 /// variants (`.env.local`, `.env.production`, …) out of snapshots by default,
 /// so credentials are never copied into the `.causari/` ledger.
@@ -30,12 +46,172 @@ fn is_secret_env_file(name: &str) -> bool {
     name == ".env" || name.starts_with(".env.")
 }
 
-/// Is this workspace-relative path excluded from snapshots?
+/// A name that no rule set may ever capture or restore.
+fn is_protected_name(name: &str) -> bool {
+    ALWAYS_EXCLUDED.contains(&name) || is_secret_env_file(name)
+}
+
+/// Cheap, path-only exclusion check.
+///
+/// This is the complete rule when the workspace is not a git work tree, and
+/// a conservative approximation otherwise: it knows the built-in list but
+/// does not read `.gitignore`. `re watch` uses it to decide whether a
+/// filesystem event deserves a snapshot at all; the snapshot itself applies
+/// the full rules ([`IgnoreRules`]), so a path this function lets through is
+/// still subject to `.gitignore`, and a nested build directory it drops
+/// (`src/build/`) is simply not re-snapshotted until another event fires.
+///
+/// Rule: protected names anywhere; the built-in list at the top level;
+/// the well-known build directories at any depth.
 pub fn is_ignored(rel_path: &Path) -> bool {
-    rel_path.components().any(|c| match c.as_os_str().to_str() {
-        Some(s) => DEFAULT_IGNORES.contains(&s) || is_secret_env_file(s),
-        None => false,
-    })
+    let mut comps = rel_path.components().filter_map(|c| c.as_os_str().to_str());
+    let Some(first) = comps.next() else {
+        return false;
+    };
+    if is_protected_name(first) || DEFAULT_IGNORES.contains(&first) {
+        return true;
+    }
+    comps.any(|c| is_protected_name(c) || BUILD_DIRS.contains(&c))
+}
+
+/// What a snapshot leaves out, and therefore what a restore must not delete.
+///
+/// In a git work tree (`<root>/.git` exists) this follows
+/// `git ls-files --cached --others --exclude-standard`: nested `.gitignore`
+/// files, `.git/info/exclude` and the global excludes file, with the usual
+/// precedence (deeper file wins, last matching line wins, `!` re-includes).
+/// Two additions: the protected names are excluded regardless, and the
+/// built-in list is applied at the top level as the lowest-precedence layer.
+/// Git's index is not consulted, so a tracked top-level `dist/` needs a
+/// `!/dist/` line to be captured. Without `.git`, the rule is `is_ignored`.
+pub struct IgnoreRules {
+    /// Lowest precedence first: built-ins, global excludes, info/exclude.
+    /// Per-directory `.gitignore` files are pushed on top during a walk.
+    /// `None` outside a git work tree.
+    base: Option<Vec<Gitignore>>,
+}
+
+impl IgnoreRules {
+    pub fn for_root(root: &Path) -> Self {
+        if !root.join(".git").exists() {
+            return Self { base: None };
+        }
+        let mut base = Vec::new();
+        let mut builtins = GitignoreBuilder::new(root);
+        for name in DEFAULT_IGNORES {
+            let _ = builtins.add_line(None, &format!("/{}/", name));
+        }
+        if let Ok(gi) = builtins.build() {
+            base.push(gi);
+        }
+        let (global, _) = GitignoreBuilder::new(root).build_global();
+        if !global.is_empty() {
+            base.push(global);
+        }
+        let exclude = root.join(".git").join("info").join("exclude");
+        if exclude.is_file() {
+            let mut b = GitignoreBuilder::new(root);
+            let _ = b.add(&exclude);
+            if let Ok(gi) = b.build() {
+                base.push(gi);
+            }
+        }
+        Self { base: Some(base) }
+    }
+
+    /// Start a walk at `root`: the base layers plus the root `.gitignore`.
+    fn root_stack(&self, root: &Path) -> Vec<Gitignore> {
+        let mut stack = self.base.clone().unwrap_or_default();
+        self.push_dir(root, &mut stack);
+        stack
+    }
+
+    /// Push `dir/.gitignore` onto the stack if present. Returns whether a
+    /// layer was pushed, so the caller can pop it on the way out.
+    fn push_dir(&self, dir: &Path, stack: &mut Vec<Gitignore>) -> bool {
+        if self.base.is_none() {
+            return false;
+        }
+        let file = dir.join(".gitignore");
+        if !file.is_file() {
+            return false;
+        }
+        let (gi, _err) = Gitignore::new(&file);
+        stack.push(gi);
+        true
+    }
+
+    /// Is the directory entry `name` at `path` (relative `rel`) excluded?
+    fn excluded(
+        &self,
+        stack: &[Gitignore],
+        path: &Path,
+        rel: &Path,
+        name: &str,
+        is_dir: bool,
+    ) -> bool {
+        if is_protected_name(name) {
+            return true;
+        }
+        if self.base.is_none() {
+            return is_ignored(rel);
+        }
+        for gi in stack.iter().rev() {
+            match gi.matched(path, is_dir) {
+                Match::Ignore(_) => return true,
+                Match::Whitelist(_) => return false,
+                Match::None => {}
+            }
+        }
+        false
+    }
+}
+
+/// Visit every capturable, non-excluded entry under `root` as
+/// `(absolute path, workspace-relative path, is_dir)`. Directories are
+/// reported after their contents, so a caller can remove what became empty.
+/// Skips whole excluded directories, symlinks and uncapturable names: the
+/// same set of entries a snapshot would record.
+fn walk_entries(
+    rules: &IgnoreRules,
+    root: &Path,
+    f: &mut dyn FnMut(&Path, &Path, bool) -> Result<()>,
+) -> Result<()> {
+    let mut stack = rules.root_stack(root);
+    walk_entries_in(rules, root, root, &mut stack, f)
+}
+
+fn walk_entries_in(
+    rules: &IgnoreRules,
+    root: &Path,
+    dir: &Path,
+    stack: &mut Vec<Gitignore>,
+    f: &mut dyn FnMut(&Path, &Path, bool) -> Result<()>,
+) -> Result<()> {
+    let pushed = dir != root && rules.push_dir(dir, stack);
+    for entry in std::fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
+        let entry = entry?;
+        let path = entry.path();
+        let rel = path.strip_prefix(root).unwrap_or(&path);
+        let file_name = entry.file_name();
+        let Some(name) = capturable_name(&file_name) else {
+            continue;
+        };
+        let ft = entry.file_type()?;
+        if ft.is_symlink() || rules.excluded(stack, &path, rel, name, ft.is_dir()) {
+            continue;
+        }
+        if ft.is_dir() {
+            walk_entries_in(rules, root, &path, stack, f)?;
+            f(&path, rel, true)?;
+        } else if ft.is_file() {
+            f(&path, rel, false)?;
+        }
+    }
+    if pushed {
+        stack.pop();
+    }
+    Ok(())
 }
 
 /// Can a single path component be stored in a tree AND recreated on every
@@ -128,15 +304,19 @@ fn set_exec(_path: &Path, _exec: bool) -> Result<()> {
 
 /// Build a tree object recursively from a directory.
 /// Returns the tree id.
-fn build_tree(store: &Store, root: &Path, dir: &Path) -> Result<String> {
+fn build_tree(
+    store: &Store,
+    rules: &IgnoreRules,
+    root: &Path,
+    dir: &Path,
+    stack: &mut Vec<Gitignore>,
+) -> Result<String> {
+    let pushed = dir != root && rules.push_dir(dir, stack);
     let mut entries = BTreeMap::new();
     for entry in std::fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
         let entry = entry?;
         let path = entry.path();
         let rel = path.strip_prefix(root).unwrap_or(&path);
-        if is_ignored(rel) {
-            continue;
-        }
         let file_name = entry.file_name();
         let name = match capturable_name(&file_name) {
             Some(s) => s.to_string(),
@@ -150,8 +330,11 @@ fn build_tree(store: &Store, root: &Path, dir: &Path) -> Result<String> {
             // Skip symlinks for the MVP to keep semantics simple.
             continue;
         }
+        if rules.excluded(stack, &path, rel, &name, ft.is_dir()) {
+            continue;
+        }
         if ft.is_dir() {
-            let child_id = build_tree(store, root, &path)?;
+            let child_id = build_tree(store, rules, root, &path, stack)?;
             entries.insert(name, TreeEntry::tree(child_id));
         } else if ft.is_file() {
             let meta = entry
@@ -163,6 +346,9 @@ fn build_tree(store: &Store, root: &Path, dir: &Path) -> Result<String> {
             entries.insert(name, TreeEntry::blob(blob_id, is_executable(&meta)));
         }
     }
+    if pushed {
+        stack.pop();
+    }
     let tree = Tree { entries };
     store.write_tree(&tree)
 }
@@ -170,7 +356,9 @@ fn build_tree(store: &Store, root: &Path, dir: &Path) -> Result<String> {
 /// Snapshot the working tree of `repo`. Returns the root tree id.
 pub fn snapshot_workspace(repo: &Repo) -> Result<String> {
     let store = Store::new(repo);
-    build_tree(&store, &repo.root, &repo.root)
+    let rules = IgnoreRules::for_root(&repo.root);
+    let mut stack = rules.root_stack(&repo.root);
+    build_tree(&store, &rules, &repo.root, &repo.root, &mut stack)
 }
 
 /// Restore the working tree to match the given root tree id.
@@ -195,28 +383,18 @@ pub fn plan_restore(repo: &Repo, tree_id: &str) -> Result<RestoreReport> {
     let mut report = RestoreReport::default();
     let mut targets = std::collections::HashSet::new();
     validate_restore_tree(&store, &repo.root, tree_id, 0, &mut targets, &mut report)?;
-    for entry in WalkDir::new(&repo.root)
-        .into_iter()
-        .filter_entry(|e| restorable_walk_entry(&repo.root, e))
-    {
-        let entry = entry?;
-        if entry.file_type().is_file() && !targets.contains(entry.path()) {
+    // Restore walks the workspace with exactly the snapshot's eyes: whatever
+    // a snapshot would skip (ignored paths, uncapturable names) a restore
+    // must not delete, otherwise "sync the workspace to the snapshot" erases
+    // files that were never in any snapshot.
+    let rules = IgnoreRules::for_root(&repo.root);
+    walk_entries(&rules, &repo.root, &mut |path, _rel, is_dir| {
+        if !is_dir && !targets.contains(path) {
             report.files_deleted += 1;
         }
-    }
+        Ok(())
+    })?;
     Ok(report)
-}
-
-/// Restore walks the workspace with exactly the snapshot's eyes: whatever
-/// a snapshot would skip (ignored paths, uncapturable names) a restore
-/// must not delete, otherwise "sync the workspace to the snapshot" erases
-/// files that were never in any snapshot.
-fn restorable_walk_entry(root: &Path, e: &walkdir::DirEntry) -> bool {
-    if e.depth() == 0 {
-        return true;
-    }
-    let rel = e.path().strip_prefix(root).unwrap_or(e.path());
-    !is_ignored(rel) && capturable_name(e.file_name()).is_some()
 }
 
 fn validate_restore_tree(
@@ -234,7 +412,7 @@ fn validate_restore_tree(
     let tree = store.read_tree(tree_id)?;
     for (name, entry) in tree.entries {
         // Validate portable single components, including Windows separators/ADS.
-        if !is_portable_name(&name) || is_ignored(Path::new(&name)) {
+        if !is_portable_name(&name) || is_protected_name(&name) {
             bail!("unsafe or protected snapshot entry: {:?}", name);
         }
         let path = dir.join(&name);
@@ -333,55 +511,67 @@ fn restore_tree(
 }
 
 /// Walk the filesystem and delete any file not present in the target tree.
+/// Directories the tree does not know and that are empty afterwards go too
+/// (a snapshot records empty directories, so a leftover one would make the
+/// restored workspace hash to a different tree); a directory that still
+/// holds ignored or uncapturable files is left in place.
 fn cleanup_extras(
     store: &Store,
     repo: &Repo,
     tree_id: &str,
     report: &mut RestoreReport,
 ) -> Result<()> {
-    let target_paths = collect_paths(store, &PathBuf::new(), tree_id)?;
-    let target_set: std::collections::HashSet<PathBuf> = target_paths.into_iter().collect();
+    let mut files = std::collections::HashSet::new();
+    let mut dirs = std::collections::HashSet::new();
+    collect_paths(store, &PathBuf::new(), tree_id, &mut files, &mut dirs)?;
 
-    for entry in WalkDir::new(&repo.root)
-        .into_iter()
-        .filter_entry(|e| restorable_walk_entry(&repo.root, e))
-    {
-        let entry = entry?;
-        if !entry.file_type().is_file() {
-            continue;
+    let rules = IgnoreRules::for_root(&repo.root);
+    let mut extra_files = Vec::new();
+    let mut extra_dirs = Vec::new();
+    walk_entries(&rules, &repo.root, &mut |path, rel, is_dir| {
+        if is_dir {
+            if !dirs.contains(rel) {
+                extra_dirs.push(path.to_path_buf());
+            }
+        } else if !files.contains(rel) {
+            extra_files.push(path.to_path_buf());
         }
-        let rel = entry
-            .path()
-            .strip_prefix(&repo.root)
-            .unwrap_or(entry.path())
-            .to_path_buf();
-        if rel.as_os_str().is_empty() {
-            continue;
-        }
-        if !target_set.contains(&rel) {
-            std::fs::remove_file(entry.path())
-                .with_context(|| format!("removing {}", entry.path().display()))?;
-            report.files_deleted += 1;
-        }
+        Ok(())
+    })?;
+    for path in extra_files {
+        std::fs::remove_file(&path).with_context(|| format!("removing {}", path.display()))?;
+        report.files_deleted += 1;
+    }
+    // Post-order from the walk: children before parents. Non-empty is not
+    // an error here, it means the directory still holds files we must keep.
+    for path in extra_dirs {
+        let _ = std::fs::remove_dir(&path);
     }
     Ok(())
 }
 
-fn collect_paths(store: &Store, prefix: &Path, tree_id: &str) -> Result<Vec<PathBuf>> {
-    let mut out = Vec::new();
+fn collect_paths(
+    store: &Store,
+    prefix: &Path,
+    tree_id: &str,
+    files: &mut std::collections::HashSet<PathBuf>,
+    dirs: &mut std::collections::HashSet<PathBuf>,
+) -> Result<()> {
     let tree = store.read_tree(tree_id)?;
     for (name, entry) in &tree.entries {
         let p = prefix.join(name);
         match entry.kind.as_str() {
-            "blob" => out.push(p),
+            "blob" => {
+                files.insert(p);
+            }
             "tree" => {
-                let sub = collect_paths(store, &p, &entry.id)?;
-                out.extend(sub);
+                collect_paths(store, &p, &entry.id, files, dirs)?;
+                dirs.insert(p);
             }
             _ => {}
         }
     }
-    Ok(out)
+    Ok(())
 }
 
 /// Compute a flat map of relative path -> blob id for a given tree.
@@ -827,6 +1017,145 @@ mod tests {
             .map(|p| p.to_string_lossy().replace('\\', "/"))
             .collect();
         assert_eq!(paths, vec!["src/main.rs"]);
+    }
+
+    fn paths_of(store: &Store, tree: &str) -> Vec<String> {
+        flatten_tree(store, tree)
+            .unwrap()
+            .keys()
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .collect()
+    }
+
+    #[test]
+    fn git_work_tree_follows_gitignore_and_keeps_nested_build_dirs() {
+        // Regression (B3): the built-in list used to match any path
+        // component, silently dropping src/build/gen.rs and packages/dist/.
+        let (_tmp, repo) = test_repo();
+        let store = Store::new(&repo);
+        std::fs::create_dir_all(repo.root.join(".git/info")).unwrap();
+        write(&repo, ".git/config", "[core]");
+        write(&repo, ".git/info/exclude", "scratch/\n");
+        write(&repo, ".gitignore", "*.log\n/generated/\n");
+        write(&repo, "src/main.rs", "fn main() {}");
+        write(&repo, "src/build/gen.rs", "// generated but tracked");
+        write(&repo, "packages/dist/index.js", "tracked bundle");
+        write(&repo, "node_modules/x.js", "dep");
+        write(&repo, "target/debug/bin", "build output");
+        write(&repo, "debug.log", "noise");
+        write(&repo, "src/deep/trace.log", "noise");
+        write(&repo, "generated/out.rs", "noise");
+        write(&repo, "scratch/notes", "excluded via info/exclude");
+        write(&repo, "sub/.gitignore", "local.txt\n!keep.log\n");
+        write(&repo, "sub/local.txt", "ignored by nested file");
+        write(&repo, "sub/keep.log", "re-included by nested file");
+        write(&repo, "sub/other.log", "still ignored by root file");
+        write(&repo, ".env", "SECRET=1");
+
+        let tree = snapshot_workspace(&repo).unwrap();
+        assert_eq!(
+            paths_of(&store, &tree),
+            vec![
+                ".gitignore",
+                "packages/dist/index.js",
+                "src/build/gen.rs",
+                "src/main.rs",
+                "sub/.gitignore",
+                "sub/keep.log",
+            ]
+        );
+    }
+
+    #[test]
+    fn gitignore_can_re_include_a_built_in_top_level_directory() {
+        let (_tmp, repo) = test_repo();
+        let store = Store::new(&repo);
+        std::fs::create_dir_all(repo.root.join(".git")).unwrap();
+        write(&repo, ".gitignore", "!/dist/\n");
+        write(&repo, "dist/bundle.js", "tracked build artefact");
+        write(&repo, "build/out", "still excluded");
+        let tree = snapshot_workspace(&repo).unwrap();
+        assert_eq!(
+            paths_of(&store, &tree),
+            vec![".gitignore", "dist/bundle.js"]
+        );
+    }
+
+    #[test]
+    fn restore_leaves_gitignored_files_alone() {
+        // A restore syncs the workspace to the snapshot; files the snapshot
+        // never captured because .gitignore excluded them are not "extras".
+        let (_tmp, repo) = test_repo();
+        std::fs::create_dir_all(repo.root.join(".git")).unwrap();
+        write(&repo, ".gitignore", "*.log\n");
+        write(&repo, "a.txt", "one");
+        let tree = snapshot_workspace(&repo).unwrap();
+
+        write(&repo, "a.txt", "two");
+        write(&repo, "extra.txt", "delete me");
+        write(&repo, "session.log", "keep me");
+        write(&repo, "src/build/gen.rs", "delete me too");
+
+        let plan = plan_restore(&repo, &tree).unwrap();
+        assert_eq!((plan.files_written, plan.files_deleted), (1, 2));
+        let report = restore_workspace(&repo, &tree).unwrap();
+        assert_eq!((report.files_written, report.files_deleted), (1, 2));
+        assert!(!repo.root.join("extra.txt").exists());
+        // The directories that only existed for the extra file go too;
+        // a directory still holding an ignored file stays.
+        assert!(!repo.root.join("src").exists());
+        assert_eq!(
+            std::fs::read_to_string(repo.root.join("session.log")).unwrap(),
+            "keep me"
+        );
+        assert_eq!(snapshot_workspace(&repo).unwrap(), tree);
+
+        write(&repo, "logs/run.log", "ignored, keeps its dir alive");
+        restore_workspace(&repo, &tree).unwrap();
+        assert!(repo.root.join("logs/run.log").exists());
+    }
+
+    #[test]
+    fn without_git_the_built_in_list_is_the_whole_rule() {
+        let (_tmp, repo) = test_repo();
+        let store = Store::new(&repo);
+        write(&repo, ".gitignore", "*.log\n");
+        write(&repo, "debug.log", "no git, so .gitignore is not consulted");
+        write(&repo, "src/main.rs", "x");
+        write(&repo, "src/build/gen.rs", "dropped: build dir at any depth");
+        write(&repo, "src/.idea/ws.xml", "kept: .idea only at top level");
+        write(&repo, ".idea/ws.xml", "dropped");
+        let tree = snapshot_workspace(&repo).unwrap();
+        assert_eq!(
+            paths_of(&store, &tree),
+            vec![".gitignore", "debug.log", "src/.idea/ws.xml", "src/main.rs"]
+        );
+    }
+
+    #[test]
+    fn is_ignored_is_the_cheap_rule() {
+        for yes in [
+            ".causari/HEAD",
+            "a/.git/config",
+            ".env",
+            "cfg/.env.local",
+            "dist",
+            "target/debug/x",
+            "src/dist/x.js",
+            "pkg/node_modules/a/b.js",
+            ".vscode/settings.json",
+        ] {
+            assert!(is_ignored(Path::new(yes)), "{yes}");
+        }
+        for no in [
+            "src/main.rs",
+            "src/.vscode/x",
+            "environment",
+            "a/.envrc",
+            "",
+        ] {
+            assert!(!is_ignored(Path::new(no)), "{no}");
+        }
     }
 
     #[test]
