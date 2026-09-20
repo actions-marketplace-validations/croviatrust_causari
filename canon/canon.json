@@ -53,6 +53,14 @@
       {
         "path": "server.json",
         "pattern": "^      \"version\": \"([0-9]+\\.[0-9]+\\.[0-9]+)\""
+      },
+      {
+        "path": ".claude-plugin/marketplace.json",
+        "pattern": "\"version\": \"([0-9]+\\.[0-9]+\\.[0-9]+)\""
+      },
+      {
+        "path": "plugin/.claude-plugin/plugin.json",
+        "pattern": "\"version\": \"([0-9]+\\.[0-9]+\\.[0-9]+)\""
       }
     ]
   },

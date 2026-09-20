@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "causari": {
+      "command": "re",
+      "args": ["mcp"]
+    }
+  }
+}

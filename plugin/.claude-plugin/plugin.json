@@ -1,0 +1,15 @@
+{
+  "name": "causari",
+  "displayName": "Causari",
+  "version": "0.1.5",
+  "description": "Records the prompt, model and diff behind every Claude Code edit into the repository's Causari ledger, and exposes causari_record / causari_recall / causari_why over MCP.",
+  "author": {
+    "name": "Crovia Trust",
+    "email": "info@croviatrust.com",
+    "url": "https://croviatrust.com"
+  },
+  "homepage": "https://causari.dev",
+  "repository": "https://github.com/croviatrust/causari",
+  "license": "Apache-2.0",
+  "keywords": ["provenance", "ledger", "ai-code", "survival", "mcp", "hooks"]
+}

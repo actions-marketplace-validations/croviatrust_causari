@@ -1,0 +1,26 @@
+{
+  "name": "croviatrust",
+  "owner": {
+    "name": "Crovia Trust",
+    "email": "info@croviatrust.com",
+    "url": "https://croviatrust.com"
+  },
+  "metadata": {
+    "description": "Plugins by Crovia Trust. Causari records what an AI agent did in a repository and answers why a line exists.",
+    "version": "0.1.5"
+  },
+  "plugins": [
+    {
+      "name": "causari",
+      "source": "./plugin",
+      "description": "Every Claude Code edit becomes a Causari event with its prompt, model and diff; ask `why` for any line. Needs the `re` binary from causari.dev.",
+      "version": "0.1.5",
+      "author": { "name": "Crovia Trust", "email": "info@croviatrust.com" },
+      "homepage": "https://causari.dev",
+      "repository": "https://github.com/croviatrust/causari",
+      "license": "Apache-2.0",
+      "keywords": ["provenance", "ledger", "ai-code", "survival", "mcp", "hooks"],
+      "category": "development"
+    }
+  ]
+}

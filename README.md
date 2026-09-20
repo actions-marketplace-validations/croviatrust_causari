@@ -247,6 +247,21 @@ Claude Desktop, Cursor, Windsurf and Cline. The server is listed in the
 
 - MCP Registry name: mcp-name: io.github.croviatrust/causari
 
+### As a Claude Code plugin
+
+The repository is also a plugin marketplace. Inside Claude Code:
+
+```
+/plugin marketplace add croviatrust/causari
+/plugin install causari@croviatrust
+```
+
+The plugin installs the four hooks that `re hook claude-code` writes by hand
+(prompt, pre-state, post-state, session briefing), the MCP server, and a
+skill that tells the model when `why`, `trace`, `recall` and `record` are the
+right tool. It needs the `re` binary on `PATH`; without it, or in a project
+without `re init`, every hook is a silent no-op.
+
 Demos: `scripts/demo*.sh|ps1` (mock LLM included), `examples/real-session/`
 (the adversarial harness), `scripts/recovery_lab.py` (revert/bisect stress
 lab).
