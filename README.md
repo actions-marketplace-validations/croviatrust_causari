@@ -193,6 +193,12 @@ curl -fsSL https://causari.dev/install.sh | sh
 # Windows (PowerShell)
 irm https://causari.dev/install.ps1 | iex
 
+# Homebrew (macOS, Linux)
+brew install croviatrust/tap/causari
+
+# Scoop (Windows)
+scoop bucket add causari https://github.com/croviatrust/scoop-bucket && scoop install causari
+
 # from source (Rust 1.85+)
 cargo install --git https://github.com/croviatrust/causari --locked
 ```
@@ -220,8 +226,10 @@ curl -fsSLO "$base/causari-$VERSION-$TARGET.tar.gz" && curl -fsSLO "$base/SHA256
 sha256sum --ignore-missing -c SHA256SUMS.txt && tar -xzf "causari-$VERSION-$TARGET.tar.gz" && install -m755 causari re ~/.local/bin/
 ```
 
-Homebrew, Scoop and crates.io are on the [roadmap](ROADMAP.md); they will be
-listed here when they exist.
+The [Homebrew tap](https://github.com/croviatrust/homebrew-tap) and the
+[Scoop bucket](https://github.com/croviatrust/scoop-bucket) render their
+manifests from each release's `SHA256SUMS.txt` and re-render every six hours.
+crates.io is on the [roadmap](ROADMAP.md).
 
 Demos: `scripts/demo*.sh|ps1` (mock LLM included), `examples/real-session/`
 (the adversarial harness), `scripts/recovery_lab.py` (revert/bisect stress

@@ -94,7 +94,9 @@ public key alone; the first report is deposited with a DOI.
       (`∵`, `⊢`, `·`, `—`), OG images, audit card, badge, site restyle.
 - [~] Binary `causari` with `re` as alias (done); `--help` grouped.
 - [~] Signed SLSA attestations on every archive, non-empty release notes,
-      Action verifies the checksum (done); Homebrew tap, Scoop, crates.io publish.
+      Action verifies the checksum, Homebrew tap (`croviatrust/homebrew-tap`),
+      Scoop bucket (`croviatrust/scoop-bucket`) — done; crates.io publish
+      waits for the token (owner ask).
 - [x] DCO instead of CLA.
 - [ ] One legal entity name in NOTICE/trademark (owner ask below).
 - [ ] MCP registry, Claude Code plugin, Cursor MCP directory, awesome lists.

@@ -15,6 +15,9 @@ Ways to use Causari without installing anything:
 Local install (single binary, about 5 MB, Linux/macOS/Windows):
 - Linux/macOS: curl -fsSL https://causari.dev/install.sh | sh
 - Windows: irm https://causari.dev/install.ps1 | iex
+- Homebrew: brew install croviatrust/tap/causari
+- Scoop: scoop bucket add causari https://github.com/croviatrust/scoop-bucket; scoop install causari
+- The binary is `causari`; `re` is installed alongside as the short alias.
 
 Key commands:
 - `re audit [owner/repo]` — AI code survival from git history alone; `--json`

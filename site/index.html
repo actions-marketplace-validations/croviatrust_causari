@@ -345,7 +345,20 @@ curl -fsSL https://causari.dev/install.sh | sh</code></pre>
 iwr -useb https://causari.dev/install.ps1 | iex</code></pre>
       </div>
     </div>
-    <p class="muted small" style="margin-top:1rem">Installs <code>re</code> to <code>~/.local/bin</code> (or <code>%LOCALAPPDATA%\Programs\causari</code>). The SHA-256 of the binary is checked against the release's <code>SHA256SUMS.txt</code> and the install aborts on mismatch. Prefer to build it yourself: <code>cargo install --git https://github.com/croviatrust/causari</code>. Homebrew, Scoop and crates.io are on the roadmap; they will appear here when they exist.</p>
+    <div class="grid grid-2" style="margin-top:1rem">
+      <div class="cmd">
+        <button class="copy" data-copy="ins-brew">copy</button>
+<pre id="ins-brew"><code><span class="dim"># Homebrew (macOS, Linux)</span>
+brew install croviatrust/tap/causari</code></pre>
+      </div>
+      <div class="cmd">
+        <button class="copy" data-copy="ins-scoop">copy</button>
+<pre id="ins-scoop"><code><span class="dim"># Scoop (Windows)</span>
+scoop bucket add causari https://github.com/croviatrust/scoop-bucket
+scoop install causari</code></pre>
+      </div>
+    </div>
+    <p class="muted small" style="margin-top:1rem">One program under two names: <code>causari</code> and <code>re</code>, both installed. The installers check the archive's SHA-256 against the release's <code>SHA256SUMS.txt</code> and abort on mismatch; the <a href="https://github.com/croviatrust/homebrew-tap" rel="noopener">tap</a> and the <a href="https://github.com/croviatrust/scoop-bucket" rel="noopener">bucket</a> render their manifests from the same file. From v0.2.0 every archive carries a signed SLSA provenance attestation (<code>gh attestation verify</code>). Prefer to build it yourself: <code>cargo install --git https://github.com/croviatrust/causari</code>.</p>
 
     <div class="rows" style="margin-top:2.5rem">
       <div class="row">
