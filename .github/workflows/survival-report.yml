@@ -37,9 +37,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     steps:
+      # Pushes to main go through branch protection (required check `lint`).
+      # The workflow token cannot pass it; a repository admin can. With the
+      # secret REPORT_PUSH_TOKEN (fine-grained PAT of an admin, this
+      # repository only, Contents: read and write) the report and the DOI
+      # write-back land on main; without it the run still measures,
+      # deposits and uploads the report as an artifact, and says so.
       - uses: actions/checkout@v7
         with:
           ref: main
+          token: ${{ secrets.REPORT_PUSH_TOKEN || github.token }}
 
       - name: install latest causari release
         if: ${{ !inputs.deposit_only }}
@@ -144,7 +151,10 @@ jobs:
           if git diff --cached --quiet; then echo "no changes"; exit 0; fi
           git commit -s -m "report: $(jq -r .title "${{ steps.build.outputs.dir }}/report.json") ($(jq -r .date "${{ steps.build.outputs.dir }}/report.json"), method v2)"
           git pull --rebase origin main
-          git push origin HEAD:main
+          if ! git push origin HEAD:main; then
+            echo "::error title=Report not pushed::branch protection rejected the push. Add the secret REPORT_PUSH_TOKEN (admin PAT, Contents: read and write) or push the artifact by hand."
+            echo "PUSH_FAILED=1" >> "$GITHUB_ENV"
+          fi
 
       - name: deposit on Zenodo
         if: ${{ github.event_name == 'schedule' || inputs.deposit }}
@@ -166,4 +176,23 @@ jobs:
           if git diff --cached --quiet; then echo "nothing to write back"; exit 0; fi
           git commit -s -m "report: DOI $(jq -r '.doi // "n/a"' /tmp/zenodo.log) for $(jq -r .title "${{ steps.build.outputs.dir }}/report.json")"
           git pull --rebase origin main
-          git push origin HEAD:main
+          if ! git push origin HEAD:main; then
+            echo "::error title=DOI write-back not pushed::the DOI is minted ($(jq -r '.doi // "n/a"' /tmp/zenodo.log)); branch protection rejected the push. Add REPORT_PUSH_TOKEN or apply the artifact by hand."
+            echo "PUSH_FAILED=1" >> "$GITHUB_ENV"
+          fi
+
+      # Whatever happened to the pushes, the bytes are not lost.
+      - name: upload the report tree
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: survival-report
+          path: |
+            site/reports/survival
+            site/_redirects
+            site/sitemap.xml
+          if-no-files-found: ignore
+
+      - name: fail if a push was rejected
+        if: ${{ env.PUSH_FAILED == '1' }}
+        run: exit 1
