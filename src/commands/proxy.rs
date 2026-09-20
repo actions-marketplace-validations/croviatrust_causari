@@ -76,6 +76,12 @@ pub fn run(args: ProxyArgs) -> Result<()> {
         ".causari/capture/exchanges.jsonl".bright_black(),
         "re watch".cyan()
     );
+    println!(
+        "  {} OpenAI chat requests with {} get {} added, so streamed completions carry tokens and cost.",
+        "usage requested on streams:".bright_black(),
+        "stream:true".bright_black(),
+        "stream_options.include_usage".bright_black()
+    );
     println!("  Press Ctrl-C to stop.");
     println!();
 
@@ -142,11 +148,50 @@ fn is_completion_request(method: &Method, path: &str) -> bool {
     if *method != Method::Post {
         return false;
     }
-    let path = path.split(['?', '#']).next().unwrap_or("");
-    let path = path.strip_suffix('/').unwrap_or(path);
+    let path = endpoint(path);
     ["/chat/completions", "/messages", "/responses"]
         .iter()
         .any(|suffix| path.ends_with(suffix))
+}
+
+/// The path without query string, fragment or trailing slash.
+fn endpoint(path: &str) -> &str {
+    let path = path.split(['?', '#']).next().unwrap_or("");
+    path.strip_suffix('/').unwrap_or(path)
+}
+
+/// OpenAI reports usage on a stream only when the client asks for it with
+/// `stream_options.include_usage`; most agents do not, so every streamed
+/// chat completion was captured with no tokens and no cost. Returns the
+/// request body with that option set when it applies (a streaming chat
+/// completion with a JSON object body), `None` when the body is forwarded
+/// untouched. The one extra terminal chunk (empty `choices`, `usage`) is
+/// part of the documented protocol and is passed through to the client.
+fn with_stream_usage(body: &serde_json::Value, path: &str) -> Option<serde_json::Value> {
+    if !endpoint(path).ends_with("/chat/completions") {
+        return None;
+    }
+    let mut v = body.clone();
+    let obj = v.as_object_mut()?;
+    if obj.get("stream").and_then(serde_json::Value::as_bool) != Some(true) {
+        return None;
+    }
+    let opts = obj
+        .entry("stream_options")
+        .or_insert_with(|| serde_json::json!({}));
+    if !opts.is_object() {
+        *opts = serde_json::json!({});
+    }
+    let opts = opts.as_object_mut()?;
+    if opts
+        .get("include_usage")
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+    {
+        return None;
+    }
+    opts.insert("include_usage".to_string(), serde_json::Value::Bool(true));
+    Some(v)
 }
 
 /// A reader that copies every byte it serves into a shared buffer.
@@ -211,7 +256,14 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
     request.as_reader().read_to_end(&mut body)?;
 
     // Request-side metadata (model, prompt, agent identity).
-    let body_json: Option<serde_json::Value> = serde_json::from_slice(&body).ok();
+    let mut body_json: Option<serde_json::Value> = serde_json::from_slice(&body).ok();
+    if let Some(patched) = body_json
+        .as_ref()
+        .and_then(|v| with_stream_usage(v, &upstream_path))
+    {
+        body = serde_json::to_vec(&patched)?;
+        body_json = Some(patched);
+    }
     let requested_model = body_json
         .as_ref()
         .and_then(|v| v.get("model"))
@@ -436,5 +488,46 @@ mod tests {
             &Method::Delete,
             "/v1/responses/resp_123"
         ));
+    }
+
+    #[test]
+    fn streaming_chat_requests_get_usage_requested() {
+        use serde_json::json;
+        let path = "/v1/chat/completions";
+        let body = json!({"model": "gpt-4o", "stream": true, "messages": []});
+        let patched = with_stream_usage(&body, path).expect("patched");
+        assert_eq!(patched["stream_options"]["include_usage"], json!(true));
+        assert_eq!(patched["model"], json!("gpt-4o"), "rest of the body intact");
+
+        // Existing stream_options are extended, not replaced.
+        let body = json!({"stream": true, "stream_options": {"other": 1}});
+        let patched = with_stream_usage(&body, path).unwrap();
+        assert_eq!(patched["stream_options"]["other"], json!(1));
+        assert_eq!(patched["stream_options"]["include_usage"], json!(true));
+
+        // A malformed stream_options is replaced rather than forwarded broken.
+        let body = json!({"stream": true, "stream_options": null});
+        assert_eq!(
+            with_stream_usage(&body, path).unwrap()["stream_options"]["include_usage"],
+            json!(true)
+        );
+    }
+
+    #[test]
+    fn non_streaming_other_endpoints_and_explicit_opt_in_are_left_alone() {
+        use serde_json::json;
+        let path = "/v1/chat/completions";
+        assert!(with_stream_usage(&json!({"model": "gpt-4o", "stream": false}), path).is_none());
+        assert!(with_stream_usage(&json!({"model": "gpt-4o"}), path).is_none());
+        assert!(
+            with_stream_usage(
+                &json!({"stream": true, "stream_options": {"include_usage": true}}),
+                path
+            )
+            .is_none()
+        );
+        assert!(with_stream_usage(&json!({"stream": true}), "/v1/responses").is_none());
+        assert!(with_stream_usage(&json!({"stream": true}), "/v1/messages").is_none());
+        assert!(with_stream_usage(&json!([1, 2]), path).is_none());
     }
 }
