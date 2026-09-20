@@ -44,6 +44,15 @@ pub fn resolve_pre_snapshot(repo: &Repo, store: &Store, parent: &Option<String>)
     }
 }
 
+/// Did the working tree change since the pre-state? Every recorder must ask
+/// this before writing an event: a snapshot with an identical tree is not a
+/// change, and recording it fabricates history (F-watch-01: an idle repo on
+/// Linux produced three phantom events per second).
+pub fn tree_unchanged(store: &Store, pre_snapshot_id: &str, post_tree_id: &str) -> Result<bool> {
+    let pre_tree = store.read_snapshot(pre_snapshot_id)?.tree;
+    Ok(pre_tree == post_tree_id)
+}
+
 /// Write the event, advance the right ref, and index it.
 ///
 /// Callers must hold the repo lock (`repo.lock()`) across parent resolution

@@ -1,19 +1,20 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
 use colored::Colorize;
-use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
+use notify::event::{EventKind, ModifyKind};
+use notify::{RecursiveMode, Watcher};
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc::channel};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::capture::{claim_exchange, correlate, load_unclaimed_exchanges_since, now_ms};
 use crate::cli::WatchArgs;
-use crate::commit::{commit_event, resolve_parent};
+use crate::commit::{commit_event, resolve_parent, tree_unchanged};
 use crate::object::{Event, Snapshot};
 use crate::repo::Repo;
-use crate::snapshot::{added_lines_between, snapshot_workspace};
+use crate::snapshot::{added_lines_between, is_ignored, snapshot_workspace};
 use crate::store::Store;
 
 /// `re watch` turns Causari into a passive recorder.
@@ -68,30 +69,35 @@ pub fn run(args: WatchArgs) -> Result<()> {
         .context("installing ctrl-c handler")?;
     }
 
+    // Raw notify events, debounced here rather than by a helper crate, so
+    // the event *kind* is still visible: on Linux inotify reports every
+    // open/close, and snapshotting opens every file. Feeding those back in
+    // as "changes" is the loop that fabricated history on idle repos.
     let (tx, rx) = channel();
-    let mut debouncer = new_debouncer(Duration::from_millis(debounce_ms), tx)
-        .context("creating filesystem debouncer")?;
-    debouncer
-        .watcher()
+    let mut watcher = notify::recommended_watcher(tx).context("creating filesystem watcher")?;
+    watcher
         .watch(&repo.root, RecursiveMode::Recursive)
         .context("starting watcher")?;
 
+    let debounce = Duration::from_millis(debounce_ms);
+    let mut pending: HashSet<PathBuf> = HashSet::new();
+    let mut last_change: Option<Instant> = None;
+
     while !stop.load(Ordering::SeqCst) {
-        match rx.recv_timeout(Duration::from_millis(500)) {
-            Ok(Ok(events)) => {
-                // Filter out changes inside .causari/ (we cause those ourselves).
-                let touched: HashSet<PathBuf> = events
-                    .into_iter()
-                    .map(|e| e.path)
-                    .filter(|p| !is_internal(&repo, p))
-                    .collect();
-                if touched.is_empty() {
+        match rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(Ok(event)) => {
+                if !is_content_change(&event.kind) {
                     continue;
                 }
-                record_change(&repo, &store, &args, &touched, &baseline_snapshot_id)?;
+                for p in event.paths {
+                    if is_relevant(&repo, &p) {
+                        pending.insert(p);
+                        last_change = Some(Instant::now());
+                    }
+                }
             }
-            Ok(Err(errs)) => {
-                eprintln!("{} watcher errors: {:?}", "warn:".yellow(), errs);
+            Ok(Err(err)) => {
+                eprintln!("{} watcher error: {}", "warn:".yellow(), err);
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
             Err(e) => {
@@ -99,10 +105,48 @@ pub fn run(args: WatchArgs) -> Result<()> {
                 break;
             }
         }
+
+        let quiet = last_change
+            .map(|t| t.elapsed() >= debounce)
+            .unwrap_or(false);
+        if quiet && !pending.is_empty() {
+            let touched = std::mem::take(&mut pending);
+            last_change = None;
+            // A failed record (lock held by another recorder for too long,
+            // a transient I/O error) must not stop the watcher: report it
+            // and keep watching; the next window snapshots the same tree.
+            if let Err(e) = record_change(&repo, &store, &args, &touched, &baseline_snapshot_id) {
+                eprintln!("{} not recorded: {:#}", "warn:".yellow(), e);
+            }
+        }
     }
 
     println!("\n{} stopped.", "causari:".green().bold());
     Ok(())
+}
+
+/// Only events that can change file *content* or the set of files count.
+/// Access (open/close/read) and metadata-only changes (chmod, utime) never
+/// alter a snapshot and must not trigger one.
+fn is_content_change(kind: &EventKind) -> bool {
+    match kind {
+        EventKind::Create(_) | EventKind::Remove(_) | EventKind::Any => true,
+        EventKind::Modify(m) => !matches!(m, ModifyKind::Metadata(_)),
+        EventKind::Access(_) | EventKind::Other => false,
+    }
+}
+
+/// A path is relevant when it is inside the workspace, outside the ledger,
+/// and not excluded from snapshots by the ignore rules. Build outputs
+/// (`target/`, `node_modules/`) are the loudest sources of irrelevant events.
+fn is_relevant(repo: &Repo, p: &Path) -> bool {
+    if is_internal(repo, p) {
+        return false;
+    }
+    match p.strip_prefix(&repo.root) {
+        Ok(rel) => !rel.as_os_str().is_empty() && !is_ignored(rel),
+        Err(_) => false,
+    }
 }
 
 fn is_internal(repo: &Repo, p: &std::path::Path) -> bool {
@@ -128,13 +172,15 @@ fn record_change(
         None => baseline_snapshot_id.to_string(),
     };
     let post_tree = snapshot_workspace(repo)?;
+    // Nothing changed at content level (editor temp files, touches, a
+    // formatter that produced identical bytes): no event.
+    if tree_unchanged(store, &pre_snapshot_id, &post_tree)? {
+        return Ok(());
+    }
     let post_snapshot_id = store.write_snapshot(&Snapshot {
         tree: post_tree,
         created_at: Utc::now().to_rfc3339(),
     })?;
-
-    // Note: noop touches (metadata-only changes producing identical content) are
-    // already filtered upstream by content hashing in the snapshot path.
 
     // Causal join with the capture layer (see capture.rs).
     let window_secs = args.window.unwrap_or(300);
@@ -247,4 +293,52 @@ fn record_change(
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use notify::event::{AccessKind, CreateKind, DataChange, MetadataKind, RemoveKind};
+
+    #[test]
+    fn access_and_metadata_events_never_trigger_a_snapshot() {
+        assert!(!is_content_change(&EventKind::Access(AccessKind::Open(
+            notify::event::AccessMode::Read
+        ))));
+        assert!(!is_content_change(&EventKind::Access(AccessKind::Close(
+            notify::event::AccessMode::Read
+        ))));
+        assert!(!is_content_change(&EventKind::Modify(
+            ModifyKind::Metadata(MetadataKind::Any)
+        )));
+        assert!(!is_content_change(&EventKind::Other));
+    }
+
+    #[test]
+    fn content_events_do() {
+        assert!(is_content_change(&EventKind::Create(CreateKind::File)));
+        assert!(is_content_change(&EventKind::Remove(RemoveKind::File)));
+        assert!(is_content_change(&EventKind::Modify(ModifyKind::Data(
+            DataChange::Content
+        ))));
+        assert!(is_content_change(&EventKind::Modify(ModifyKind::Name(
+            notify::event::RenameMode::Any
+        ))));
+        assert!(is_content_change(&EventKind::Any));
+    }
+
+    #[test]
+    fn ignored_ledger_and_build_paths_are_not_relevant() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let root = &repo.root;
+        assert!(!is_relevant(&repo, &root.join(".causari/objects/ab/cd")));
+        assert!(!is_relevant(&repo, &root.join(".git/index")));
+        assert!(!is_relevant(&repo, &root.join("node_modules/x/1.js")));
+        assert!(!is_relevant(&repo, &root.join("target/debug/o1.o")));
+        assert!(!is_relevant(&repo, &root.join(".env.local")));
+        assert!(!is_relevant(&repo, root), "the root itself is not a change");
+        assert!(!is_relevant(&repo, Path::new("/somewhere/else/a.rs")));
+        assert!(is_relevant(&repo, &root.join("src/main.rs")));
+    }
 }

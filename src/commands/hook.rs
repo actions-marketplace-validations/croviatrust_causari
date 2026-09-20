@@ -192,13 +192,8 @@ fn record_tool_event(repo: &Repo, v: &Value, session_id: Option<&str>) -> Result
     let post_tree = snapshot_workspace(repo)?;
 
     // Skip no-op tool calls (nothing actually changed on disk).
-    if let Some(pid) = &parent_id {
-        let pre_tree = store
-            .read_snapshot(&store.read_event(pid)?.post_snapshot)?
-            .tree;
-        if pre_tree == post_tree {
-            return Ok(());
-        }
+    if crate::commit::tree_unchanged(&store, &pre_snapshot_id, &post_tree)? {
+        return Ok(());
     }
     let post_snapshot_id = store.write_snapshot(&Snapshot {
         tree: post_tree,

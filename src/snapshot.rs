@@ -30,7 +30,8 @@ fn is_secret_env_file(name: &str) -> bool {
     name == ".env" || name.starts_with(".env.")
 }
 
-fn is_ignored(rel_path: &Path) -> bool {
+/// Is this workspace-relative path excluded from snapshots?
+pub fn is_ignored(rel_path: &Path) -> bool {
     rel_path.components().any(|c| match c.as_os_str().to_str() {
         Some(s) => DEFAULT_IGNORES.contains(&s) || is_secret_env_file(s),
         None => false,
