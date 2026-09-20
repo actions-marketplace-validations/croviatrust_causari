@@ -371,7 +371,10 @@ fn generate_svg_card(report: &SurvivalReport) -> String {
         ),
         Some(r) => (
             format!("{:.1}% still at HEAD", r * 100.0),
-            format!("{} of {} lines, {} commits", v.surviving, v.introduced, v.commits),
+            format!(
+                "{} of {} lines, {} commits",
+                v.surviving, v.introduced, v.commits
+            ),
         ),
     };
     let sample_note = if v.commits > 0 && v.commits < 5 {
