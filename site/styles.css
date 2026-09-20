@@ -310,6 +310,10 @@ table td.txt, table th.txt { text-align: left; }
 .vf-drop textarea::placeholder { color: var(--fg-3); }
 .vf-drop textarea:focus { outline: 2px solid var(--fg); outline-offset: 1px; }
 .vf-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-2); margin-top: var(--s-2); }
+@media (max-width: 640px) {
+  .vf-drop { padding: var(--s-2); }
+  .vf-actions .btn { padding: 0.65rem 0.85rem; font-size: 0.9rem; }
+}
 .vf-actions input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
 .vf-actions input[type="file"]:focus-visible + label { outline: 2px solid var(--fg); outline-offset: 2px; }
 .vf-filename { font-size: var(--fs-small); color: var(--fg-3); overflow-wrap: anywhere; }
