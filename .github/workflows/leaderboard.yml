@@ -61,7 +61,7 @@ jobs:
             fi
             echo "::endgroup::"
           done
-          jq '{generated_at: (.[0].audited_at // ""), tool: "causari", method: "v1", command: "re audit <owner/repo> --json", rows: (sort_by(.repo))}' \
+          jq '{generated_at: (.[0].audited_at // ""), tool: "causari", method: "v2", command: "re audit <owner/repo> --json", rows: (sort_by(.repo))}' \
             /tmp/rows.json > site/survival-data.json
           jq -r '.rows[] | "\(.repo)\tverified:\(.verified.introduced) surv:\(.verified.surviving)\tprobable:\(.probable.introduced) surv:\(.probable.surviving)"' \
             site/survival-data.json
@@ -73,17 +73,26 @@ jobs:
           if ! curl -fsSL "$HIST_URL" -o /tmp/history.json; then
             echo '[]' > /tmp/history.json
           fi
+          # History keeps, per row, the line-weighted rate for continuity with
+          # v1 entries plus the v2 robust figures and the coverage block that
+          # says how the row was measured.
           jq --slurpfile cur site/survival-data.json '
             . + [{
               date: $cur[0].generated_at,
+              method: $cur[0].method,
               rows: [$cur[0].rows[] | {
                 repo,
                 total_commits,
+                method,
+                coverage,
                 verified: {
                   commits: .verified.commits,
                   introduced: .verified.introduced,
                   surviving: .verified.surviving,
-                  survival_rate: .verified.survival_rate
+                  survival_rate: .verified.survival_rate,
+                  capped_survival_rate: .verified.capped_survival_rate,
+                  median_survival: .verified.median_survival,
+                  largest_commit_share: .verified.largest_commit_share
                 }
               }]
             }] | .[-104:]' /tmp/history.json > site/survival-history.json
@@ -113,5 +122,5 @@ jobs:
           if git diff --cached --quiet; then
             echo "no changes"; exit 0
           fi
-          git commit -m "data: weekly survival measurements $(date -u +%Y-%m-%d) (method v1)"
+          git commit -m "data: weekly survival measurements $(date -u +%Y-%m-%d) (method v2)"
           git push origin leaderboard-data
