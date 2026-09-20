@@ -14,7 +14,7 @@
   <meta property="og:url" content="https://causari.dev/method" />
   <meta property="og:image" content="https://causari.dev/assets/og.png" />
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css?v=9be98290a2" />
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -24,7 +24,7 @@
     <a href="/" class="brand" aria-label="causari home">
       <img src="/assets/mark.svg" alt="" width="26" height="26" class="mark-light" />
       <img src="/assets/mark-white.svg" alt="" width="26" height="26" class="mark-dark" />
-      <span class="brand-name">causari</span>
+      <span class="brand-name" translate="no">causari</span>
     </a>
     <nav class="nav-links" aria-label="Primary">
       <a href="/#audit" class="hide-sm">audit</a>
@@ -39,34 +39,36 @@
 
 <main id="main" class="m-wrap">
   <h1>Method</h1>
-  <p class="m-version">v2 · applies to <code>re audit</code> from 0.1.5 and to every <a href="/reports/survival/">Survival Report</a> · sections 1–4 describe v1; the v2 paragraph below lists exactly what changed · this page changes only when the method does</p>
+  <p class="m-version">v2 · applies to <code translate="no">re audit</code> from 0.1.5 and to every <a href="/reports/survival/">Survival Report</a> · sections 1–4 describe v1; the v2 paragraph below lists exactly what changed · this page changes only when the method does</p>
 
   <p>Causari publishes counts about repositories that are not ours. The only honest way to do
   that is to publish, next to every number, exactly how it was obtained, what it cannot see,
   and how to reproduce or contest it. This page is that.</p>
 
   <h2>1. What is counted</h2>
-  <p>For a repository at a given HEAD, <code>re audit</code> walks <code>git log --no-merges</code>
+  <p>For a repository at a given HEAD, <code translate="no">re audit</code> walks <code translate="no">git log --no-merges</code>
   and classifies each commit from <strong>machine-readable metadata only</strong>: the commit
   message trailers and the author identity. No model, no heuristic on the diff, no guess from
   style. Merge commits are excluded.</p>
 
+  <div class="tbl-scroll">
   <table>
     <tr><th>Signal</th><th>Class</th></tr>
-    <tr><td>git-ai note under <code>refs/notes/ai</code></td><td>VERIFIED</td></tr>
-    <tr><td>Trailers <code>Drafted-With</code>, <code>Executed-By</code>, <code>AI-Model</code>, <code>AI-Agent</code>, <code>AI-Tool</code>, <code>AI-Assisted: yes</code> and the <code>AI-*</code> family with a positive value</td><td>VERIFIED</td></tr>
-    <tr><td><code>Co-Authored-By</code> naming a known agent identity (Claude, Copilot, aider, Codex, ChatGPT, OpenHands; Devin, Jules, Gemini and Cursor only with a bot identity or vendor domain)</td><td>VERIFIED</td></tr>
-    <tr><td>Author identity of a known agent (aider, <code>noreply@anthropic.com</code>, <code>devin-ai</code>, <code>openhands</code>, <code>cursoragent</code>, <code>google-labs-jules</code>)</td><td>VERIFIED</td></tr>
-    <tr><td>Message contains <code>(aider)</code> or <code>Generated with Claude Code</code></td><td>PROBABLE</td></tr>
+    <tr><td>git-ai note under <code translate="no">refs/notes/ai</code></td><td>VERIFIED</td></tr>
+    <tr><td>Trailers <code translate="no">Drafted-With</code>, <code translate="no">Executed-By</code>, <code translate="no">AI-Model</code>, <code translate="no">AI-Agent</code>, <code translate="no">AI-Tool</code>, <code translate="no">AI-Assisted: yes</code> and the <code translate="no">AI-*</code> family with a positive value</td><td>VERIFIED</td></tr>
+    <tr><td><code translate="no">Co-Authored-By</code> naming a known agent identity (Claude, Copilot, aider, Codex, ChatGPT, OpenHands; Devin, Jules, Gemini and Cursor only with a bot identity or vendor domain)</td><td>VERIFIED</td></tr>
+    <tr><td>Author identity of a known agent (aider, <code translate="no">noreply@anthropic.com</code>, <code translate="no">devin-ai</code>, <code translate="no">openhands</code>, <code translate="no">cursoragent</code>, <code translate="no">google-labs-jules</code>)</td><td>VERIFIED</td></tr>
+    <tr><td>Message contains <code translate="no">(aider)</code> or <code translate="no">Generated with Claude Code</code></td><td>PROBABLE</td></tr>
     <tr><td>Anything else</td><td>UNKNOWN · never counted</td></tr>
   </table>
+  </div>
 
   <p>VERIFIED and PROBABLE are never summed. Published measurements use VERIFIED only.</p>
 
   <h2>2. How survival is computed</h2>
-  <p><em>Introduced</em> = lines added by each classified commit (<code>git log --numstat</code>),
+  <p><em>Introduced</em> = lines added by each classified commit (<code translate="no">git log --numstat</code>),
   text files only, excluding lockfiles, vendored and generated paths. <em>Still at HEAD</em> = for
-  every tracked file, <code>git blame --line-porcelain HEAD</code>; a line counts for the commit
+  every tracked file, <code translate="no">git blame --line-porcelain HEAD</code>; a line counts for the commit
   blame attributes it to, capped at that commit's introduced count. The ratio is the sum over all
   classified commits, so it is <strong>line-weighted</strong>.</p>
 
@@ -92,8 +94,8 @@
     determines a repository's entire ratio. We publish it with the mark "one agent ≥ 90 %" because
     hiding it would be worse than showing it, and because the fix belongs in the method, not in the
     table.</p>
-    <p><strong>Formatting and moves count as death.</strong> <code>git blame</code> runs without
-    <code>-w</code>, <code>-M</code>, <code>-C</code>: a formatter pass, a re-indent, or moving a
+    <p><strong>Formatting and moves count as death.</strong> <code translate="no">git blame</code> runs without
+    <code translate="no">-w</code>, <code translate="no">-M</code>, <code translate="no">-C</code>: a formatter pass, a re-indent, or moving a
     function to another file re-attributes those lines.</p>
     <p><strong>Small samples.</strong> Below 5 AI-tagged commits no ratio is published.</p>
     <p><strong>Age.</strong> Survival decays with time since the commit. Early adopters look worse
@@ -103,22 +105,22 @@
   <p id="v2"><strong>Method v2</strong> (current) caps per-commit weight (a commit weighs at most the
   95th percentile of per-commit introduced counts in its repository, never more than 10,000 lines)
   and reports the capped ratio, the median per-commit ratio and the largest commit's share
-  alongside the line-weighted ratio; runs blame with <code>-w -M -C</code> and honours
-  <code>.git-blame-ignore-revs</code>; parses the trailer block with git's own rules; reads
-  <code>Assisted-by:</code>; refuses shallow clones; and writes a <code>coverage</code> block into
+  alongside the line-weighted ratio; runs blame with <code translate="no">-w -M -C</code> and honours
+  <code translate="no">.git-blame-ignore-revs</code>; parses the trailer block with git's own rules; reads
+  <code translate="no">Assisted-by:</code>; refuses shallow clones; and writes a <code translate="no">coverage</code> block into
   every result. The weekly <a href="/reports/survival/">Survival Report</a> adds bootstrap intervals
   over the sampled repositories. Every published number carries the method version that produced
   it.</p>
 
   <h2>5. Reproduce or contest any number</h2>
-<pre>curl -fsSL https://causari.dev/install.sh | sh
+<pre translate="no">curl -fsSL https://causari.dev/install.sh | sh
 re audit owner/repo --json      # the exact bytes behind the row
 re audit owner/repo --seal      # the same bytes, signed and bound to the commit
 re seal verify audit.seal.json  # or drop the file on causari.dev/verify</pre>
   <p>If your reproduction differs, or a row is wrong, open an issue with the JSON. Corrections
   are made in public and recorded in the data history. Maintainers who do not want their
   repository measured add one line to
-  <a href="https://github.com/croviatrust/causari/edit/main/.github/survival-optout.txt" rel="noopener"><code>.github/survival-optout.txt</code></a>;
+  <a href="https://github.com/croviatrust/causari/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>;
   the next weekly run drops the row and it is not re-added.</p>
 
   <h2>6. What we do not do</h2>
@@ -139,6 +141,6 @@ re seal verify audit.seal.json  # or drop the file on causari.dev/verify</pre>
     <p class="muted"><a href="/reports/survival/">Survival Report</a> · <a href="/">causari.dev</a></p>
   </div>
 </footer>
-<script src="/app.js" defer></script>
+<script src="/app.js?v=eb85cbc8d5" defer></script>
 </body>
 </html>

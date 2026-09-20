@@ -259,3 +259,6 @@ table.tbl td:first-child { font-weight: 600; white-space: nowrap; }
 .vf-unsupported[hidden] { display: none; }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+.vf-sample { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px dashed var(--line); }
+.vf-sample button { border-color: var(--line); color: var(--fg-2); }
+.vf-sample button:hover { border-color: var(--fg); }

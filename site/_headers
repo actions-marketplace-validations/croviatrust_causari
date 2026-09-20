@@ -9,11 +9,13 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
+# Referenced by every page as /styles.css?v=<content hash> (scripts/site_version.py):
+# a changed file is a new URL, so the bytes behind one URL never change.
 /styles.css
-  Cache-Control: public, max-age=86400
+  Cache-Control: public, max-age=31536000, immutable
 
 /app.js
-  Cache-Control: public, max-age=86400
+  Cache-Control: public, max-age=31536000, immutable
 
 /reports/survival/feed.xml
   Content-Type: application/atom+xml; charset=utf-8

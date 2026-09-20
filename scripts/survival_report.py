@@ -52,6 +52,8 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
+sys.path.insert(0, str(HERE))
+from site_version import asset_url  # noqa: E402  content-versioned /styles.css and /app.js
 SITE_URL = "https://causari.dev"
 REPO_URL = "https://github.com/croviatrust/causari"
 REPORTS_REL = "reports/survival"
@@ -570,7 +572,7 @@ def page_head(title: str, desc: str, url: str, image: str, jsonld: dict[str, Any
   <meta name="twitter:description" content="{esc(desc)}" />
   <meta name="twitter:image" content="{esc(image)}" />
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="{asset_url('styles.css')}" />
   <script type="application/ld+json">{json.dumps(jsonld, ensure_ascii=False).replace('</', '<\\/')}</script>
 </head>
 <body>
@@ -582,7 +584,7 @@ def page_head(title: str, desc: str, url: str, image: str, jsonld: dict[str, Any
     <a href="/" class="brand" aria-label="causari home">
       <img src="/assets/mark.svg" alt="" width="26" height="26" class="mark-light" />
       <img src="/assets/mark-white.svg" alt="" width="26" height="26" class="mark-dark" />
-      <span class="brand-name">causari</span>
+      <span class="brand-name" translate="no">causari</span>
     </a>
     <nav class="nav-links" aria-label="Primary">
       <a href="/#audit" class="hide-sm">audit</a>
@@ -606,12 +608,12 @@ def page_foot(extra: str = "") -> str:
     {extra}
     <div class="foot-bottom">
       <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Crovia</a> · <em>causari</em> is a trademark of Crovia Trust. Report text and data <a href="{LICENSE_URL}" rel="license noopener">{LICENSE}</a>.</p>
-      <p class="muted">Every number reproducible: <code>re audit &lt;owner/repo&gt; --json</code> · <a href="/method">method</a> · <a href="/{REPORTS_REL}/feed.xml">feed</a> · <a href="/">causari.dev</a></p>
+      <p class="muted">Every number reproducible: <code translate="no">re audit &lt;owner/repo&gt; --json</code> · <a href="/method">method</a> · <a href="/{REPORTS_REL}/feed.xml">feed</a> · <a href="/">causari.dev</a></p>
     </div>
   </div>
 </footer>
 
-<script src="/app.js" defer></script>
+<script src="{asset_url('app.js')}" defer></script>
 </body>
 </html>
 """
@@ -655,7 +657,7 @@ def repo_rows(rows: list[dict[str, Any]], full: bool) -> str:
         else:
             floor = r["coverage"]["sample_floor"]
             cells.append(f'<td><span class="lb-none" title="Fewer than {floor} AI-tagged commits: one commit can dominate, so no ratio is aggregated">n &lt; {floor}</span></td>')
-        cells.append(f'<td><code class="lb-repro">{esc(t)}</code></td>')
+        cells.append(f'<td><code translate="no" class="lb-repro">{esc(t)}</code></td>')
         out.append("<tr>" + "".join(cells) + "</tr>")
     return "\n".join(out)
 
@@ -712,12 +714,14 @@ def render_report(f: dict[str, Any]) -> str:
     <h3 id="not-aggregated">Measured but not aggregated</h3>
     <p class="muted small">Fewer than {m['sample_floor']} AI-tagged commits: the counts are published, the ratio is not, and the repository is left out of the aggregate above.</p>
     <div class="lb-scroll">
+      <div class="tbl-scroll">
       <table class="lb-table">
         <thead><tr><th>Repository</th><th>Commits</th><th>AI-tagged</th><th>Lines introduced</th><th>Still at HEAD</th><th>Ratio</th><th>Reproduce</th></tr></thead>
         <tbody>
 {repo_rows(f['not_aggregated'], full=False)}
         </tbody>
       </table>
+      </div>
     </div>"""
     agents = ""
     if f["by_agent"]:
@@ -725,12 +729,14 @@ def render_report(f: dict[str, Any]) -> str:
     <h3 id="by-agent">By agent, across the aggregated repositories</h3>
     <p class="muted small">Alphabetical. A commit is attributed to the agent its metadata names; one agent per commit.</p>
     <div class="lb-scroll">
+      <div class="tbl-scroll">
       <table class="lb-table">
         <thead><tr><th>Agent</th><th>Repositories</th><th>Commits</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th></tr></thead>
         <tbody>
 {agent_rows(f['by_agent'])}
         </tbody>
       </table>
+      </div>
     </div>"""
     excluded_items = [
         f"<li><strong>Shallow clones</strong> (history truncated; method {esc(m['version'])} refuses them): {esc(', '.join(ex['shallow'])) if ex['shallow'] else 'none'}.</li>",
@@ -740,7 +746,7 @@ def render_report(f: dict[str, Any]) -> str:
         excluded_items.append(f"<li><strong>Outputs not in method v2 format:</strong> {esc(', '.join(ex['not_method_v2']))}.</li>")
     excluded_items.append(
         f'<li><strong>Opted out</strong> by their maintainers: {ex["opted_out"]}. One line in '
-        f'<a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code>.github/survival-optout.txt</code></a> '
+        f'<a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a> '
         "removes a repository from the next report, no questions asked.</li>"
     )
     body = f"""
@@ -758,12 +764,14 @@ def render_report(f: dict[str, Any]) -> str:
     <h3 id="repositories">Repositories</h3>
     <p class="muted small">Alphabetical. VERIFIED commits only; PROBABLE counts are shown but never summed. <em>Capped</em>: no commit weighs more than the cap. <em>Median per commit</em>: the middle commit's own ratio. <em>Largest commit</em>: share of introduced lines from the single largest commit.</p>
     <div class="lb-scroll">
+      <div class="tbl-scroll">
       <table class="lb-table" id="repos">
         <thead><tr><th>Repository</th><th>Commits</th><th>AI-tagged</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Capped</th><th>Median per commit</th><th>Largest commit</th><th>Reproduce</th></tr></thead>
         <tbody>
 {repo_rows(f['repositories'], full=True)}
         </tbody>
       </table>
+      </div>
     </div>
 {not_agg}
 {agents}
@@ -776,16 +784,16 @@ def render_report(f: dict[str, Any]) -> str:
       <h3>Method</h3>
       <ul>
         <li><strong>Method {esc(m['version'])}</strong>, {esc(f['tool']['name'])} {esc(f['tool']['version'])}. Detection from commit metadata only; no model, no guess from the diff. Full text and known artefacts at <a href="/method">causari.dev/method</a>.</li>
-        <li><strong>Survival</strong>: <code>git blame {esc(' '.join(m['blame_flags']))}</code> at HEAD, honouring <code>.git-blame-ignore-revs</code> where present; a line counts for the commit blame attributes it to, capped at that commit's introduced count.</li>
+        <li><strong>Survival</strong>: <code translate="no">git blame {esc(' '.join(m['blame_flags']))}</code> at HEAD, honouring <code translate="no">.git-blame-ignore-revs</code> where present; a line counts for the commit blame attributes it to, capped at that commit's introduced count.</li>
         <li><strong>Cap rule</strong>: {esc(m['cap_rule'])}. The capped ratio is what one bulk commit cannot dominate.</li>
         <li><strong>Sample floor</strong>: {m['sample_floor']} VERIFIED commits. Below it a repository is measured but not aggregated.</li>
         <li><strong>Intervals</strong>: {esc(a['interval_method']['note'])}</li>
         <li><strong>Full clones only</strong>: method {esc(m['version'])} refuses shallow clones; the workflow clones each repository completely before measuring.</li>
-        <li><strong>Reproduce or contest</strong>: <code>{esc(m['command'])}</code> gives the exact bytes behind a row; the bytes of this run are under <code>repos/</code> next to this page. Open an issue with your JSON if it differs.</li>
+        <li><strong>Reproduce or contest</strong>: <code translate="no">{esc(m['command'])}</code> gives the exact bytes behind a row; the bytes of this run are under <code translate="no">repos/</code> next to this page. Open an issue with your JSON if it differs.</li>
       </ul>
     </div>
 
-    <p class="rp-cite">Cite as: <code>{esc(cite(f))}</code></p>
+    <p class="rp-cite">Cite as: <code translate="no">{esc(cite(f))}</code></p>
   </div>
 </section>
 """
@@ -820,20 +828,22 @@ def render_index(archive: list[dict[str, Any]]) -> str:
     <div class="section-head">
       <p class="eyebrow">measured weekly · git metadata only · unranked · atom feed</p>
       <h1>Survival Report</h1>
-      <p class="lede">Every week, one numbered report: for each measured open-source repository, how many lines were introduced by commits that carry machine-readable AI authorship metadata, and how many of those lines <code>git blame</code> still attributes to them at HEAD. <strong>These are counts, not grades.</strong> No rank, no colour, no verdict; rows are alphabetical; intervals describe the sampled repositories only. Every number is reproducible with one command and the <a href="/method">method and its limits</a> are public.</p>
-      <p class="rp-meta"><a href="/{REPORTS_REL}/feed.xml">Atom feed</a> · <a href="/{REPORTS_REL}/latest.json">latest.json</a> · <a href="{REPO_URL}/blob/main/docs/survival-report.md" rel="noopener">how it is made</a> · <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener">opt out</a> (<code>.github/survival-optout.txt</code>)</p>
+      <p class="lede">Every week, one numbered report: for each measured open-source repository, how many lines were introduced by commits that carry machine-readable AI authorship metadata, and how many of those lines <code translate="no">git blame</code> still attributes to them at HEAD. <strong>These are counts, not grades.</strong> No rank, no colour, no verdict; rows are alphabetical; intervals describe the sampled repositories only. Every number is reproducible with one command and the <a href="/method">method and its limits</a> are public.</p>
+      <p class="rp-meta"><a href="/{REPORTS_REL}/feed.xml">Atom feed</a> · <a href="/{REPORTS_REL}/latest.json">latest.json</a> · <a href="{REPO_URL}/blob/main/docs/survival-report.md" rel="noopener">how it is made</a> · <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener">opt out</a> (<code translate="no">.github/survival-optout.txt</code>)</p>
     </div>
 {latest_block}
     <h3 id="archive">All reports</h3>
     <div class="lb-scroll">
+      <div class="tbl-scroll">
       <table class="lb-table" id="archive-table">
         <thead><tr><th>Report</th><th>Date</th><th>Repositories</th><th>AI-tagged commits</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Method</th><th>DOI</th></tr></thead>
         <tbody>
 {rows}
         </tbody>
       </table>
+      </div>
     </div>
-    <p class="muted small">The report replaced the weekly measurements table in September 2026. Repositories are added by pull request to <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener"><code>.github/survival-repos.txt</code></a>; maintainers opt out with one line in <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code>.github/survival-optout.txt</code></a>.</p>
+    <p class="muted small">The report replaced the weekly measurements table in September 2026. Repositories are added by pull request to <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a>; maintainers opt out with one line in <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
   </div>
 </section>
 """

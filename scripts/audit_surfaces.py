@@ -190,6 +190,7 @@ def check_html(canon: dict, r: Report) -> None:
                     broken.append(f"{href} (no such id)")
                 continue
             target, _, frag = href.partition("#")
+            target = target.split("?", 1)[0]  # /styles.css?v=<hash>: the file is the path
             if not target.startswith("/"):
                 target = "/" + target
             if not site_path_exists(target, redirects):
@@ -247,6 +248,25 @@ def check_matrix(canon: dict, r: Report) -> None:
 
 
 # ---------------------------------------------------------------- release
+
+def check_assets(canon: dict, r: Report) -> None:
+    """Every page references /styles.css and /app.js at their current content
+    version (scripts/site_version.py); a stale page would render with a
+    browser's day-old cached stylesheet."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import site_version
+
+    stale = [p for p in site_version.pages() if site_version.render(p.read_text(encoding="utf-8")) != p.read_text(encoding="utf-8")]
+    if stale:
+        for p in stale:
+            r.add("assets", "high", str(p.relative_to(ROOT)), "stale /styles.css or /app.js version: run scripts/site_version.py")
+    else:
+        r.add("assets", "info", "site/**/*.html", f"asset versions current ({len(site_version.pages())} pages)")
+    for name in site_version.ASSETS:
+        block = re.search(r"^/" + re.escape(name) + r"\n((?:  .*\n?)+)", read("site/_headers"), re.M)
+        if not block or "immutable" not in block.group(1):
+            r.add("assets", "high", "site/_headers", f"/{name} must be cached immutable: its URL carries the content version")
+
 
 def check_release(canon: dict, r: Report) -> None:
     for path, needles in canon["release"]["must_mention"].items():
@@ -321,7 +341,7 @@ def main() -> int:
 
     canon = json.loads(read("canon/canon.json"))
     r = Report()
-    for check in (check_versions, check_forbidden, check_required, check_files, check_html, check_matrix, check_release):
+    for check in (check_versions, check_forbidden, check_required, check_files, check_html, check_assets, check_matrix, check_release):
         try:
             check(canon, r)
         except Exception as e:  # noqa: BLE001

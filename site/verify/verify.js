@@ -356,6 +356,23 @@
     fname.textContent = f.name + " · " + f.size + " bytes";
     f.text().then((t) => { text.value = t; verifyNow(); });
   }
+  // The embedded sample: a real seal, then the same seal with one digit of
+  // the audit JSON changed, so both outcomes are one click away.
+  const sampleEl = document.getElementById("vf-sample-data");
+  const sampleBtn = document.getElementById("vf-sample");
+  const tamperBtn = document.getElementById("vf-tamper");
+  function sampleText() { return sampleEl ? sampleEl.textContent.trim() : ""; }
+  if (sampleBtn) sampleBtn.addEventListener("click", () => {
+    const t = sampleText(); if (!t) return;
+    text.value = JSON.stringify(JSON.parse(t), null, 2); fname.textContent = "sample: this repository's audit seal"; file.value = ""; verifyNow();
+  });
+  if (tamperBtn) tamperBtn.addEventListener("click", () => {
+    const t = sampleText(); if (!t) return;
+    const b = JSON.parse(t);
+    // Raise the surviving-lines count of the first agent by one, inside the sealed audit JSON.
+    b.subject.audit_json = b.subject.audit_json.replace(/("surviving":\s*)(\d+)/, (m, k, n) => k + String(Number(n) + 1));
+    text.value = JSON.stringify(b, null, 2); fname.textContent = "sample with one digit changed"; file.value = ""; verifyNow();
+  });
   run.addEventListener("click", verifyNow);
   clear.addEventListener("click", () => { text.value = ""; fname.textContent = ""; file.value = ""; reset(); });
   file.addEventListener("change", () => load(file.files[0]));
