@@ -1,5 +1,54 @@
 use clap::{Args, Parser, Subcommand};
 
+/// Top-level help, grouped by what the user is trying to do. clap lists
+/// subcommands flat; this template replaces that list, so every visible
+/// subcommand must appear here (a test enforces it).
+pub const HELP_TEMPLATE: &str = "\
+{before-help}{about-with-newline}
+{usage-heading} {usage}
+
+Measure:
+  audit     AI-tagged code still alive at HEAD of any git repository (git metadata only)
+  churn     Survival of AI-attributed lines in the ledger, per agent; --json
+  report    HTML view of churn
+
+Record (the ledger, in .causari/):
+  init      Start a ledger in this repository
+  record    Record one agent action (flags or JSON on stdin)
+  watch     Record every file change as an event (passive recorder)
+  hook      Install agent-side hooks (`re hook claude-code`)
+  proxy     Local LLM proxy: prompt, completion, tokens, cost per exchange
+  mcp       Run as an MCP server (causari_record / recall / why)
+
+Ask (queries over the ledger):
+  log       Recent events
+  show      One event: prompt, model, tokens, cost, evidence
+  why       The event behind a line: `re why path/to/file:42`
+  trace     Everything that led to a line, transitively
+  impact    Everything that flowed from an event
+  lens      A file annotated with per-line provenance
+  diff      What one event changed (or a range)
+  find      Search prompts, messages and tools
+
+Move (sessions and time):
+  revert    Put the workspace back to before an event
+  bisect    Find the event that broke a command
+  fork      Start a new session from here
+  sessions  List sessions
+  switch    Switch to a session and sync the workspace
+
+Prove (offline-verifiable receipts):
+  seal      Issue, list and verify Crovia Seals
+  proof     Deprecated: use `re audit --seal` and `re seal verify`
+
+Experimental:
+  skill     Distill and verify signed units of past work
+  brief     Markdown briefing of past work for a model's context
+  guard     Substring rules over recent changes; --fail-on to gate
+
+Options:
+{options}{after-help}";
+
 #[derive(Parser, Debug)]
 #[command(
     name = "causari",
@@ -9,7 +58,8 @@ use clap::{Args, Parser, Subcommand};
     long_about = "Causari measures how many lines from AI-tagged commits are still alive in a \
                   git repository (`re audit`, any repo, no setup), and records the prompt, \
                   model and files behind every agent edit into a local, append-only ledger \
-                  you can query like git. `causari` and `re` are the same program."
+                  you can query like git. `causari` and `re` are the same program.",
+    help_template = HELP_TEMPLATE
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -83,13 +133,13 @@ pub enum Command {
     /// Scan recent events for risky patterns (watchdog)
     Guard(GuardArgs),
 
-    /// Measure how much AI-written code survived vs was rewritten (waste analysis)
+    /// Survival of AI-attributed lines in the ledger, per agent (a count, not a grade)
     Churn(ChurnArgs),
 
-    /// Retroactive Group-0 audit: how much AI code survived in this git repo?
+    /// How much AI-tagged code is still alive at HEAD of any git repository (git metadata only)
     Audit(AuditArgs),
 
-    /// Generate a shareable HTML dashboard of AI code-survival and waste
+    /// HTML view of `re churn` for sharing
     Report(ReportArgs),
 
     /// Run a local LLM capture proxy (OpenAI/Anthropic compatible).
@@ -543,4 +593,40 @@ pub struct McpArgs {
     /// then exit. Without this flag, Causari runs as an MCP server on stdio.
     #[arg(long)]
     pub install: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    /// The grouped help replaces clap's own subcommand list, so a new
+    /// subcommand that is not added to `HELP_TEMPLATE` would be invisible.
+    #[test]
+    fn every_visible_subcommand_is_in_the_grouped_help() {
+        let cmd = Cli::command();
+        let listed: Vec<&str> = HELP_TEMPLATE
+            .lines()
+            .filter(|l| l.starts_with("  ") && !l.starts_with("   "))
+            .filter_map(|l| l.split_whitespace().next())
+            .collect();
+        for sub in cmd.get_subcommands().filter(|c| !c.is_hide_set()) {
+            assert!(
+                listed.contains(&sub.get_name()),
+                "subcommand `{}` is missing from HELP_TEMPLATE",
+                sub.get_name()
+            );
+        }
+        for name in &listed {
+            assert!(
+                cmd.find_subcommand(name).is_some(),
+                "HELP_TEMPLATE lists `{name}`, which is not a subcommand"
+            );
+        }
+    }
+
+    #[test]
+    fn cli_definition_is_consistent() {
+        Cli::command().debug_assert();
+    }
 }

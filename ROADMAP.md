@@ -95,8 +95,9 @@ public key alone; the first report is deposited with a DOI.
 
 - [x] Identity: `∵` mark, monospace wordmark, monochrome palette, glyph set
       (`∵`, `⊢`, `·`, `—`), OG images, audit card, badge, site restyle.
-- [~] Binary `causari` with `re` as alias (done). Open: `--help` grouped by
-      area (record · ask · measure · prove · integrate).
+- [x] Binary `causari` with `re` as alias; `--help` grouped by area
+      (measure · record · ask · move · prove · experimental), with a test
+      that every subcommand is listed.
 - [~] Signed SLSA attestations on every archive, non-empty release notes,
       Action verifies the checksum, Homebrew tap (`croviatrust/homebrew-tap`),
       Scoop bucket (`croviatrust/scoop-bucket`) — done; crates.io: 0.1.5
