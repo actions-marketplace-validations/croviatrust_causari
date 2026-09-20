@@ -1838,8 +1838,12 @@ mod tests {
 
     // -- end-to-end on a real synthetic git repo -------------------------------
 
+    /// Git with a fixed identity and no commit signing: the user's global
+    /// signing setup (a slow or interactive signer) must not shape the
+    /// synthetic repositories these tests build.
     fn run_git(dir: &Path, args: &[&str]) {
         let ok = Command::new("git")
+            .args(["-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"])
             .args(args)
             .current_dir(dir)
             .env("GIT_AUTHOR_NAME", "Tarik")

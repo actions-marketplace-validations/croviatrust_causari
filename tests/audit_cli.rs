@@ -6,8 +6,11 @@ use std::{
     process::{Command, Output},
 };
 
+/// Git with a fixed identity and no commit signing, so the user's global
+/// signing setup cannot slow down or block the synthetic repositories.
 fn git(dir: &Path, args: &[&str]) {
     let status = Command::new("git")
+        .args(["-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"])
         .args(args)
         .current_dir(dir)
         .env("GIT_AUTHOR_NAME", "Tarik")
