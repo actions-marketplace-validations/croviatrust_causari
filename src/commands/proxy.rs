@@ -214,24 +214,32 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
         .map(|h| h.value.as_str().to_string());
 
     // Forward upstream. No overall timeout: SSE streams can run for minutes.
-    let agent = ureq::AgentBuilder::new()
-        .timeout_connect(Duration::from_secs(15))
-        .build();
-    let mut req = agent.request(method.as_str(), &full_url);
+    // Non-2xx still has a body the client needs to see (error details), so
+    // status codes are never turned into errors here.
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_connect(Some(Duration::from_secs(15)))
+        .http_status_as_error(false)
+        .build()
+        .into();
+    let mut req = ureq::http::Request::builder()
+        .method(method.as_str())
+        .uri(&full_url);
     for name in FORWARDED_HEADERS {
         if let Some(h) = request.headers().iter().find(|h| h.field.equiv(name)) {
-            req = req.set(name, h.value.as_str());
+            req = req.header(*name, h.value.as_str());
         }
     }
     let upstream = if method == Method::Get {
-        req.call()
+        req.body(())
+            .map_err(|e| anyhow!("invalid upstream request: {}", e))
+            .and_then(|r| agent.run(r).map_err(Into::into))
     } else {
-        req.send_bytes(&body)
+        req.body(body.as_slice())
+            .map_err(|e| anyhow!("invalid upstream request: {}", e))
+            .and_then(|r| agent.run(r).map_err(Into::into))
     };
     let upstream = match upstream {
         Ok(r) => r,
-        // Non-2xx still has a body the client needs to see (error details).
-        Err(ureq::Error::Status(_, r)) => r,
         Err(e) => {
             let resp = Response::from_string(format!("causari proxy: upstream unreachable: {}", e))
                 .with_status_code(502);
@@ -240,9 +248,11 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
         }
     };
 
-    let status = upstream.status();
+    let status = upstream.status().as_u16();
     let content_type = upstream
-        .header("content-type")
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
         .unwrap_or("application/octet-stream")
         .to_string();
 
@@ -251,14 +261,12 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
     // headers are dropped: the tee re-frames the body, and ureq may already
     // have decoded the content encoding.
     let mut headers = Vec::new();
-    for name in upstream.headers_names() {
-        if is_hop_by_hop(&name) {
+    for (name, value) in upstream.headers() {
+        if is_hop_by_hop(name.as_str()) {
             continue;
         }
-        for value in upstream.all(&name) {
-            if let Ok(h) = Header::from_bytes(name.as_bytes(), value.as_bytes()) {
-                headers.push(h);
-            }
+        if let Ok(h) = Header::from_bytes(name.as_str().as_bytes(), value.as_bytes()) {
+            headers.push(h);
         }
     }
     if !headers.iter().any(|h| h.field.equiv("content-type")) {
@@ -271,7 +279,7 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
     // Tee-stream the response: client gets bytes live, we keep a copy.
     let captured = Arc::new(Mutex::new(Vec::new()));
     let tee = Tee {
-        inner: upstream.into_reader(),
+        inner: upstream.into_body().into_reader(),
         buf: Arc::clone(&captured),
     };
     let response = Response::new(StatusCode(status), headers, tee, None, None);
