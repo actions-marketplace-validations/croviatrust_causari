@@ -328,7 +328,12 @@ fn prove(
 #[derive(Debug, Default)]
 struct Outer {
     sealed: bool,
+    /// The Seal verifies and binds the query and the proof.
     seal_ok: Option<bool>,
+    /// The Seal's own signature and structure verify, whatever it binds.
+    /// A valid seal over a forged proof is still a valid seal: `tacet-pnx`
+    /// reports the two separately and so does this.
+    seal_signature_ok: Option<bool>,
     seal_errors: Vec<String>,
     issuer_id: Option<String>,
     seal_id: Option<String>,
@@ -351,9 +356,13 @@ fn verify_any(obj: &Value, assets: Option<&BTreeMap<String, Vec<u8>>>) -> (Verif
         outer.sealed = true;
         let s = &obj["seal"];
         let mut errs = Vec::new();
-        if let Err(e) = seal::verify_seal(s) {
-            errs.push(format!("{e:#}"));
-        }
+        let signature_ok = match seal::verify_seal(s) {
+            Ok(()) => true,
+            Err(e) => {
+                errs.push(format!("{e:#}"));
+                false
+            }
+        };
         let bind = |field: &str, value: &Value| -> Option<String> {
             let hash = seal::csc1_serialize(value)
                 .map(|b| format!("sha256:{}", seal::sha256_hex(&b)))
@@ -370,6 +379,7 @@ fn verify_any(obj: &Value, assets: Option<&BTreeMap<String, Vec<u8>>>) -> (Verif
             errs.push("query does not describe this proof".to_string());
         }
         outer.seal_ok = Some(errs.is_empty());
+        outer.seal_signature_ok = Some(signature_ok);
         outer.seal_errors = errs;
         outer.issuer_id = s["issuer"]["id"].as_str().map(String::from);
         outer.seal_id = s["seal_id"].as_str().map(String::from);
@@ -417,6 +427,7 @@ fn verify(path: &Path, assets: &PnxAssetArgs, strict: bool, json_out: bool) -> R
         });
         if outer.sealed {
             report["seal_ok"] = json!(outer.seal_ok);
+            report["seal_signature_ok"] = json!(outer.seal_signature_ok);
             report["seal_errors"] = json!(outer.seal_errors);
             report["issuer_id"] = json!(outer.issuer_id);
             report["seal_id"] = json!(outer.seal_id);

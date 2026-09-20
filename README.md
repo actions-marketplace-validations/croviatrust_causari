@@ -315,6 +315,9 @@ proves an agent's egress carried no protected bytes, **Causari** proves why a
 line of code exists and whether it is still there. Same rules everywhere:
 reproducible numbers, no verdicts, offline verification, limits stated first.
 
+Role in the Crovia canon — Sibling product: proof of cause for AI-written code
+(audit + local ledger); Seal issuer for agent completions and audit results.
+
 ## License
 
 Apache-2.0 (see `LICENSE`). "Causari" is a trademark of Crovia Trust; the
