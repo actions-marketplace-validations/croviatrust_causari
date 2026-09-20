@@ -19,14 +19,22 @@ use crate::seal::{SealGenerator, SealIssuer, SealSubject};
 /// A local, single-binary LLM proxy. Point any agent at it
 /// (`OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`) and every prompt, completion,
 /// token count and dollar flows through Causari on its way to the provider.
-/// Bytes are streamed to the client in real time (tee capture), so streaming
-/// agents feel no difference.
+/// Only `POST`s to `/chat/completions`, `/messages` and `/responses` are
+/// captured; everything else is relayed untouched. Response bodies are
+/// tee-copied while being relayed. Note that `tiny_http` frames chunked
+/// bodies through an 8 KB buffer, so streamed tokens reach the client in
+/// 8 KB bursts (short answers arrive whole at completion) — not token by
+/// token.
 ///
-/// Captured exchanges land in `.causari/capture/exchanges.jsonl`, where
-/// `re watch` joins them with filesystem changes by *content*: the lines that
-/// appear in your files are searched inside the completions that preceded
-/// them. That join is what turns "12 files changed" into "12 files changed
-/// because this prompt asked this model, and it cost $0.14".
+/// Captured exchanges land in `.causari/capture/exchanges.jsonl`. The
+/// recorded completion covers text *and* tool-call payloads (OpenAI chat
+/// `tool_calls`, Anthropic `tool_use`, the Responses API), which is where
+/// coding agents put the code they write. `re watch` joins exchanges with
+/// filesystem changes by *content*: the lines that appear in your files are
+/// searched inside the completions that preceded them. That join is what
+/// turns "12 files changed" into "12 files changed because this prompt asked
+/// this model, and it cost $0.14". The Claude Code hook does the same join
+/// from its side to pick up model and cost.
 pub fn run(args: ProxyArgs) -> Result<()> {
     let repo = Arc::new(Repo::discover()?);
     let port = args.port.unwrap_or(4242);

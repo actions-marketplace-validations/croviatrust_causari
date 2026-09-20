@@ -25,6 +25,11 @@ use crate::store::Store;
 /// - PostToolUse (Edit|Write|MultiEdit|NotebookEdit) → `re hook-event post-tool`
 ///   (records a full Causari event: snapshot, prompt, tool, file)
 ///
+/// Hooks carry no model, token or cost information. When Claude Code also
+/// runs through `re proxy` (`ANTHROPIC_BASE_URL`), the post-tool event
+/// borrows those from the one recent Claude exchange whose completion
+/// contains the lines it just wrote, and claims that exchange.
+///
 /// Where hooks don't exist (Cursor, custom agents), `re proxy` + `re watch`
 /// cover the same ground via content correlation.
 pub fn run(args: HookArgs) -> Result<()> {

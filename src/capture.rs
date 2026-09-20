@@ -17,6 +17,11 @@ use crate::repo::Repo;
 // that appeared in a file also appeared in a model's answer moments before,
 // the two are causally linked — prompt, model, tokens and cost get attached
 // to the filesystem event. No agent cooperation required.
+//
+// The Claude Code hook (`re hook-event post-tool`) runs the same join in the
+// other direction: it knows the file and the prompt exactly, and borrows
+// model, tokens and cost from the one recent Claude exchange whose
+// completion contains the lines it just wrote.
 
 /// A single LLM request/response captured by `re proxy`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,12 +38,19 @@ pub struct Exchange {
     /// Best-effort agent identity (from the User-Agent header).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
+    /// The model that served the call: the response's `model` field when the
+    /// provider sends one (a dated snapshot behind an alias), otherwise the
+    /// model the client requested.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// The last user message in the request (the task that drove the call).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<String>,
-    /// Full assistant text, assembled from SSE deltas when streaming.
+    /// The completion as join material: the assistant's plain text, then the
+    /// string values of every tool call it made (OpenAI `tool_calls`
+    /// arguments, Anthropic `tool_use` input, Responses `function_call`
+    /// arguments) — file paths and file contents included. Assembled from
+    /// SSE deltas when streaming. Reasoning, images and audio are not kept.
     #[serde(default)]
     pub response_text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
