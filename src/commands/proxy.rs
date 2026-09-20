@@ -6,7 +6,7 @@ use std::time::Duration;
 use tiny_http::{Header, Method, Response, Server, StatusCode};
 
 use crate::capture::{
-    Exchange, append_jsonl, estimate_cost, exchanges_path, extract_prompt, now_ms,
+    Exchange, ParsedResponse, append_jsonl, estimate_cost, exchanges_path, extract_prompt, now_ms,
     parse_response_json, parse_sse,
 };
 use crate::cli::ProxyArgs;
@@ -201,7 +201,7 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
 
     // Request-side metadata (model, prompt, agent identity).
     let body_json: Option<serde_json::Value> = serde_json::from_slice(&body).ok();
-    let model = body_json
+    let requested_model = body_json
         .as_ref()
         .and_then(|v| v.get("model"))
         .and_then(|m| m.as_str())
@@ -293,14 +293,22 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
         .lock()
         .map_err(|_| anyhow!("capture buffer poisoned"))?
         .clone();
-    let (text, tokens_in, tokens_out) = if content_type.contains("event-stream") {
+    let parsed = if content_type.contains("event-stream") {
         parse_sse(&String::from_utf8_lossy(&bytes))
     } else {
-        match serde_json::from_slice::<serde_json::Value>(&bytes) {
-            Ok(v) => parse_response_json(&v),
-            Err(_) => (String::new(), None, None),
-        }
+        serde_json::from_slice::<serde_json::Value>(&bytes)
+            .map(|v| parse_response_json(&v))
+            .unwrap_or_default()
     };
+    let ParsedResponse {
+        text,
+        tokens_in,
+        tokens_out,
+        model: served_model,
+    } = parsed;
+    // The response names the model that actually answered (a dated snapshot
+    // behind an alias, a fallback): that is what was billed.
+    let model = served_model.or(requested_model);
     let cost_usd = estimate_cost(model.as_deref(), tokens_in, tokens_out);
 
     // Optionally emit a Crovia Seal over the exact wire bytes: the request
