@@ -10,6 +10,7 @@ mod index;
 mod keys;
 mod object;
 mod pnx;
+mod pnx_run;
 mod proof;
 mod provenance;
 mod repo;
