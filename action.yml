@@ -19,6 +19,26 @@ inputs:
     description: "Causari release tag to install (default: latest)"
     required: false
     default: "latest"
+  seal:
+    description: >-
+      Also issue a Crovia Seal (crovia.seal.v1) over the audit JSON, bound
+      to the audited commit and method version, written to
+      causari-audit.seal.json and uploaded as the `causari-audit-seal`
+      artifact. Anyone verifies it offline with `re seal verify FILE` or at
+      https://causari.dev/verify. Without `seal-key` the runner signs with a
+      key created for this run: the seal then proves the numbers were not
+      altered after the run, not who ran it.
+    required: false
+    default: "false"
+  seal-key:
+    description: >-
+      Hex-encoded 32-byte Ed25519 seed of a persistent issuer identity: the
+      contents of .causari/keys/seal-issuer.key after `re init` (public key
+      shown by `re seal issuer`). Pass it from a secret. Every run starts a
+      new chain at sequence 0 under this key unless .causari/seal/ is
+      restored between runs. Ignored unless `seal` is true.
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -55,13 +75,45 @@ runs:
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
         fi
 
+    - name: Install seal issuer key
+      if: inputs.seal == 'true' && inputs['seal-key'] != ''
+      shell: bash
+      env:
+        SEAL_KEY: ${{ inputs['seal-key'] }}
+      # `re audit --seal` signs with the audited repository's own issuer
+      # identity (.causari/keys/seal-issuer.key), creating one when absent.
+      # Seeding the file first makes every run sign under the same key.
+      run: |
+        set -e
+        case "$SEAL_KEY" in
+          *[!0-9a-fA-F]*|'') echo "::error::seal-key must be 64 hex characters"; exit 1 ;;
+        esac
+        [ "${#SEAL_KEY}" = "64" ] || { echo "::error::seal-key must be 64 hex characters (got ${#SEAL_KEY})"; exit 1; }
+        mkdir -p .causari/keys
+        (umask 077; printf '%s' "$SEAL_KEY" > .causari/keys/seal-issuer.key)
+
     - name: Run survival audit
       shell: bash
       # Needs the full history: `actions/checkout` defaults to fetch-depth 1,
       # which `re audit` refuses. Set `fetch-depth: 0` on the checkout step.
+      # With `seal`, the bundle is written next to the summary and the
+      # summary ends with one paragraph naming the seal.
       run: |
-        re audit --summary | tee causari-audit.md
+        set -o pipefail
+        if [ "${{ inputs.seal }}" = "true" ]; then
+          re audit --summary --seal --output causari-audit.seal.json | tee causari-audit.md
+        else
+          re audit --summary | tee causari-audit.md
+        fi
         cat causari-audit.md >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload audit seal
+      if: inputs.seal == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: causari-audit-seal
+        path: causari-audit.seal.json
+        if-no-files-found: error
 
     - name: Comment on PR
       if: inputs.comment == 'true' && github.event_name == 'pull_request'

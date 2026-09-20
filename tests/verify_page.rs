@@ -86,7 +86,10 @@ fn browser_verifier_agrees_with_the_cli() {
 
     // Three seals in one chain: the page must see gaps and fragments.
     re(dir, &["audit", "--seal", "--json"]);
-    re(dir, &["audit", "--seal", "--json", "-o", "second.seal.json"]);
+    re(
+        dir,
+        &["audit", "--seal", "--json", "-o", "second.seal.json"],
+    );
     re(dir, &["audit", "--seal", "--json", "-o", "third.seal.json"]);
     let bundle = dir.join("audit.seal.json");
     let chain = dir.join(".causari/seal/seals.jsonl");
@@ -107,6 +110,9 @@ fn browser_verifier_agrees_with_the_cli() {
         "check_verify.mjs exit {:?}\n{stdout}\n{stderr}",
         out.status.code()
     );
-    assert!(stdout.contains("every case agrees with the CLI"), "{stdout}");
+    assert!(
+        stdout.contains("every case agrees with the CLI"),
+        "{stdout}"
+    );
     assert!(!stdout.contains("FAIL"), "{stdout}");
 }

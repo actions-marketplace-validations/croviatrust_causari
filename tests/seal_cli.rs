@@ -240,6 +240,28 @@ fn altered_bundles_exit_1_and_garbage_exits_2() {
 }
 
 #[test]
+fn summary_mode_ends_with_a_markdown_seal_note() {
+    let temp = repo_with_history();
+    let dir = temp.path();
+    let out = re(dir, &["audit", "--summary", "--seal", "-o", "ci.seal.json"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let md = stdout(&out);
+    let bundle: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dir.join("ci.seal.json")).unwrap()).unwrap();
+    let seal_id = bundle["seal"]["seal_id"].as_str().unwrap();
+    let note = md.lines().last().unwrap();
+    assert!(note.starts_with("Sealed: `"), "{md}");
+    assert!(note.contains(seal_id), "{md}");
+    assert!(note.contains(&head(dir)[..12]), "{md}");
+    assert!(note.contains("`re seal verify ci.seal.json`"), "{md}");
+    assert!(note.contains("causari.dev/verify"), "{md}");
+    assert!(note.contains("not that they are true"), "{md}");
+    // The terminal block stays out of the Markdown.
+    assert!(!md.contains("issuer   urn:"), "{md}");
+    assert!(!md.contains("\u{1b}["), "no ANSI in Markdown: {md}");
+}
+
+#[test]
 fn shallow_clone_is_refused_with_exit_2_and_sealed_only_when_allowed() {
     let origin = repo_with_history();
     let clones = tempfile::tempdir().unwrap();

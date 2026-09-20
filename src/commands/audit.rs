@@ -225,30 +225,47 @@ pub fn run(args: AuditArgs) -> Result<()> {
     if let Some((out, bundle)) = &sealed {
         let seal = &bundle["seal"];
         println!();
-        println!(
-            "{} seal {} written to {}",
-            "✓".green().bold(),
-            seal["seal_id"].as_str().unwrap_or("?").cyan(),
-            out.display()
-        );
-        println!(
-            "  issuer   {}  (sequence {})",
-            seal["issuer"]["id"].as_str().unwrap_or("?"),
-            seal["chain"]["sequence"]
-        );
-        println!(
-            "  commit   {}  method {}",
-            seal["generator"]["params"]["commit"]
-                .as_str()
-                .unwrap_or("?"),
-            seal["generator"]["params"]["method"]
-                .as_str()
-                .unwrap_or("?")
-        );
-        println!(
-            "  verify   {} — or drop the file on https://causari.dev/verify",
-            format!("re seal verify {}", out.display()).cyan()
-        );
+        if args.summary {
+            // The summary is Markdown for a PR comment or job summary; the
+            // seal note is one paragraph of it.
+            println!(
+                "Sealed: `{}` (crovia.seal.v1) over this audit of `{}`, written to `{}`. \
+                 Verify offline with `re seal verify {}` or at https://causari.dev/verify — \
+                 the seal proves these exact numbers were signed for this commit, not that they are true.",
+                seal["seal_id"].as_str().unwrap_or("?"),
+                seal["generator"]["params"]["commit"]
+                    .as_str()
+                    .map(|c| &c[..c.len().min(12)])
+                    .unwrap_or("?"),
+                out.display(),
+                out.display()
+            );
+        } else {
+            println!(
+                "{} seal {} written to {}",
+                "✓".green().bold(),
+                seal["seal_id"].as_str().unwrap_or("?").cyan(),
+                out.display()
+            );
+            println!(
+                "  issuer   {}  (sequence {})",
+                seal["issuer"]["id"].as_str().unwrap_or("?"),
+                seal["chain"]["sequence"]
+            );
+            println!(
+                "  commit   {}  method {}",
+                seal["generator"]["params"]["commit"]
+                    .as_str()
+                    .unwrap_or("?"),
+                seal["generator"]["params"]["method"]
+                    .as_str()
+                    .unwrap_or("?")
+            );
+            println!(
+                "  verify   {} — or drop the file on https://causari.dev/verify",
+                format!("re seal verify {}", out.display()).cyan()
+            );
+        }
     }
 
     if args.badge {
