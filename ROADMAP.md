@@ -106,8 +106,9 @@ public key alone; the first report is deposited with a DOI.
 - [x] One legal entity name (Crovia Trust) in NOTICE, trademark line, Cargo
       authors, Action metadata and the canon; git author fixed.
 - [~] MCP registry: `server.json` validated, published by the release
-      workflow after the crate (GitHub OIDC). Open: Claude Code plugin,
-      Cursor MCP directory, awesome lists.
+      workflow after the crate (GitHub OIDC). Claude Code plugin: the repo
+      is a marketplace (`/plugin marketplace add croviatrust/causari`).
+      Open: Cursor MCP directory, awesome lists.
 - [x] Family canon: `canon/canon.json` + `scripts/audit_surfaces.py`
       (claims, versions, links, glyphs, installers vs release), in CI on every
       push; live site weekly.
