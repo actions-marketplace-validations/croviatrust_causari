@@ -10,10 +10,16 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::audit::{
-    AuditOptions, CAP_CEILING_LINES, IGNORE_REVS_FILE, METHOD_VERSION, SurvivalReport,
-    SurvivalStat, audit_repo,
+    AuditOptions, CAP_CEILING_LINES, IGNORE_REVS_FILE, METHOD_VERSION, ShallowCloneRefused,
+    SurvivalReport, SurvivalStat, audit_repo,
 };
+use crate::audit_seal::{self, AuditBinding};
 use crate::cli::AuditArgs;
+use crate::exit::exit_with;
+use crate::repo::Repo;
+use crate::seal::SealIssuer;
+
+const DEFAULT_SEAL_FILE: &str = "audit.seal.json";
 
 /// Best-effort temp-clone guard: removes the checkout when the audit is done.
 struct TempClone(PathBuf);
@@ -102,16 +108,117 @@ fn report_json(report: &SurvivalReport) -> Result<serde_json::Value> {
     Ok(value)
 }
 
+/// The exact bytes `--json` prints: pretty JSON and one newline. An audit
+/// seal commits to these bytes, so they are produced in one place.
+fn audit_json_bytes(report: &SurvivalReport) -> Result<Vec<u8>> {
+    let mut bytes = serde_json::to_vec_pretty(&report_json(report)?)?;
+    bytes.push(b'\n');
+    Ok(bytes)
+}
+
+/// The repository whose seal issuer signs an audit. A local audit signs
+/// with the audited repository's own identity, so audit seals and exchange
+/// seals of one project form one chain; `.causari/` is created there on
+/// first use, as `re init` would. A temp clone has no identity of its own:
+/// the current directory's repository signs.
+fn issuer_repo(dir: &Path, is_temp_clone: bool) -> Result<Repo> {
+    if !is_temp_clone {
+        if let Ok(repo) = Repo::discover_from(dir) {
+            return Ok(repo);
+        }
+    }
+    if let Ok(repo) = Repo::discover() {
+        return Ok(repo);
+    }
+    if is_temp_clone {
+        bail!(
+            "--seal needs an issuer identity: run `re init` in the directory that should sign \
+             (its .causari/keys/seal-issuer.key and seal chain are used), then audit again"
+        );
+    }
+    let repo = Repo::init(dir)?;
+    let _ = repo.ensure_gitignored();
+    eprintln!(
+        "created {} for the seal issuer key and chain (gitignored)",
+        repo.dir.display()
+    );
+    Ok(repo)
+}
+
+/// Issue the seal over `audit_json` and write the bundle to `out`.
+fn seal_audit(
+    dir: &Path,
+    is_temp_clone: bool,
+    args: &AuditArgs,
+    report: &SurvivalReport,
+    audit_json: &[u8],
+) -> Result<(PathBuf, serde_json::Value)> {
+    let binding = AuditBinding {
+        commit: crate::audit::head_commit(dir)?,
+        method: report.coverage.method.to_string(),
+        allow_shallow: args.allow_shallow,
+        shallow: report.coverage.shallow,
+        repo: audit_seal::repo_label(dir),
+    };
+    let repo = issuer_repo(dir, is_temp_clone)?;
+    let mut issuer = SealIssuer::load_or_create(&repo, None)?;
+    let bundle = audit_seal::issue(&mut issuer, audit_json, &binding)?;
+    let out = args
+        .output
+        .clone()
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_SEAL_FILE));
+    let mut text = serde_json::to_string_pretty(&bundle)?;
+    text.push('\n');
+    std::fs::write(&out, text).with_context(|| format!("writing {}", out.display()))?;
+    Ok((out, bundle))
+}
+
 pub fn run(args: AuditArgs) -> Result<()> {
     let (dir, tmp_clone) = resolve_target(args.target.as_deref())?;
     let opts = AuditOptions {
         allow_shallow: args.allow_shallow,
     };
-    let report = audit_repo(&dir, &opts).context("audit failed")?;
+    let report = audit_repo(&dir, &opts).map_err(|e| {
+        if e.is::<ShallowCloneRefused>() {
+            exit_with(2, e)
+        } else {
+            e.context("audit failed")
+        }
+    })?;
+
+    let audit_json = if args.json || args.seal {
+        Some(audit_json_bytes(&report)?)
+    } else {
+        None
+    };
+    // Seal before printing: a failed issuance must not leave a report on
+    // stdout that looks sealed.
+    let sealed = if args.seal {
+        let bytes = audit_json.as_deref().unwrap_or_default();
+        Some(seal_audit(
+            &dir,
+            tmp_clone.is_some(),
+            &args,
+            &report,
+            bytes,
+        )?)
+    } else {
+        None
+    };
 
     if args.json {
-        serde_json::to_writer_pretty(std::io::stdout(), &report_json(&report)?)?;
-        println!();
+        let mut stdout = std::io::stdout().lock();
+        stdout.write_all(audit_json.as_deref().unwrap_or_default())?;
+        stdout.flush()?;
+        if let Some((out, bundle)) = &sealed {
+            // stdout carries exactly the sealed bytes; the notice goes elsewhere.
+            eprintln!(
+                "seal {} (sequence {}) written to {}",
+                bundle["seal"]["seal_id"].as_str().unwrap_or("?"),
+                bundle["seal"]["chain"]["sequence"],
+                out.display()
+            );
+        }
         return Ok(());
     }
 
@@ -129,6 +236,52 @@ pub fn run(args: AuditArgs) -> Result<()> {
             );
             println!(
                 "        `re init` starts the ledger here; `re hook claude-code` records Claude Code sessions."
+            );
+        }
+    }
+
+    if let Some((out, bundle)) = &sealed {
+        let seal = &bundle["seal"];
+        println!();
+        if args.summary {
+            // The summary is Markdown for a PR comment or job summary; the
+            // seal note is one paragraph of it.
+            println!(
+                "Sealed: `{}` (crovia.seal.v1) over this audit of `{}`, written to `{}`. \
+                 Verify offline with `re seal verify {}` or at https://causari.dev/verify — \
+                 the seal proves these exact numbers were signed for this commit, not that they are true.",
+                seal["seal_id"].as_str().unwrap_or("?"),
+                seal["generator"]["params"]["commit"]
+                    .as_str()
+                    .map(|c| &c[..c.len().min(12)])
+                    .unwrap_or("?"),
+                out.display(),
+                out.display()
+            );
+        } else {
+            println!(
+                "{} seal {} written to {}",
+                "✓".green().bold(),
+                seal["seal_id"].as_str().unwrap_or("?").cyan(),
+                out.display()
+            );
+            println!(
+                "  issuer   {}  (sequence {})",
+                seal["issuer"]["id"].as_str().unwrap_or("?"),
+                seal["chain"]["sequence"]
+            );
+            println!(
+                "  commit   {}  method {}",
+                seal["generator"]["params"]["commit"]
+                    .as_str()
+                    .unwrap_or("?"),
+                seal["generator"]["params"]["method"]
+                    .as_str()
+                    .unwrap_or("?")
+            );
+            println!(
+                "  verify   {} — or drop the file on https://causari.dev/verify",
+                format!("re seal verify {}", out.display()).cyan()
             );
         }
     }

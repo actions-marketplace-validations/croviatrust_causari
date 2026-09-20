@@ -41,6 +41,13 @@
 /reports/survival/*/*/card.png
   Cache-Control: public, max-age=86400
 
+# The verifier promises to make no network request: the policy enforces it
+# (connect-src 'none'), and the scripts are pinned to this origin only.
+/verify/*
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'
+  Cache-Control: public, max-age=3600
+
 /install.sh
   Content-Type: text/x-shellscript; charset=utf-8
   Cache-Control: public, max-age=300

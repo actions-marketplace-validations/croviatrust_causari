@@ -40,7 +40,6 @@ Move (sessions and time):
 Prove (offline-verifiable receipts):
   seal      Issue, list and verify Crovia Seals
   pnx       Prove that protected assets never appeared in traffic witnessed by `re proxy --pnx`
-  proof     Deprecated: use `re audit --seal` and `re seal verify`
 
 Experimental:
   skill     Distill and verify signed units of past work
@@ -125,7 +124,8 @@ pub enum Command {
     /// paste it into any model's context (CLAUDE.md, AGENTS.md, .cursorrules)
     Brief(BriefArgs),
 
-    /// Generate or verify a signed AI-provenance proof (trustless, offline)
+    /// Retired: use `re audit --seal` and `re seal verify`
+    #[command(hide = true)]
     Proof(ProofArgs),
 
     /// Run Causari as an MCP server (Claude Code, Cursor, Cline, Windsurf, …)
@@ -395,6 +395,17 @@ pub struct AuditArgs {
     /// carries coverage.shallow = true). Prefer `git fetch --unshallow`.
     #[arg(long)]
     pub allow_shallow: bool,
+
+    /// Issue a Crovia Seal (crovia.seal.v1) over the audit JSON, bound to
+    /// the audited commit and the method version, and write it with the
+    /// audit to audit.seal.json (see --output). Anyone verifies it offline
+    /// with `re seal verify FILE` or at https://causari.dev/verify
+    #[arg(long)]
+    pub seal: bool,
+
+    /// Where to write the seal bundle (default: audit.seal.json)
+    #[arg(short, long, requires = "seal", value_name = "FILE")]
+    pub output: Option<std::path::PathBuf>,
 }
 
 #[derive(Args, Debug)]
@@ -546,10 +557,17 @@ pub struct SealArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum SealCommand {
-    /// Verify every seal in this repo's chain (signatures + hash links)
+    /// Verify every seal in this repo's chain (signatures + hash links),
+    /// or one file: an audit seal bundle from `re audit --seal`, or a bare
+    /// seal. Needs no repository and no network. Exit 0 valid, 1 invalid,
+    /// 2 unreadable.
     Verify {
-        /// Verify a single external seal file instead of the repo chain
+        /// Seal file to verify instead of the repo chain
         file: Option<std::path::PathBuf>,
+
+        /// Print the verdict and what the seal states as JSON
+        #[arg(long)]
+        json: bool,
     },
 
     /// List the seals issued by this repository
@@ -649,38 +667,12 @@ pub enum SkillTrustCommand {
     Remove { label: String },
 }
 
+/// `re proof` is retired: whatever follows it is accepted and ignored so
+/// old invocations get the notice instead of a usage error.
 #[derive(Args, Debug)]
 pub struct ProofArgs {
-    #[command(subcommand)]
-    pub command: ProofCommand,
-}
-
-#[derive(Subcommand, Debug)]
-pub enum ProofCommand {
-    /// Generate a signed proof + embeddable badge for this repo
-    Generate {
-        /// Proof JSON output path (default: causari-proof.json)
-        #[arg(short, long)]
-        output: Option<std::path::PathBuf>,
-
-        /// Also write a self-contained SVG badge (default: causari-proof.svg)
-        #[arg(long)]
-        badge: Option<std::path::PathBuf>,
-
-        /// Skip writing the SVG badge
-        #[arg(long)]
-        no_badge: bool,
-    },
-
-    /// Verify a proof's signature offline; optionally check it against this repo
-    Verify {
-        /// Path to a proof JSON (default: causari-proof.json)
-        file: Option<std::path::PathBuf>,
-
-        /// Also confirm the proof still matches the current ledger
-        #[arg(long)]
-        against_repo: bool,
-    },
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
+    pub rest: Vec<String>,
 }
 
 #[derive(Args, Debug)]

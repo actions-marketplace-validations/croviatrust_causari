@@ -78,12 +78,14 @@
       "site/method.html",
       "site/llms.txt",
       "site/README.md",
-      "docs/survival-report.md"
+      "docs/survival-report.md",
+      "site/verify/index.html"
     ],
     "html": [
       "site/index.html",
       "site/reports/survival/index.html",
-      "site/method.html"
+      "site/method.html",
+      "site/verify/index.html"
     ],
     "required_files": [
       "site/assets/mark.svg",
@@ -99,7 +101,10 @@
       "site/install.ps1",
       "site/reports/survival/index.html",
       "site/reports/survival/feed.xml",
-      "site/reports/survival/latest.json"
+      "site/reports/survival/latest.json",
+      "site/verify/index.html",
+      "site/verify/verify.js",
+      "site/verify/seal-core.js"
     ],
     "identical_pairs": [
       [
@@ -175,7 +180,8 @@
       "README.md": [
         "not a grade",
         "What it cannot see",
-        "causari.dev/method"
+        "causari.dev/method",
+        "re seal verify"
       ],
       "site/index.html": [
         "not a grade",
@@ -189,7 +195,8 @@
       ],
       "site/llms.txt": [
         "counts, not grades",
-        "causari.dev/method"
+        "causari.dev/method",
+        "causari.dev/verify"
       ],
       "action.yml": [
         "--summary"
@@ -206,6 +213,12 @@
         "arXiv 2601.16809",
         "GitClear",
         "ZENODO_TOKEN"
+      ],
+      "site/verify/index.html": [
+        "does not prove",
+        "no network request",
+        "re seal verify",
+        "/method"
       ]
     }
   },
@@ -249,14 +262,17 @@
       "/method": "Reproduce or contest",
       "/llms.txt": "not grades",
       "/robots.txt": "Sitemap",
-      "/sitemap.xml": "causari.dev/method",
+      "/sitemap.xml": "causari.dev/verify/",
       "/install.sh": "SHA256SUMS.txt",
       "/install.ps1": "SHA256SUMS.txt",
       "/assets/favicon.svg": "<svg",
       "/assets/mark.svg": "<svg",
       "/reports/survival/": "Survival Report",
       "/reports/survival/feed.xml": "<feed",
-      "/reports/survival/latest.json": "causari.survival_report.v1"
+      "/reports/survival/latest.json": "causari.survival_report.v1",
+      "/verify/": "does not prove",
+      "/verify/seal-core.js": "CROVIA-SEAL-v1",
+      "/verify/verify.js": "causari.audit-seal.v1"
     },
     "redirects": {
       "/repo": "/reports/survival/",
@@ -265,7 +281,9 @@
       "/cla": "DCO.md",
       "/survival": "/reports/survival/",
       "/report": "/reports/survival/",
-      "/survival-data.json": "/reports/survival/latest.json"
+      "/survival-data.json": "/reports/survival/latest.json",
+      "/verify": "/verify/",
+      "/seal": "/verify/"
     },
     "headers": {
       "/": {
@@ -280,6 +298,10 @@
       },
       "/reports/survival/latest.json": {
         "content-type": "application/json"
+      },
+      "/verify/": {
+        "content-security-policy": "connect-src 'none'",
+        "x-frame-options": "DENY"
       }
     },
     "forbidden_live_words": [
@@ -290,7 +312,8 @@
       "🟢",
       "🔴",
       "leaderboard.html",
-      "survival.js"
+      "survival.js",
+      "re proof"
     ]
   }
 }

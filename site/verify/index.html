@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Verify an audit seal · offline — causari</title>
+
+  <meta name="description" content="Verify a causari audit seal (crovia.seal.v1) in your browser: Ed25519 signature, subject hashes and the binding to commit and method, recomputed with WebCrypto. Nothing is uploaded; the page makes no network request." />
+  <meta name="theme-color" content="#0b0d10" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="canonical" href="https://causari.dev/verify/" />
+
+  <meta property="og:title" content="Verify an audit seal · offline" />
+  <meta property="og:description" content="Drop an audit.seal.json. The browser recomputes every hash and checks the Ed25519 signature; nothing leaves the page." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://causari.dev/verify/" />
+  <meta property="og:image" content="https://causari.dev/assets/og.png" />
+  <meta property="og:site_name" content="causari" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Verify an audit seal · offline" />
+  <meta name="twitter:description" content="Ed25519 signature, subject hashes and commit binding recomputed in the browser. No upload, no network." />
+  <meta name="twitter:image" content="https://causari.dev/assets/og.png" />
+
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" role="banner">
+  <div class="container nav-inner">
+    <a href="/" class="brand" aria-label="causari home">
+      <img src="/assets/mark.svg" alt="" width="26" height="26" class="mark-light" />
+      <img src="/assets/mark-white.svg" alt="" width="26" height="26" class="mark-dark" />
+      <span class="brand-name">causari</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/#audit" class="hide-sm">audit</a>
+      <a href="/survival">measurements</a>
+      <a href="/method">method</a>
+      <a href="/verify/" aria-current="page">verify</a>
+      <a href="https://github.com/croviatrust/causari" rel="noopener">source</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">⊢ verify · offline · nothing leaves this page</p>
+      <h2>Check an audit seal without trusting us.</h2>
+      <p class="lede"><code>re audit --seal</code> writes <code>audit.seal.json</code>: the audit JSON, the commit it
+      measured and the method version that produced it, signed with the repository's Ed25519 issuer key
+      as a <a href="https://croviatrust.com/registry/seal/" rel="noopener">Crovia Seal</a>
+      (<code>crovia.seal.v1</code>). Drop that file here. Your browser recomputes both subject hashes,
+      rebuilds the canonical payload and checks the signature with WebCrypto. This page makes no
+      network request and has no third-party code; you can save it and run it from disk. The same
+      checks, on the command line: <code>re seal verify audit.seal.json</code>.</p>
+    </div>
+
+    <div class="vf-unsupported" id="vf-unsupported" hidden>
+      <strong>This browser cannot verify Ed25519 signatures.</strong> WebCrypto Ed25519 needs Chrome 113+,
+      Firefox 130+ or Safari 17+. Hashes and structure are still checked; the signature step will fail.
+      Use <code>re seal verify FILE</code> instead.
+    </div>
+
+    <div class="grid grid-2">
+      <div>
+        <div class="vf-drop" id="vf-drop">
+          <label for="vf-text" class="muted small">Paste <code>audit.seal.json</code>, a bare seal, or a <code>seals.jsonl</code> chain — or drop the file anywhere in this box.</label>
+          <textarea id="vf-text" spellcheck="false" autocomplete="off" aria-label="Seal JSON" placeholder='{ "bundle": "causari.audit-seal.v1", "seal": { … }, "subject": { … } }'></textarea>
+          <div class="vf-actions">
+            <button type="button" id="vf-run">verify</button>
+            <label for="vf-file">open file…</label>
+            <input type="file" id="vf-file" accept=".json,.jsonl,application/json,text/plain" />
+            <button type="button" id="vf-clear">clear</button>
+            <span class="muted" id="vf-filename"></span>
+          </div>
+        </div>
+      </div>
+      <div class="card" aria-live="polite">
+        <p class="vf-verdict" id="vf-verdict">—</p>
+        <dl class="vf-states" id="vf-states"></dl>
+        <table class="vf-audit" id="vf-audit" hidden>
+          <thead><tr><th>Sealed audit</th><th>Commits</th><th>Introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Capped</th><th>Median</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="small muted" id="vf-means"></p>
+        <ol class="vf-steps" id="vf-steps"></ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>What a valid audit seal proves</h3>
+        <p>That the key shown as <em>issuer</em> signed exactly this audit JSON for exactly this commit,
+        produced with this method version, and that not one byte of the numbers changed since. The
+        seal is a <code>crovia.seal.v1</code> like any other: the audit JSON is its
+        <code>subject.output</code>, the audited git state (commit, method, options) its
+        <code>subject.input</code>, both committed by SHA-256 and length. The bundle around the seal
+        carries both subjects so the hashes are recomputable here with no repository and no network.</p>
+        <p class="small muted">It does not prove that the numbers are true, and it does not say who
+        controls the issuer key. Anyone can rerun <code>re audit</code> on the commit and compare the
+        bytes; the <a href="/method">method</a> is public.</p>
+      </div>
+      <div class="card">
+        <h3>What fails, and how</h3>
+        <p>Verification is fail-closed. A bundle with a field the signer did not sign, an audit JSON
+        whose hash or length differs from the seal, a commit or method that disagrees between the
+        input, the signed parameters and the audit JSON, a float or an unsorted key in the canonical
+        payload, a wrong signature, a chain with a gap or a broken link: each is rejected at the step
+        that catches it, and the steps are listed so you can see which one.</p>
+        <p class="small muted">"Unreadable" means the text is not a seal at all (not JSON, or JSON with
+        a duplicate key); "invalid" means it is a seal that does not verify. <code>re seal verify</code>
+        exits 2 and 1 for the same two cases.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="container foot-bottom">
+    <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Crovia</a> · <em>causari</em> is a trademark of Crovia Trust.</p>
+    <p class="muted">Same check offline: <code>re seal verify audit.seal.json</code> · <a href="/method">method</a> · <a href="/">causari.dev</a></p>
+  </div>
+</footer>
+
+<script src="/app.js" defer></script>
+<script src="/verify/seal-core.js" defer></script>
+<script src="/verify/verify.js" defer></script>
+</body>
+</html>

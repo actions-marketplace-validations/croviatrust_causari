@@ -1,132 +1,25 @@
+//! `re proof` is retired.
+//!
+//! It signed a summary of the local ledger with its own envelope format
+//! (`causari.proof.v0.2`). The audit result is now a Crovia Seal
+//! (`crovia.seal.v1`, `re audit --seal`), bound to the commit and the
+//! method version, verifiable with `re seal verify` or at causari.dev/verify
+//! by the same code path as every other seal. One receipt format, one
+//! verifier.
+
 use anyhow::{Result, anyhow};
-use colored::Colorize;
-use std::path::{Path, PathBuf};
 
-use crate::cli::{ProofArgs, ProofCommand};
-use crate::proof;
-use crate::repo::Repo;
-use crate::store::Store;
+use crate::cli::ProofArgs;
+use crate::exit::exit_with;
 
-const DEFAULT_PROOF: &str = "causari-proof.json";
-const DEFAULT_BADGE: &str = "causari-proof.svg";
-
-/// `re proof` — the viral, trustless provenance certificate.
-///
-/// - `re proof generate`  sign the repo's provenance + emit an embeddable badge
-/// - `re proof verify`    check a proof offline (anyone, anywhere, no server)
-pub fn run(args: ProofArgs) -> Result<()> {
-    match args.command {
-        ProofCommand::Generate {
-            output,
-            badge,
-            no_badge,
-        } => generate(output, badge, no_badge),
-        ProofCommand::Verify { file, against_repo } => verify(file, against_repo),
-    }
-}
-
-fn generate(output: Option<PathBuf>, badge: Option<PathBuf>, no_badge: bool) -> Result<()> {
-    let repo = Repo::discover()?;
-    let store = Store::new(&repo);
-
-    let env = proof::generate(&repo, &store)?;
-    let out = output.unwrap_or_else(|| PathBuf::from(DEFAULT_PROOF));
-    proof::write_proof_file(&out, &env)?;
-
-    println!(
-        "{} {}",
-        "proof:".green().bold(),
-        out.display().to_string().cyan()
-    );
-    let m = &env.manifest;
-    println!(
-        "  {} events · {} session(s) · {} file(s)",
-        m.events, m.sessions, m.files_touched
-    );
-    if !m.agents.is_empty() {
-        println!("  agents:  {}", m.agents.join(", "));
-    }
-    if !m.models.is_empty() {
-        println!("  models:  {}", m.models.join(", "));
-    }
-    println!(
-        "  signer:  {} (.causari/keys/proof-signing.pub)",
-        (&env.public_key[..16]).bright_black()
-    );
-
-    if !no_badge {
-        let badge_path = badge.unwrap_or_else(|| PathBuf::from(DEFAULT_BADGE));
-        std::fs::write(&badge_path, proof::badge_svg(&env))?;
-        println!();
-        println!(
-            "  {} {}",
-            "badge:".green().bold(),
-            badge_path.display().to_string().cyan()
-        );
-        println!("  paste into your README:");
-        println!("    {}", proof::badge_markdown(&env).bright_black());
-    }
-    println!();
-    println!(
-        "  {} anyone can check it with {} — no server, no account.",
-        "trustless:".bright_black(),
-        "re proof verify".cyan()
-    );
-    Ok(())
-}
-
-fn verify(file: Option<PathBuf>, against_repo: bool) -> Result<()> {
-    let path = file.unwrap_or_else(|| PathBuf::from(DEFAULT_PROOF));
-    let env = proof::read_proof_file(&path)?;
-
-    proof::verify_signature(&env)
-        .map_err(|e| anyhow::anyhow!("{} {}", "INVALID".red().bold(), e))?;
-
-    println!("{} signature valid (Ed25519)", "ok".green().bold(),);
-    let m = &env.manifest;
-    println!("  repo:    {}", m.repo);
-    println!("  created: {}", m.generated_at);
-    println!(
-        "  attests: {} events · {} agent(s) · {} file(s)",
-        m.events,
-        m.agents.len(),
-        m.files_touched
-    );
-    println!("  signer:  {}", (&env.public_key[..16]).bright_black());
-    println!(
-        "  {} a valid signature means this summary is unaltered since signing; it does not mean the ledger is complete",
-        "scope:".bright_black()
-    );
-
-    if against_repo {
-        check_against_repo(&path, &env)?;
-    }
-    Ok(())
-}
-
-fn check_against_repo(_path: &Path, env: &proof::ProofEnvelope) -> Result<()> {
-    let repo = Repo::discover()?;
-    let store = Store::new(&repo);
-    if proof::matches_repo(&repo, &store, env)? {
-        println!(
-            "  {} the set of reachable event ids in this repository matches the proof's ledger digest",
-            "fresh:".green().bold()
-        );
-        println!(
-            "  {} this check covers reachable event ids only — not blob contents or the working tree",
-            "scope:".bright_black()
-        );
-        Ok(())
-    } else {
-        println!(
-            "  {} ledger has changed since this proof was generated — re-run {}",
-            "stale:".red().bold(),
-            "re proof generate".cyan()
-        );
-        // Signature already verified above; freshness is a separate,
-        // FAILING check. A CI gate keyed on the exit status must go red.
-        Err(anyhow!(
-            "proof is stale: signature valid, but the repository ledger no longer matches"
-        ))
-    }
+pub fn run(_args: ProofArgs) -> Result<()> {
+    Err(exit_with(
+        2,
+        anyhow!(
+            "`re proof` has been retired.\n  \
+             Issue:  re audit --seal            (writes audit.seal.json, a crovia.seal.v1 over the audit)\n  \
+             Verify: re seal verify audit.seal.json   or   https://causari.dev/verify\n  \
+             Old causari-proof.json files are not verifiable by this release."
+        ),
+    ))
 }
