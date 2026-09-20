@@ -295,8 +295,8 @@ INVALID  signature verification failed</code></pre>
       </div>
       <div class="card">
         <h3>Where this is going</h3>
-        <p>The audit result itself will become a <a href="https://croviatrust.com/registry/seal/" rel="noopener">Crovia Seal</a> (<code>crovia.seal.v1</code>): the audit JSON as subject, bound to the commit it measured and the method version that produced it, verifiable at <code>causari.dev/verify</code> with a static page and no network. The proxy will gain a <a href="https://croviatrust.com/registry/tacet/pnx/" rel="noopener">PNX</a> witness mode: a signed run sheet per agent session proving that no secret from a given set left the machine in the agent's traffic.</p>
-        <p class="small muted">Those are Phase 2 of the roadmap and are not shipped yet. This page says "signed" only where something is signed today.</p>
+        <p>The audit result itself will become a <a href="https://croviatrust.com/registry/seal/" rel="noopener">Crovia Seal</a> (<code>crovia.seal.v1</code>): the audit JSON as subject, bound to the commit it measured and the method version that produced it, verifiable at <code>causari.dev/verify</code> with a static page and no network. The proxy has a <a href="https://croviatrust.com/registry/tacet/pnx/" rel="noopener">PNX</a> witness mode (<code>re proxy --pnx</code>): a signed run sheet per agent session, and <code>re pnx prove</code> shows offline that no secret from a given set left the machine in the agent's traffic; the proofs verify under the Python reference and vice versa.</p>
+        <p class="small muted">The Seal for the audit result is Phase 2 of the roadmap and not shipped yet. This page says "signed" only where something is signed today.</p>
       </div>
     </div>
   </div>

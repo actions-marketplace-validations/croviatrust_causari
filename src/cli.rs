@@ -39,6 +39,7 @@ Move (sessions and time):
 
 Prove (offline-verifiable receipts):
   seal      Issue, list and verify Crovia Seals
+  pnx       Prove that protected assets never appeared in traffic witnessed by `re proxy --pnx`
   proof     Deprecated: use `re audit --seal` and `re seal verify`
 
 Experimental:
@@ -148,6 +149,10 @@ pub enum Command {
 
     /// Issue, list and verify Crovia Seals (draft-crovia-seal-01 receipts)
     Seal(SealArgs),
+
+    /// Proof of Non-Exfiltration: prove and verify, offline, that protected
+    /// assets never appeared in the traffic witnessed by `re proxy --pnx`
+    Pnx(PnxArgs),
 
     /// Install agent-side capture hooks (e.g. `re hook claude-code`)
     Hook(HookArgs),
@@ -440,6 +445,97 @@ pub struct ProxyArgs {
     /// (default: urn:crovia:seal-issuer:causari:<first 12 hex of your pubkey>)
     #[arg(long)]
     pub seal_issuer: Option<String>,
+
+    /// PNX witness mode (TACET profile crovia.pnx.v1): fingerprint every
+    /// outbound request body before it is forwarded and, on Ctrl-C, sign a
+    /// run sheet into .causari/pnx/<run-id>/sheet.json. Afterwards
+    /// `re pnx prove` shows, offline, that protected assets never appeared
+    /// in that traffic.
+    #[arg(long)]
+    pub pnx: bool,
+
+    /// Run id of the PNX sheet (default: pnx-YYYYMMDD-HHMMSS-<6 hex>).
+    /// Naming a run that was left open (the proxy died) resumes it.
+    #[arg(long, requires = "pnx", value_name = "ID")]
+    pub pnx_run_id: Option<String>,
+}
+
+#[derive(Args, Debug)]
+pub struct PnxArgs {
+    #[command(subcommand)]
+    pub command: PnxCommand,
+}
+
+/// Where protected assets come from, shared by `prove` and `verify`.
+/// Mirrors `tacet-pnx` so a command line ports between the two.
+#[derive(Args, Debug, Clone)]
+pub struct PnxAssetArgs {
+    /// A protected asset file, labelled: `--asset api_key=secret.txt`
+    #[arg(long, value_name = "LABEL=PATH")]
+    pub asset: Vec<String>,
+
+    /// Every file under DIR is an asset (label = path relative to DIR)
+    #[arg(long, value_name = "DIR")]
+    pub assets_dir: Vec<std::path::PathBuf>,
+
+    /// The value of environment variable VAR is an asset (label = env:VAR)
+    #[arg(long, value_name = "VAR")]
+    pub asset_env: Vec<String>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum PnxCommand {
+    /// List the PNX runs of this repository (open and closed)
+    List,
+
+    /// Print the signed run sheet of a run: the one public object a
+    /// verifier needs besides the proof
+    Sheet {
+        /// Run id, run directory or sheet path (default: the latest closed run)
+        run: Option<String>,
+
+        /// Sign and write the sheet of a run left open (the proxy exited
+        /// without closing it)
+        #[arg(long)]
+        close: bool,
+    },
+
+    /// Prove that protected assets never appeared in a run's egress
+    Prove {
+        /// Run id, run directory or sheet path (default: the latest closed run)
+        #[arg(long)]
+        run: Option<String>,
+
+        #[command(flatten)]
+        assets: PnxAssetArgs,
+
+        /// Proof file (default: <run dir>/proof.json; `-` for stdout)
+        #[arg(short, long)]
+        out: Option<std::path::PathBuf>,
+
+        /// Exit 1 unless every asset is proven absent
+        #[arg(long)]
+        fail_on_present: bool,
+    },
+
+    /// Verify a PNX proof offline (bare or delivered inside a Crovia Seal).
+    /// Exit 0: valid, every asset absent. 1: valid, but an asset was
+    /// present, undetectable or only partially covered. 2: invalid.
+    Verify {
+        /// Path to the proof JSON
+        proof: std::path::PathBuf,
+
+        #[command(flatten)]
+        assets: PnxAssetArgs,
+
+        /// Exit 1 on warnings too (assets not supplied, partial coverage)
+        #[arg(long)]
+        strict: bool,
+
+        /// Machine-readable report on stdout
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Args, Debug)]
