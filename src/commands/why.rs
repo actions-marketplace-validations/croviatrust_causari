@@ -1,12 +1,11 @@
 use anyhow::{Context, Result, anyhow};
 use colored::Colorize;
-use similar::{ChangeTag, TextDiff};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::cli::WhyArgs;
 use crate::object::Event;
+use crate::provenance::{find_line_origin, parse_spec};
 use crate::repo::Repo;
-use crate::snapshot::flatten_tree;
 use crate::store::Store;
 
 /// `re why path/to/file.rs:42`
@@ -30,7 +29,7 @@ pub fn run(args: WhyArgs) -> Result<()> {
     let current =
         std::fs::read_to_string(&abs).with_context(|| format!("reading {}", abs.display()))?;
     let current_lines: Vec<&str> = current.lines().collect();
-    if line_no == 0 || line_no > current_lines.len() {
+    if line_no > current_lines.len() {
         return Err(anyhow!(
             "{} only has {} lines (asked for line {})",
             file_str,
@@ -40,87 +39,26 @@ pub fn run(args: WhyArgs) -> Result<()> {
     }
     let target_line = current_lines[line_no - 1].to_string();
 
-    // 2. Walk events from HEAD backwards.
+    // 2. One engine answers for why, trace, lens and MCP alike.
     let head = repo.head_event()?;
-    let mut cur = head;
-    let mut visited = 0usize;
+    let (origin, scanned) = find_line_origin(&store, head.as_deref(), &rel_path, &target_line)?;
 
-    while let Some(id) = cur {
-        let ev = store.read_event(&id)?;
-        visited += 1;
-
-        if event_introduced_line(&store, &ev, &rel_path, &target_line)? {
-            print_attribution(&id, &ev, &file_str, line_no, &target_line);
-            return Ok(());
+    match origin {
+        Some(o) => {
+            print_attribution(&o.id, &o.event, &file_str, line_no, &target_line);
+            Ok(())
         }
-        cur = ev.parent;
+        None => {
+            println!(
+                "{} no recorded event introduced this line ({} events scanned).",
+                "not found:".yellow().bold(),
+                scanned
+            );
+            println!("  This usually means the line predates the first `re record` for this repo,");
+            println!("  or was written without a recorder running (a human edit, a checkout).");
+            Ok(())
+        }
     }
-
-    println!(
-        "{} no recorded event introduced this line ({} events scanned).",
-        "not found:".yellow().bold(),
-        visited
-    );
-    println!("  This usually means the line predates the first `re record` for this repo.");
-    Ok(())
-}
-
-fn event_introduced_line(store: &Store, ev: &Event, rel: &Path, target: &str) -> Result<bool> {
-    let pre_snap = store.read_snapshot(&ev.pre_snapshot)?;
-    let post_snap = store.read_snapshot(&ev.post_snapshot)?;
-    let pre_tree = flatten_tree(store, &pre_snap.tree)?;
-    let post_tree = flatten_tree(store, &post_snap.tree)?;
-
-    let pre_blob = pre_tree.get(rel);
-    let post_blob = post_tree.get(rel);
-
-    let post_text = match post_blob {
-        Some(id) => String::from_utf8(store.read_blob(id)?).unwrap_or_default(),
-        None => return Ok(false), // file did not exist after the event, can't be responsible
-    };
-    let pre_text = match pre_blob {
-        Some(id) => String::from_utf8(store.read_blob(id)?).unwrap_or_default(),
-        None => String::new(),
-    };
-
-    // ROOT EVENT: pre_snapshot == post_snapshot for the first record, so the
-    // normal diff logic would skip it. Treat the root event as the introduction
-    // of every file that exists in its post-snapshot.
-    if ev.parent.is_none() {
-        return Ok(post_text.lines().any(|l| l == target));
-    }
-
-    if pre_text == post_text {
-        return Ok(false); // event did not touch this file
-    }
-
-    // Cheap structural check: does the target line text appear in post but not in pre?
-    let pre_lines: std::collections::HashSet<&str> = pre_text.lines().collect();
-    if !post_text.lines().any(|l| l == target) {
-        return Ok(false);
-    }
-
-    // If the target line was NOT in pre at all, this event definitely introduced it.
-    if !pre_lines.contains(target) {
-        return Ok(true);
-    }
-
-    // Otherwise: maybe the line existed but was reordered/duplicated. Use a proper
-    // diff to see if it was among the inserted chunks.
-    let diff = TextDiff::from_lines(&pre_text, &post_text);
-    Ok(diff
-        .iter_all_changes()
-        .any(|c| c.tag() == ChangeTag::Insert && c.value().trim_end_matches('\n') == target))
-}
-
-fn parse_spec(spec: &str) -> Result<(String, usize)> {
-    let (file, line) = spec
-        .rsplit_once(':')
-        .ok_or_else(|| anyhow!("expected <file>:<line>, got '{}'", spec))?;
-    let line_no: usize = line
-        .parse()
-        .with_context(|| format!("'{}' is not a valid line number", line))?;
-    Ok((file.to_string(), line_no))
 }
 
 fn print_attribution(id: &str, ev: &Event, file: &str, line_no: usize, line: &str) {
@@ -143,6 +81,21 @@ fn print_attribution(id: &str, ev: &Event, file: &str, line_no: usize, line: &st
         println!("  tool:      {}", t);
     }
     println!("  date:      {}", ev.created_at);
+    println!(
+        "  evidence:  {}",
+        match &ev.evidence {
+            Some(e) => e.describe(),
+            None => "unrecorded (event written by an older version)".to_string(),
+        }
+        .bright_black()
+    );
+    if ev.parent.is_none() {
+        println!(
+            "  {}",
+            "note: root event — this line was present when recording started; the agent named above may not have written it"
+                .bright_black()
+        );
+    }
     if let Some(m) = &ev.message {
         println!("  message:   {}", m);
     }

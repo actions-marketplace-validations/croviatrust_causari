@@ -169,6 +169,7 @@ dependencies = [
  "ed25519-dalek",
  "getrandom 0.4.3",
  "hex",
+ "libc",
  "notify",
  "serde",
  "serde_json",

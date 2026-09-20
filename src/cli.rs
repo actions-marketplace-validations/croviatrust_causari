@@ -393,7 +393,7 @@ pub struct HookArgs {
 
 #[derive(Args, Debug)]
 pub struct HookEventArgs {
-    /// Hook kind: user-prompt | post-tool
+    /// Hook kind: user-prompt | pre-tool | post-tool | session-start
     pub kind: String,
 }
 

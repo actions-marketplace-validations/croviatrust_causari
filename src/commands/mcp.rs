@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use crate::cli::McpArgs;
 use crate::object::{Event, Snapshot};
 use crate::repo::Repo;
-use crate::snapshot::{flatten_tree, snapshot_workspace};
+use crate::snapshot::snapshot_workspace;
 use crate::store::Store;
 
 /// `re mcp` — start an MCP (Model Context Protocol) server on stdio.
@@ -239,6 +239,7 @@ fn tool_record(args: &Value) -> Result<String> {
             .and_then(|v| v.as_i64())
             .map(|n| n as i32),
         created_at: Utc::now().to_rfc3339(),
+        evidence: Some(crate::object::Evidence::declared("mcp")),
     };
     let id = crate::commit::commit_event(&repo, &store, &event, session.as_deref())?;
     Ok(format!(
@@ -376,8 +377,6 @@ fn tool_recall(args: &Value) -> Result<String> {
 }
 
 fn tool_why(args: &Value) -> Result<String> {
-    use similar::{ChangeTag, TextDiff};
-
     let repo = Repo::discover()?;
     let store = Store::new(&repo);
 
@@ -406,44 +405,25 @@ fn tool_why(args: &Value) -> Result<String> {
     }
     let target = lines[line_no - 1].to_string();
 
-    let mut cur = repo.head_event()?;
-    while let Some(id) = cur {
-        let ev = store.read_event(&id)?;
-        let pre_snap = store.read_snapshot(&ev.pre_snapshot)?;
-        let post_snap = store.read_snapshot(&ev.post_snapshot)?;
-        let pre_tree = flatten_tree(&store, &pre_snap.tree)?;
-        let post_tree = flatten_tree(&store, &post_snap.tree)?;
-        let post_text = match post_tree.get(&rel) {
-            Some(id) => String::from_utf8(store.read_blob(id)?).unwrap_or_default(),
-            None => {
-                cur = ev.parent;
-                continue;
-            }
-        };
-        let pre_text = match pre_tree.get(&rel) {
-            Some(id) => String::from_utf8(store.read_blob(id)?).unwrap_or_default(),
-            None => String::new(),
-        };
-        if pre_text == post_text {
-            cur = ev.parent;
-            continue;
-        }
-        let appears = post_text.lines().any(|l| l == target);
-        if !appears {
-            cur = ev.parent;
-            continue;
-        }
-        let pre_has = pre_text.lines().any(|l| l == target);
-        let introduced = if !pre_has {
-            true
-        } else {
-            TextDiff::from_lines(&pre_text, &post_text)
-                .iter_all_changes()
-                .any(|c| c.tag() == ChangeTag::Insert && c.value().trim_end_matches('\n') == target)
-        };
-        if introduced {
+    let head = repo.head_event()?;
+    let (origin, _) = crate::provenance::find_line_origin(&store, head.as_deref(), &rel, &target)?;
+    match origin {
+        Some(o) => {
+            let (id, ev) = (o.id, o.event);
             let mut out = format!("# {}:{}\n```\n{}\n```\n\n", file, line_no, target);
             out.push_str(&format!("Introduced by event `{}`\n", &id[..10]));
+            out.push_str(&format!(
+                "- evidence: {}\n",
+                ev.evidence
+                    .as_ref()
+                    .map(|e| e.describe())
+                    .unwrap_or_else(|| "unrecorded (older event)".to_string())
+            ));
+            if ev.parent.is_none() {
+                out.push_str(
+                    "- note: root event — the line was present when recording started; the agent named may not have written it\n",
+                );
+            }
             if let Some(a) = &ev.agent {
                 out.push_str(&format!("- agent: {}\n", a));
             }
@@ -462,14 +442,13 @@ fn tool_why(args: &Value) -> Result<String> {
             if let Some(r) = &ev.reasoning {
                 out.push_str(&format!("- reasoning: {}\n", r));
             }
-            return Ok(out);
+            Ok(out)
         }
-        cur = ev.parent;
+        None => Ok(format!(
+            "no recorded event introduced {}:{} (the line predates the first `re record`, or was written without a recorder running)",
+            file, line_no
+        )),
     }
-    Ok(format!(
-        "no recorded event introduced {}:{} (the line predates the first `re record`)",
-        file, line_no
-    ))
 }
 
 fn print_install_snippet() -> Result<()> {

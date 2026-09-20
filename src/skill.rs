@@ -900,6 +900,7 @@ mod tests {
             post_snapshot: "post".into(),
             exit_code: Some(0),
             created_at: ts.into(),
+            evidence: None,
         };
 
         // Two events with prompt A, one with prompt B, one without prompt.
@@ -970,6 +971,7 @@ mod tests {
             post_snapshot: "post".into(),
             exit_code: exit,
             created_at: ts.into(),
+            evidence: None,
         };
 
         // Task F: only a non-zero exit — a recorded failure.
@@ -1062,6 +1064,7 @@ mod tests {
             post_snapshot: pre,
             exit_code: Some(0),
             created_at: chrono::Utc::now().to_rfc3339(),
+            evidence: None,
         };
         commit_event(&repo, &store, &ev, None).unwrap();
 

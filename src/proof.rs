@@ -266,6 +266,7 @@ mod tests {
             post_snapshot: pre,
             exit_code: Some(0),
             created_at: chrono::Utc::now().to_rfc3339(),
+            evidence: None,
         };
         commit_event(repo, store, &ev, None).unwrap();
     }

@@ -115,6 +115,7 @@ mod tests {
             post_snapshot: "post".into(),
             exit_code: None,
             created_at: Utc::now().to_rfc3339(),
+            evidence: None,
         }
     }
 

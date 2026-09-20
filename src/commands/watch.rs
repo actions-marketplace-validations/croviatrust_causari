@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use crate::capture::{claim_exchange, correlate, load_unclaimed_exchanges_since, now_ms};
 use crate::cli::WatchArgs;
 use crate::commit::{commit_event, resolve_parent, tree_unchanged};
-use crate::object::{Event, Snapshot};
+use crate::object::{Event, Evidence, Snapshot};
 use crate::repo::Repo;
 use crate::snapshot::{added_lines_between, is_ignored, snapshot_workspace};
 use crate::store::Store;
@@ -234,6 +234,14 @@ fn record_change(
         post_snapshot: post_snapshot_id,
         exit_code: None,
         created_at: Utc::now().to_rfc3339(),
+        evidence: Some(match &correlation {
+            Some(c) => Evidence::Correlated {
+                exchange_id: c.exchange.id.clone(),
+                matched: c.matched,
+                considered: c.considered,
+            },
+            None => Evidence::observed("watch"),
+        }),
     };
     let id = commit_event(repo, store, &event, session)?;
     if let Some(c) = &correlation {

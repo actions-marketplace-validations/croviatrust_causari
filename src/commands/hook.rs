@@ -34,6 +34,7 @@ pub fn run(args: HookArgs) -> Result<()> {
 }
 
 const PROMPT_HOOK_CMD: &str = "re hook-event user-prompt";
+const PRE_TOOL_HOOK_CMD: &str = "re hook-event pre-tool";
 const TOOL_HOOK_CMD: &str = "re hook-event post-tool";
 const SESSION_HOOK_CMD: &str = "re hook-event session-start";
 const TOOL_MATCHER: &str = "Edit|Write|MultiEdit|NotebookEdit";
@@ -60,6 +61,7 @@ fn install_claude_code() -> Result<()> {
         .or_insert_with(|| json!({}));
 
     ensure_hook(hooks, "UserPromptSubmit", None, PROMPT_HOOK_CMD)?;
+    ensure_hook(hooks, "PreToolUse", Some(TOOL_MATCHER), PRE_TOOL_HOOK_CMD)?;
     ensure_hook(hooks, "PostToolUse", Some(TOOL_MATCHER), TOOL_HOOK_CMD)?;
     ensure_hook(hooks, "SessionStart", None, SESSION_HOOK_CMD)?;
 
@@ -72,7 +74,11 @@ fn install_claude_code() -> Result<()> {
     );
     println!("  UserPromptSubmit → captures every prompt");
     println!(
-        "  PostToolUse ({}) → records every edit as a Causari event",
+        "  PreToolUse ({}) → snapshots the tree the agent is about to change",
+        TOOL_MATCHER
+    );
+    println!(
+        "  PostToolUse ({}) → records the edit as a Causari event, diffed against that snapshot",
         TOOL_MATCHER
     );
     println!("  SessionStart → injects verified experience into every new session");
@@ -153,6 +159,7 @@ fn run_event_inner(kind: &str) -> Result<()> {
                 },
             )
         }
+        "pre-tool" => record_pre_state(&repo, session_id.as_deref()),
         "post-tool" => record_tool_event(&repo, &v, session_id.as_deref()),
         // SessionStart: whatever we print on stdout is added to the agent's
         // context. Inject the trust-ranked experience briefing so every new
@@ -172,6 +179,78 @@ fn run_event_inner(kind: &str) -> Result<()> {
     }
 }
 
+/// A pre-state captured by `PreToolUse`, waiting for its `PostToolUse`.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PendingPre {
+    ts_ms: u64,
+    #[serde(default)]
+    session_id: Option<String>,
+    snapshot_id: String,
+}
+
+fn pending_pre_path(repo: &Repo) -> std::path::PathBuf {
+    repo.dir.join("capture").join("pending-pre.jsonl")
+}
+
+/// A pre-state older than this is stale: the tool call it belonged to never
+/// produced a PostToolUse (denied, crashed, interrupted).
+const PENDING_PRE_MAX_AGE_MS: u64 = 10 * 60 * 1000;
+
+/// `PreToolUse`: snapshot the tree *before* the agent edits it.
+///
+/// This is what makes hook attribution exact. Without it the event's
+/// pre-state is the previous event's post-state, and every change made in
+/// between — a human edit, a checkout, a formatter — lands in the agent's
+/// diff and gets that agent's prompt as its cause (review finding: "zero
+/// false attribution" was false in the interleaved case).
+fn record_pre_state(repo: &Repo, session_id: Option<&str>) -> Result<()> {
+    let store = Store::new(repo);
+    let _lock = repo.lock()?;
+    let tree = snapshot_workspace(repo)?;
+    let snapshot_id = store.write_snapshot(&Snapshot {
+        tree,
+        created_at: Utc::now().to_rfc3339(),
+    })?;
+    append_jsonl(
+        &pending_pre_path(repo),
+        &PendingPre {
+            ts_ms: now_ms(),
+            session_id: session_id.map(String::from),
+            snapshot_id,
+        },
+    )
+}
+
+/// The most recent fresh pre-state for this session, if any; consumed on read.
+fn take_pending_pre(repo: &Repo, session_id: Option<&str>) -> Option<String> {
+    let path = pending_pre_path(repo);
+    let raw = std::fs::read_to_string(&path).ok()?;
+    let now = now_ms();
+    let mut keep: Vec<PendingPre> = Vec::new();
+    let mut found: Option<String> = None;
+    for line in raw.lines().rev() {
+        let Ok(p) = serde_json::from_str::<PendingPre>(line) else {
+            continue;
+        };
+        if now.saturating_sub(p.ts_ms) > PENDING_PRE_MAX_AGE_MS {
+            continue;
+        }
+        if found.is_none() && p.session_id.as_deref() == session_id {
+            found = Some(p.snapshot_id);
+            continue;
+        }
+        keep.push(p);
+    }
+    keep.reverse();
+    let body: String = keep
+        .iter()
+        .filter_map(|p| serde_json::to_string(p).ok())
+        .map(|l| l + "\n")
+        .collect();
+    let _ = crate::keys::write_atomic(&path, body.as_bytes());
+    found
+}
+
 /// Record a full Causari event from a Claude Code PostToolUse payload.
 fn record_tool_event(repo: &Repo, v: &Value, session_id: Option<&str>) -> Result<()> {
     let store = Store::new(repo);
@@ -180,15 +259,21 @@ fn record_tool_event(repo: &Repo, v: &Value, session_id: Option<&str>) -> Result
         .and_then(|t| t.as_str())
         .unwrap_or("unknown")
         .to_string();
-    let file = v
-        .get("tool_input")
-        .and_then(|i| i.get("file_path"))
+    let input = v.get("tool_input");
+    // Edit/Write/MultiEdit use `file_path`; NotebookEdit uses `notebook_path`.
+    let file = input
+        .and_then(|i| i.get("file_path").or_else(|| i.get("notebook_path")))
         .and_then(|f| f.as_str())
         .map(String::from);
 
     let _lock = repo.lock()?;
     let parent_id = crate::commit::resolve_parent(repo, None)?;
-    let pre_snapshot_id = crate::commit::resolve_pre_snapshot(repo, &store, &parent_id)?;
+    // Prefer the pre-state captured by PreToolUse moments ago; fall back to
+    // the previous event's post-state when the hook is not installed.
+    let pre_snapshot_id = match take_pending_pre(repo, session_id) {
+        Some(id) => id,
+        None => crate::commit::resolve_pre_snapshot(repo, &store, &parent_id)?,
+    };
     let post_tree = snapshot_workspace(repo)?;
 
     // Skip no-op tool calls (nothing actually changed on disk).
@@ -200,9 +285,14 @@ fn record_tool_event(repo: &Repo, v: &Value, session_id: Option<&str>) -> Result
         created_at: Utc::now().to_rfc3339(),
     })?;
 
-    let prompt = last_prompt(repo, session_id)?
-        .or_else(|| last_prompt(repo, None).ok().flatten())
-        .map(|p| p.prompt);
+    // The prompt must come from *this* session. Borrowing another session's
+    // prompt would attribute an edit to a task it had nothing to do with;
+    // when the runtime gave no session id, any prompt is the best we have.
+    let prompt = match session_id {
+        Some(_) => last_prompt(repo, session_id)?,
+        None => last_prompt(repo, None)?,
+    }
+    .map(|p| p.prompt);
 
     let rel_file = file.as_deref().map(|f| {
         std::path::Path::new(f)
@@ -233,6 +323,7 @@ fn record_tool_event(repo: &Repo, v: &Value, session_id: Option<&str>) -> Result
         post_snapshot: post_snapshot_id,
         exit_code: None,
         created_at: Utc::now().to_rfc3339(),
+        evidence: Some(crate::object::Evidence::declared("claude-code-hook")),
     };
     crate::commit::commit_event(repo, &store, &event, None)?;
     Ok(())

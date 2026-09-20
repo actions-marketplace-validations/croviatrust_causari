@@ -85,10 +85,57 @@ pub fn run(args: RevertArgs) -> Result<()> {
         report.files_deleted.to_string().red(),
         report.files_unchanged.to_string().bright_black()
     );
-    println!();
+
+    // Record the revert as an event of its own. Without it the next
+    // recorder's pre-state would still be the old tip and the revert's
+    // changes would be attributed to whatever agent acts next (review
+    // finding B4: `re why` answered "claude" for a line a human revert
+    // restored).
+    let id = record_revert(&repo, &store, &full, &target_snapshot.tree)?;
     println!(
-        "{} causari did not move HEAD. Record a new event to mark this revert if you want it in history.",
-        "note:".cyan()
+        "  {} recorded as {} (tool: revert, evidence: declared)",
+        "history:".cyan(),
+        (&id[..10]).yellow()
     );
     Ok(())
+}
+
+fn record_revert(
+    repo: &Repo,
+    store: &Store,
+    reverted: &str,
+    restored_tree: &str,
+) -> Result<String> {
+    let _lock = repo.lock()?;
+    let parent = crate::commit::resolve_parent(repo, None)?;
+    let pre = crate::commit::resolve_pre_snapshot(repo, store, &parent)?;
+    let post = store.write_snapshot(&crate::object::Snapshot {
+        tree: restored_tree.to_string(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+    })?;
+    let writes: Vec<String> = crate::snapshot::effective_writes(store, &pre, &post)?
+        .into_iter()
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .collect();
+    let ev = crate::object::Event {
+        schema: "causari.event.v0.2".to_string(),
+        parent,
+        agent: Some("human".to_string()),
+        model: None,
+        tool: Some("revert".to_string()),
+        message: Some(format!("revert to pre-state of {}", &reverted[..10])),
+        prompt: None,
+        reasoning: None,
+        reads: Vec::new(),
+        writes,
+        tokens_in: None,
+        tokens_out: None,
+        cost_usd: None,
+        pre_snapshot: pre,
+        post_snapshot: post,
+        exit_code: Some(0),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        evidence: Some(crate::object::Evidence::declared("re revert")),
+    };
+    crate::commit::commit_event(repo, store, &ev, None)
 }

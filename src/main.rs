@@ -10,6 +10,7 @@ mod index;
 mod keys;
 mod object;
 mod proof;
+mod provenance;
 mod repo;
 mod seal;
 mod skill;
@@ -22,6 +23,13 @@ use clap::Parser;
 use crate::cli::{Cli, Command};
 
 fn main() -> Result<()> {
+    // `re log | head` must end quietly. Rust ignores SIGPIPE and turns the
+    // resulting EPIPE into a panic in println!; restore the default so the
+    // process exits like every other Unix tool when the reader goes away.
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
     let cli = Cli::parse();
 
     match cli.command {

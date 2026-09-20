@@ -124,6 +124,75 @@ pub struct Event {
 
     /// ISO-8601 UTC creation timestamp.
     pub created_at: String,
+
+    /// How this event's attribution was obtained. Absent on events written
+    /// by older binaries (which leaves their object ids unchanged).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evidence: Option<Evidence>,
+}
+
+/// The evidence class of an event's attribution: what the reader is being
+/// asked to believe, and on what basis. Every consumer that prints an
+/// attribution prints this next to it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "class", rename_all = "snake_case")]
+pub enum Evidence {
+    /// The agent runtime stated what it did (a lifecycle hook, an MCP call,
+    /// `re record`). Prompt and path are exact; the snapshot may still carry
+    /// unrelated changes made since the previous event.
+    Declared { source: String },
+    /// A proxy-captured completion was joined to the file change by content
+    /// overlap: `matched` of `considered` inserted lines were found inside
+    /// the completion. A score, not a fact.
+    Correlated {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        exchange_id: Option<String>,
+        matched: usize,
+        considered: usize,
+    },
+    /// An observer recorded the change without any link to a cause
+    /// (`re watch` with no matching completion).
+    Observed { source: String },
+}
+
+impl Evidence {
+    pub fn declared(source: &str) -> Self {
+        Evidence::Declared {
+            source: source.to_string(),
+        }
+    }
+    pub fn observed(source: &str) -> Self {
+        Evidence::Observed {
+            source: source.to_string(),
+        }
+    }
+    /// One-word label for terminal output.
+    pub fn label(&self) -> &'static str {
+        match self {
+            Evidence::Declared { .. } => "declared",
+            Evidence::Correlated { .. } => "correlated",
+            Evidence::Observed { .. } => "observed",
+        }
+    }
+    /// One line for humans: class, source or score.
+    pub fn describe(&self) -> String {
+        match self {
+            Evidence::Declared { source } => format!("declared by {source}"),
+            Evidence::Correlated {
+                matched,
+                considered,
+                ..
+            } => {
+                let pct = if *considered > 0 {
+                    (*matched as f64 / *considered as f64 * 100.0).round() as u32
+                } else {
+                    0
+                };
+                format!("correlated ({matched}/{considered} lines, {pct}%)")
+            }
+            Evidence::Observed { source } => format!("observed by {source}, cause unknown"),
+        }
+    }
 }
 
 /// Canonical JSON serialization (sorted keys, compact).
@@ -258,6 +327,7 @@ mod tests {
             post_snapshot: "s2".into(),
             exit_code: None,
             created_at: "2026-01-01T00:00:00Z".into(),
+            evidence: None,
         };
         let a = canonical_json(&ev).unwrap();
         let b = canonical_json(&ev.clone()).unwrap();

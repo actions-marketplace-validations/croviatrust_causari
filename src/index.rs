@@ -173,6 +173,7 @@ mod tests {
             post_snapshot: "post".into(),
             exit_code: None,
             created_at: ts.into(),
+            evidence: None,
         }
     }
 
