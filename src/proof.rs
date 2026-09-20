@@ -5,41 +5,40 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use crate::dag;
-use crate::object::{canonical_json, hash_bytes};
+use crate::object::hash_bytes;
 use crate::repo::Repo;
-use crate::skill::{self, Trust};
+use crate::seal::csc1_serialize;
 use crate::store::Store;
 
-// CAUSARI PROOF — verifiable AI-provenance certificate.
+// CAUSARI PROOF — signed summary of a repository's ledger.
 //
-// A proof is a signed, self-contained summary of everything Causari has
-// recorded for a repository: how many agent actions, which agents and models,
-// how much verified experience, and a digest that binds it all together.
+// A proof is a self-contained statement of what Causari has recorded for a
+// repository: how many agent actions, which agents and models, how many files,
+// and a digest that binds it to the exact set of event ids. Anyone can run
+// `re proof verify proof.json` and confirm it was not altered, with no server,
+// no account and no trust in Causari the company.
 //
-// The point is *trustless distribution*. The proof is signed with the repo's
-// Ed25519 key; anyone — a reviewer, an auditor, a stranger on the internet —
-// can run `re proof verify proof.json` and confirm it was not altered, with
-// no server, no account, no trust in Causari the company.
+// What a proof is *not*: evidence that the ledger is complete or truthful. It
+// says "this is what the ledger contained, signed by this key". Completeness is
+// the recorder's job; the proof makes the summary tamper-evident, nothing more.
 //
-// That is the viral surface: a repo drops a "AI provenance: verified" badge
-// in its README, every visitor sees it, and the proof behind it checks out
-// offline. Generation and verification are free forever. The hosted public
-// verification page, the org-wide proof registry and RFC 3161 anchoring are
-// the commercial Trust Plane on top.
+// Construction (v0.2):
+//   message   = "CAUSARI-PROOF-v1" || 0x0A || CSC1(manifest)
+//   signature = Ed25519(proof-signing key, message)
+// CSC-1 is the same canonical serialisation the Seal uses; the domain prefix
+// means a proof signature can never be replayed as a seal or a skill, and the
+// key is dedicated: `.causari/keys/proof-signing.key`, owner-readable only.
+// Unknown fields are rejected on read, so a verified proof carries exactly the
+// fields the signer signed and nothing else.
 
-pub const PROOF_SCHEMA: &str = "causari.proof.v0.1";
-
-/// Aggregate skill trust counts.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct SkillSummary {
-    pub total: usize,
-    pub verified: usize,
-    pub proven: usize,
-}
+pub const PROOF_SCHEMA: &str = "causari.proof.v0.2";
+pub const PROOF_DOMAIN: &[u8] = b"CAUSARI-PROOF-v1";
+pub const PROOF_KEY_NAME: &str = "proof-signing";
 
 /// The signed core of a proof. Deterministic: same ledger → same manifest
 /// (modulo `generated_at`, which is excluded from the binding digest).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct ProofManifest {
     pub schema: String,
     /// Human hint (repo directory name). Not a security boundary.
@@ -55,7 +54,6 @@ pub struct ProofManifest {
     /// Distinct model identifiers seen across the ledger, sorted.
     pub models: Vec<String>,
     pub files_touched: usize,
-    pub skills: SkillSummary,
     /// BLAKE3 over the sorted event id set — binds the proof to the exact
     /// ledger contents. Recomputable from any clone to detect drift.
     pub ledger_digest: String,
@@ -63,12 +61,24 @@ pub struct ProofManifest {
 
 /// A proof manifest plus its detached Ed25519 signature.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProofEnvelope {
     pub manifest: ProofManifest,
     /// hex Ed25519 public key (32 bytes)
     pub public_key: String,
-    /// hex Ed25519 signature over canonical_json(manifest) (64 bytes)
+    /// hex Ed25519 signature over PROOF_DOMAIN || 0x0A || CSC1(manifest) (64 bytes)
     pub signature: String,
+}
+
+/// The exact bytes a proof signature covers.
+fn signing_message(manifest: &ProofManifest) -> Result<Vec<u8>> {
+    let value = serde_json::to_value(manifest)?;
+    let body = csc1_serialize(&value)?;
+    let mut msg = Vec::with_capacity(PROOF_DOMAIN.len() + 1 + body.len());
+    msg.extend_from_slice(PROOF_DOMAIN);
+    msg.push(b'\n');
+    msg.extend_from_slice(&body);
+    Ok(msg)
 }
 
 /// Digest that binds a proof to exact ledger contents: BLAKE3 of the sorted,
@@ -100,19 +110,6 @@ pub fn build_manifest(repo: &Repo, store: &Store) -> Result<ProofManifest> {
         }
     }
 
-    let mut summary = SkillSummary::default();
-    for (_, env) in skill::load_skills(repo)? {
-        if skill::verify_envelope(&env).is_err() {
-            continue;
-        }
-        summary.total += 1;
-        match env.trust() {
-            Trust::Proven => summary.proven += 1,
-            Trust::Verified => summary.verified += 1,
-            Trust::Recorded => {}
-        }
-    }
-
     Ok(ProofManifest {
         schema: PROOF_SCHEMA.to_string(),
         repo: repo
@@ -128,16 +125,14 @@ pub fn build_manifest(repo: &Repo, store: &Store) -> Result<ProofManifest> {
         agents: agents.into_iter().collect(),
         models: models.into_iter().collect(),
         files_touched: files.len(),
-        skills: summary,
         ledger_digest: compute_ledger_digest(&ids),
     })
 }
 
-/// Sign a manifest with the repo's Ed25519 key (the same identity used for
-/// skills — a repo speaks with one voice).
+/// Sign a manifest with the repo's dedicated proof-signing key.
 pub fn sign_manifest(repo: &Repo, manifest: ProofManifest) -> Result<ProofEnvelope> {
-    let key = skill::load_or_create_signing_key(repo)?;
-    let msg = canonical_json(&manifest)?;
+    let key = crate::keys::load_or_create(repo, PROOF_KEY_NAME)?;
+    let msg = signing_message(&manifest)?;
     let sig = key.sign(&msg);
     Ok(ProofEnvelope {
         manifest,
@@ -155,6 +150,13 @@ pub fn generate(repo: &Repo, store: &Store) -> Result<ProofEnvelope> {
 /// Verify the signature of a proof envelope. Ok means: signed by the embedded
 /// key, unaltered since. This needs no repository and no network.
 pub fn verify_signature(env: &ProofEnvelope) -> Result<()> {
+    if env.manifest.schema != PROOF_SCHEMA {
+        return Err(anyhow!(
+            "unsupported proof schema {:?} (this build verifies {}; regenerate with `re proof generate`)",
+            env.manifest.schema,
+            PROOF_SCHEMA
+        ));
+    }
     let pk_bytes: [u8; 32] = hex::decode(&env.public_key)
         .context("decoding public key")?
         .try_into()
@@ -165,7 +167,7 @@ pub fn verify_signature(env: &ProofEnvelope) -> Result<()> {
         .map_err(|_| anyhow!("signature must be 64 bytes"))?;
     let vk = VerifyingKey::from_bytes(&pk_bytes).context("invalid public key")?;
     let sig = Signature::from_bytes(&sig_bytes);
-    let msg = canonical_json(&env.manifest)?;
+    let msg = signing_message(&env.manifest)?;
     vk.verify(&msg, &sig)
         .map_err(|_| anyhow!("signature verification FAILED — proof was modified after signing"))
 }
@@ -199,7 +201,7 @@ pub fn write_proof_file(path: &Path, env: &ProofEnvelope) -> Result<()> {
 /// No external assets, embeddable anywhere.
 pub fn badge_svg(env: &ProofEnvelope) -> String {
     let n = env.manifest.events;
-    let right = format!("{} events ✓", n);
+    let right = format!("{} events ⊢", n);
     // Width scales loosely with the right-hand text length.
     let rw = 70 + right.chars().count() as i32 * 6;
     let total = 132 + rw;
@@ -207,7 +209,7 @@ pub fn badge_svg(env: &ProofEnvelope) -> String {
         r##"<svg xmlns="http://www.w3.org/2000/svg" width="{total}" height="20" role="img" aria-label="AI provenance: {right}">
   <linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/><stop offset="1" stop-opacity=".1"/></linearGradient>
   <rect rx="3" width="{total}" height="20" fill="#555"/>
-  <rect rx="3" x="132" width="{rw}" height="20" fill="#7C3AED"/>
+  <rect rx="3" x="132" width="{rw}" height="20" fill="#3b4252"/>
   <rect rx="3" width="{total}" height="20" fill="url(#s)"/>
   <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,sans-serif" font-size="11">
     <text x="66" y="14">AI provenance</text>
@@ -221,13 +223,12 @@ pub fn badge_svg(env: &ProofEnvelope) -> String {
     )
 }
 
-/// Markdown badge snippet pointing at the (paid, hosted) public verifier,
-/// with the local SVG as the image. Offline verification stays `re proof
-/// verify`.
+/// Markdown badge snippet. The link explains how to verify the proof offline;
+/// there is no hosted verifier to trust.
 pub fn badge_markdown(env: &ProofEnvelope) -> String {
     let pk = &env.public_key[..16.min(env.public_key.len())];
     format!(
-        "[![AI provenance — verified by Causari](causari-proof.svg)](https://causari.dev/verify?k={})",
+        "[![AI provenance — signed ledger summary, verify with re proof verify](causari-proof.svg)](https://github.com/croviatrust/causari#causari-proof \"proof key {}…\")",
         pk
     )
 }
@@ -306,6 +307,67 @@ mod tests {
         // Inflate the event count to fake more provenance than exists.
         env.manifest.events = 9999;
         assert!(verify_signature(&env).is_err());
+    }
+
+    #[test]
+    fn unknown_fields_are_rejected_not_ignored() {
+        let (_t, repo) = test_repo();
+        let store = Store::new(&repo);
+        record(&repo, &store, "claude", "claude-4", "a.rs");
+        let env = generate(&repo, &store).unwrap();
+        let mut v: serde_json::Value = serde_json::to_value(&env).unwrap();
+        v["manifest"]["injected_claim"] = serde_json::json!("SOC2 certified");
+        let raw = serde_json::to_string(&v).unwrap();
+        let parsed: std::result::Result<ProofEnvelope, _> = serde_json::from_str(&raw);
+        assert!(
+            parsed.is_err(),
+            "a proof with fields the signer never signed must not parse"
+        );
+        v["manifest"]
+            .as_object_mut()
+            .unwrap()
+            .remove("injected_claim");
+        v["extra"] = serde_json::json!(1);
+        let raw = serde_json::to_string(&v).unwrap();
+        assert!(serde_json::from_str::<ProofEnvelope>(&raw).is_err());
+    }
+
+    #[test]
+    fn proof_key_is_not_the_skill_key() {
+        let (_t, repo) = test_repo();
+        let store = Store::new(&repo);
+        let env = generate(&repo, &store).unwrap();
+        let skill_key = crate::skill::load_or_create_signing_key(&repo).unwrap();
+        assert_ne!(
+            env.public_key,
+            hex::encode(skill_key.verifying_key().to_bytes()),
+            "proof and skill identities must be distinct keys"
+        );
+    }
+
+    #[test]
+    fn signature_is_domain_separated() {
+        let (_t, repo) = test_repo();
+        let store = Store::new(&repo);
+        let env = generate(&repo, &store).unwrap();
+        let msg = signing_message(&env.manifest).unwrap();
+        assert!(msg.starts_with(b"CAUSARI-PROOF-v1\n"));
+        // The same bytes without the prefix must not verify.
+        let key = crate::keys::load_or_create(&repo, PROOF_KEY_NAME).unwrap();
+        let bare = key.sign(&msg[PROOF_DOMAIN.len() + 1..]);
+        let mut forged = env.clone();
+        forged.signature = hex::encode(bare.to_bytes());
+        assert!(verify_signature(&forged).is_err());
+    }
+
+    #[test]
+    fn old_schema_is_refused_with_a_clear_message() {
+        let (_t, repo) = test_repo();
+        let store = Store::new(&repo);
+        let mut env = generate(&repo, &store).unwrap();
+        env.manifest.schema = "causari.proof.v0.1".into();
+        let err = verify_signature(&env).unwrap_err().to_string();
+        assert!(err.contains("unsupported proof schema"), "{err}");
     }
 
     #[test]

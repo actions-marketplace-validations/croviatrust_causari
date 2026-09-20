@@ -239,34 +239,21 @@ fn state_path(repo: &Repo) -> PathBuf {
     seal_dir(repo).join("state.json")
 }
 
-fn issuer_key_path(repo: &Repo) -> PathBuf {
-    repo.dir.join("keys").join("seal-issuer.key")
+/// Default issuer URN: one per key, so two users never share an identity.
+pub fn default_issuer_id(key: &SigningKey) -> String {
+    let pk = hex::encode(key.verifying_key().to_bytes());
+    format!("urn:crovia:seal-issuer:causari:{}", &pk[..12])
 }
 
 impl SealIssuer {
+    pub fn issuer_id(&self) -> &str {
+        &self.issuer_id
+    }
+
     /// Load the repo's seal issuer, creating key and chain state on first use.
     pub fn load_or_create(repo: &Repo, issuer_id: Option<String>) -> Result<Self> {
-        let key_path = issuer_key_path(repo);
-        let key = if key_path.exists() {
-            let hex_str = std::fs::read_to_string(&key_path)
-                .with_context(|| format!("reading {}", key_path.display()))?;
-            let bytes = hex::decode(hex_str.trim()).context("decoding seal issuer key")?;
-            let arr: [u8; 32] = bytes
-                .try_into()
-                .map_err(|_| anyhow!("seal issuer key must be 32 bytes"))?;
-            SigningKey::from_bytes(&arr)
-        } else {
-            let mut secret = [0u8; 32];
-            getrandom::fill(&mut secret).map_err(|e| anyhow!("generating issuer key: {}", e))?;
-            let key = SigningKey::from_bytes(&secret);
-            std::fs::create_dir_all(key_path.parent().unwrap())?;
-            std::fs::write(&key_path, hex::encode(secret))?;
-            std::fs::write(
-                key_path.with_extension("pub"),
-                hex::encode(key.verifying_key().to_bytes()),
-            )?;
-            key
-        };
+        let key = crate::keys::load_or_create(repo, "seal-issuer")?;
+        let issuer_id = issuer_id.unwrap_or_else(|| default_issuer_id(&key));
 
         let sp = state_path(repo);
         // The log decides. state.json may be ahead (append failed after the
@@ -278,7 +265,7 @@ impl SealIssuer {
         Ok(Self {
             repo: repo.clone(),
             key,
-            issuer_id: issuer_id.unwrap_or_else(|| "urn:crovia:seal-issuer:causari".to_string()),
+            issuer_id,
             sequence,
             prev_seal_hash,
             state_path: sp,

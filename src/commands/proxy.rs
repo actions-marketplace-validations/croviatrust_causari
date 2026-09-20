@@ -302,22 +302,11 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
         }
     };
     let cost_usd = estimate_cost(model.as_deref(), tokens_in, tokens_out);
-    let exchange = Exchange {
-        id: Some(crate::capture::new_exchange_id()?),
-        ts_ms: now_ms(),
-        agent: user_agent,
-        model: model.clone(),
-        prompt: prompt.clone(),
-        response_text: text,
-        tokens_in,
-        tokens_out,
-        cost_usd,
-    };
-    append_jsonl(&exchanges_path(repo), &exchange)?;
 
     // Optionally emit a Crovia Seal over the exact wire bytes: the request
     // as sent upstream, the response as returned to the client. The seal
-    // commits to hashes only — content never leaves the machine.
+    // commits to hashes only — content never leaves the machine. It is
+    // emitted first so the exchange record can carry its id.
     let seal_id = if let Some(sealer) = &cfg.sealer {
         let mut issuer = sealer.lock().map_err(|_| anyhow!("seal issuer poisoned"))?;
         let seal = issuer.emit(
@@ -336,6 +325,22 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
     } else {
         None
     };
+
+    let exchange = Exchange {
+        id: Some(crate::capture::new_exchange_id()?),
+        ts_ms: now_ms(),
+        agent: user_agent,
+        model: model.clone(),
+        prompt: prompt.clone(),
+        response_text: text,
+        tokens_in,
+        tokens_out,
+        cost_usd,
+        request_sha256: Some(crate::seal::sha256_hex(&body)),
+        response_sha256: Some(crate::seal::sha256_hex(&bytes)),
+        seal_id: seal_id.clone(),
+    };
+    append_jsonl(&exchanges_path(repo), &exchange)?;
 
     let prompt_preview = prompt
         .as_deref()

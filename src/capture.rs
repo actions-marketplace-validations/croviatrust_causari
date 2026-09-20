@@ -47,6 +47,19 @@ pub struct Exchange {
     pub tokens_out: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost_usd: Option<f64>,
+    /// SHA-256 of the exact request bytes sent upstream. Lets a seal, a
+    /// transcript or a third party be matched to this exchange without the
+    /// bytes themselves ever being stored. Absent on older lines.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_sha256: Option<String>,
+    /// SHA-256 of the exact response bytes returned to the client.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_sha256: Option<String>,
+    /// `seal_id` of the crovia.seal.v1 receipt emitted for this exchange by
+    /// `re proxy --seal`, when one was. This is the link from a completion
+    /// to its receipt; without it seals are orphans.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seal_id: Option<String>,
 }
 
 /// A user prompt reported by an agent-side hook (e.g. Claude Code).
@@ -474,6 +487,9 @@ mod tests {
             tokens_in: Some(100),
             tokens_out: Some(50),
             cost_usd: None,
+            request_sha256: None,
+            response_sha256: None,
+            seal_id: None,
         }
     }
 

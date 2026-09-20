@@ -97,9 +97,22 @@ fn list(limit: usize) -> Result<()> {
 
 fn issuer() -> Result<()> {
     let repo = Repo::discover()?;
+    // Read-only: printing an identity must not mint one.
+    let Some(key) = crate::keys::load(&repo, "seal-issuer")? else {
+        println!("no seal issuer key yet");
+        println!(
+            "  one is created (owner-readable only) the first time you run {}",
+            "re proxy --seal".cyan()
+        );
+        return Ok(());
+    };
     let issuer = seal::SealIssuer::load_or_create(&repo, None)?;
-    println!("issuer id   {}", "urn:crovia:seal-issuer:causari".cyan());
-    println!("pubkey      {}", issuer.pubkey_hex());
+    println!("issuer id   {}", issuer.issuer_id().cyan());
+    println!(
+        "pubkey      {}",
+        hex::encode(key.verifying_key().to_bytes())
+    );
+    println!("key file    .causari/keys/seal-issuer.key (0600)");
     println!("next seq    {}", issuer.sequence());
     println!();
     println!(

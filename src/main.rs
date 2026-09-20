@@ -7,6 +7,7 @@ mod commit;
 mod config;
 mod dag;
 mod index;
+mod keys;
 mod object;
 mod proof;
 mod repo;

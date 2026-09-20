@@ -355,7 +355,7 @@ pub struct ProxyArgs {
     pub seal: bool,
 
     /// Issuer id embedded in emitted seals
-    /// (default: urn:crovia:seal-issuer:causari)
+    /// (default: urn:crovia:seal-issuer:causari:<first 12 hex of your pubkey>)
     #[arg(long)]
     pub seal_issuer: Option<String>,
 }

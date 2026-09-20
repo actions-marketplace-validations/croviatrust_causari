@@ -171,36 +171,12 @@ pub fn skill_id(core: &SkillCore) -> Result<String> {
 }
 
 pub fn keys_dir(repo: &Repo) -> PathBuf {
-    repo.dir.join("keys")
-}
-
-fn signing_key_path(repo: &Repo) -> PathBuf {
-    keys_dir(repo).join("skill-signing.key")
+    crate::keys::keys_dir(repo)
 }
 
 /// Load the repo's skill-signing key, generating one on first use.
 pub fn load_or_create_signing_key(repo: &Repo) -> Result<SigningKey> {
-    let path = signing_key_path(repo);
-    if path.exists() {
-        let hex_str = std::fs::read_to_string(&path)
-            .with_context(|| format!("reading {}", path.display()))?;
-        let bytes = hex::decode(hex_str.trim()).context("decoding signing key")?;
-        let arr: [u8; 32] = bytes
-            .try_into()
-            .map_err(|_| anyhow!("signing key must be 32 bytes"))?;
-        return Ok(SigningKey::from_bytes(&arr));
-    }
-    let mut secret = [0u8; 32];
-    getrandom::fill(&mut secret).map_err(|e| anyhow!("generating key: {}", e))?;
-    let key = SigningKey::from_bytes(&secret);
-    std::fs::create_dir_all(keys_dir(repo))?;
-    std::fs::write(&path, hex::encode(secret))?;
-    // Public key alongside, for sharing/verification by other parties.
-    std::fs::write(
-        keys_dir(repo).join("skill-signing.pub"),
-        hex::encode(key.verifying_key().to_bytes()),
-    )?;
-    Ok(key)
+    crate::keys::load_or_create(repo, "skill-signing")
 }
 
 pub fn sign_skill(core: SkillCore, key: &SigningKey) -> Result<SkillEnvelope> {
