@@ -246,6 +246,8 @@ Claude Desktop, Cursor, Windsurf and Cline. The server is listed in the
 [`server.json`](server.json):
 
 - MCP Registry name: mcp-name: io.github.croviatrust/causari
+- One-click for Cursor: [Add causari to Cursor](https://cursor.com/en/install-mcp?name=causari&config=eyJjb21tYW5kIjoicmUiLCJhcmdzIjpbIm1jcCJdfQ%3D%3D)
+  (registers `re mcp`; the binary must be on `PATH`)
 
 ### As a Claude Code plugin
 
