@@ -279,3 +279,23 @@ fn shallow_clone_is_refused_with_exit_2_and_sealed_only_when_allowed() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(stdout(&out).contains("shallow clone"), "{}", stdout(&out));
 }
+
+#[test]
+fn re_proof_is_retired_with_exit_2() {
+    let temp = repo_with_history();
+    for args in [
+        &["proof"][..],
+        &["proof", "generate"][..],
+        &["proof", "verify", "--against-repo", "x.json"][..],
+    ] {
+        let out = re(temp.path(), args);
+        assert_eq!(out.status.code(), Some(2), "{args:?}");
+        let text = stderr(&out);
+        assert!(text.contains("retired"), "{text}");
+        assert!(text.contains("re audit --seal"), "{text}");
+        assert!(text.contains("re seal verify"), "{text}");
+    }
+    // Gone from the help.
+    let out = re(temp.path(), &["--help"]);
+    assert!(!stdout(&out).contains("proof"), "{}", stdout(&out));
+}

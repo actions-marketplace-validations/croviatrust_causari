@@ -11,7 +11,6 @@ mod exit;
 mod index;
 mod keys;
 mod object;
-mod proof;
 mod provenance;
 mod repo;
 mod seal;

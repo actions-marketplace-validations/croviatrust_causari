@@ -74,7 +74,8 @@ pub enum Command {
     /// paste it into any model's context (CLAUDE.md, AGENTS.md, .cursorrules)
     Brief(BriefArgs),
 
-    /// Generate or verify a signed AI-provenance proof (trustless, offline)
+    /// Retired: use `re audit --seal` and `re seal verify`
+    #[command(hide = true)]
     Proof(ProofArgs),
 
     /// Run Causari as an MCP server (Claude Code, Cursor, Cline, Windsurf, …)
@@ -497,38 +498,12 @@ pub enum SkillTrustCommand {
     Remove { label: String },
 }
 
+/// `re proof` is retired: whatever follows it is accepted and ignored so
+/// old invocations get the notice instead of a usage error.
 #[derive(Args, Debug)]
 pub struct ProofArgs {
-    #[command(subcommand)]
-    pub command: ProofCommand,
-}
-
-#[derive(Subcommand, Debug)]
-pub enum ProofCommand {
-    /// Generate a signed proof + embeddable badge for this repo
-    Generate {
-        /// Proof JSON output path (default: causari-proof.json)
-        #[arg(short, long)]
-        output: Option<std::path::PathBuf>,
-
-        /// Also write a self-contained SVG badge (default: causari-proof.svg)
-        #[arg(long)]
-        badge: Option<std::path::PathBuf>,
-
-        /// Skip writing the SVG badge
-        #[arg(long)]
-        no_badge: bool,
-    },
-
-    /// Verify a proof's signature offline; optionally check it against this repo
-    Verify {
-        /// Path to a proof JSON (default: causari-proof.json)
-        file: Option<std::path::PathBuf>,
-
-        /// Also confirm the proof still matches the current ledger
-        #[arg(long)]
-        against_repo: bool,
-    },
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
+    pub rest: Vec<String>,
 }
 
 #[derive(Args, Debug)]
