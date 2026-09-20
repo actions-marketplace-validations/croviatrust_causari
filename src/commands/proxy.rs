@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use colored::Colorize;
 use std::io::Read;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,6 +11,7 @@ use crate::capture::{
     parse_response_json, parse_sse,
 };
 use crate::cli::ProxyArgs;
+use crate::pnx_run::{self, Run};
 use crate::repo::Repo;
 use crate::seal::{SealGenerator, SealIssuer, SealSubject};
 
@@ -35,6 +36,13 @@ use crate::seal::{SealGenerator, SealIssuer, SealSubject};
 /// turns "12 files changed" into "12 files changed because this prompt asked
 /// this model, and it cost $0.14". The Claude Code hook does the same join
 /// from its side to pick up model and cost.
+///
+/// With `--pnx` the proxy is also a PNX egress witness (TACET profile
+/// `crovia.pnx.v1`): every request body is fingerprinted and persisted
+/// *before* it is forwarded, and Ctrl-C closes the run with a signed sheet.
+/// A body the witness cannot record is not forwarded: the sheet's claim is
+/// "everything that left through here is in the map", and a hole in the map
+/// would turn a `present` into an `absent`.
 pub fn run(args: ProxyArgs) -> Result<()> {
     let repo = Arc::new(Repo::discover()?);
     let port = args.port.unwrap_or(4242);
@@ -49,6 +57,11 @@ pub fn run(args: ProxyArgs) -> Result<()> {
     } else {
         None
     };
+    let witness = if args.pnx {
+        Some(open_witness(&repo, args.pnx_run_id.as_deref())?)
+    } else {
+        None
+    };
     let cfg = Arc::new(ProxyConfig {
         openai: args
             .openai_upstream
@@ -57,10 +70,29 @@ pub fn run(args: ProxyArgs) -> Result<()> {
             .anthropic_upstream
             .unwrap_or_else(|| "https://api.anthropic.com".to_string()),
         sealer,
+        witness,
     });
 
     let server = Server::http(("127.0.0.1", port))
         .map_err(|e| anyhow!("cannot bind 127.0.0.1:{}: {}", port, e))?;
+
+    if cfg.witness.is_some() {
+        // Ctrl-C is how a proxy session ends; in witness mode it is also
+        // when the sheet gets signed. The handler waits for any body being
+        // recorded at that moment, then closes the run and exits.
+        let cfg = Arc::clone(&cfg);
+        ctrlc::set_handler(move || {
+            println!();
+            match close_witness(&cfg) {
+                Ok(()) => std::process::exit(0),
+                Err(e) => {
+                    eprintln!("{} {e}", "pnx:".red());
+                    std::process::exit(1)
+                }
+            }
+        })
+        .map_err(|e| anyhow!("installing the Ctrl-C handler: {e}"))?;
+    }
 
     println!(
         "{} LLM capture proxy listening on {}",
@@ -91,6 +123,18 @@ pub fn run(args: ProxyArgs) -> Result<()> {
         "stream:true".bright_black(),
         "stream_options.include_usage".bright_black()
     );
+    if let Some(w) = &cfg.witness {
+        let run = w.run.lock().map_err(|_| anyhow!("PNX witness poisoned"))?;
+        println!(
+            "  {} run {} — every request body is fingerprinted ({}; shared substrings of {} bytes \
+             or more are always detected) before it is forwarded; Ctrl-C signs the sheet into {}.",
+            "PNX witness:".bright_black(),
+            run.run_id().cyan(),
+            pnx_run::describe_layers(&run.witness).bright_black(),
+            crate::pnx::THRESHOLD,
+            run.sheet_path().display().to_string().bright_black()
+        );
+    }
     println!("  Press Ctrl-C to stop.");
     println!();
 
@@ -113,6 +157,103 @@ struct ProxyConfig {
     /// (draft-crovia-seal-01): an Ed25519-signed, hash-chained receipt.
     /// Mutex because the chain state (sequence, prev hash) is strictly serial.
     sealer: Option<Mutex<SealIssuer>>,
+    /// When set, every outbound request body is fingerprinted into a PNX
+    /// run before it is forwarded (`--pnx`).
+    witness: Option<PnxWitness>,
+}
+
+/// The PNX run being witnessed and the key that will sign its sheet. The
+/// key is loaded up front so that closing the run at Ctrl-C cannot fail on
+/// key creation.
+struct PnxWitness {
+    run: Mutex<Run>,
+    key: ed25519_dalek::SigningKey,
+}
+
+fn open_witness(repo: &Repo, run_id: Option<&str>) -> Result<PnxWitness> {
+    let key = pnx_run::witness_key(repo)?;
+    let run_id = match run_id {
+        Some(id) => id.to_string(),
+        None => pnx_run::new_run_id()?,
+    };
+    let (run, resumed) = Run::open(repo, &run_id, pnx_run::new_salt()?)?;
+    println!(
+        "{} PNX witness {} — {} run {}",
+        "causari:".green().bold(),
+        pnx_run::witness_id(&key).bright_white(),
+        if resumed { "resuming" } else { "opened" },
+        run_id.cyan()
+    );
+    if resumed {
+        println!(
+            "  {} bodies and {} fingerprints already recorded in this run",
+            run.witness.bodies,
+            run.witness.map.len()
+        );
+    }
+    Ok(PnxWitness {
+        run: Mutex::new(run),
+        key,
+    })
+}
+
+/// Record one outbound body in the PNX run, persisting before returning.
+/// Empty bodies (GETs, health checks) carry nothing and are not counted.
+fn witness_body(cfg: &ProxyConfig, body: &[u8]) -> Result<()> {
+    let Some(w) = &cfg.witness else {
+        return Ok(());
+    };
+    if body.is_empty() {
+        return Ok(());
+    }
+    let mut run = w.run.lock().map_err(|_| anyhow!("PNX witness poisoned"))?;
+    run.ingest(body, &pnx_run::now_rfc3339())
+        .context("PNX witness could not record the body")?;
+    Ok(())
+}
+
+/// Sign the run sheet and say where it is. Called from the Ctrl-C handler.
+fn close_witness(cfg: &ProxyConfig) -> Result<()> {
+    let Some(w) = &cfg.witness else {
+        return Ok(());
+    };
+    // A request thread that panicked while holding the lock leaves the map
+    // consistent (fingerprints are appended before counters move), so a
+    // poisoned lock is still worth signing.
+    let mut run = match w.run.lock() {
+        Ok(r) => r,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let sheet = run.close(&w.key)?;
+    if run.witness.map.is_empty() {
+        println!(
+            "{} PNX run {} saw no bodies; the sheet commits to an empty map",
+            "note:".yellow(),
+            run.run_id()
+        );
+    }
+    println!(
+        "{} PNX run {} closed — {} bodies, {} bytes, {} fingerprints",
+        "causari:".green().bold(),
+        run.run_id().cyan(),
+        run.witness.bodies,
+        run.witness.bytes,
+        run.witness.map.len()
+    );
+    println!(
+        "  root    {}",
+        sheet["root"].as_str().unwrap_or("?").bright_white()
+    );
+    println!(
+        "  sheet   {}  {}",
+        run.sheet_path().display(),
+        "(public: this is what a verifier needs besides the proof)".bright_black()
+    );
+    println!(
+        "  next    {}",
+        format!("re pnx prove --run {} --asset LABEL=PATH", run.run_id()).cyan()
+    );
+    Ok(())
 }
 
 /// Generation parameters worth committing into the seal, stringified per
@@ -284,6 +425,17 @@ fn handle(mut request: tiny_http::Request, cfg: &ProxyConfig, repo: &Repo) -> Re
         .iter()
         .find(|h| h.field.equiv("user-agent"))
         .map(|h| h.value.as_str().to_string());
+
+    // PNX: the bytes about to leave are committed to the run map first. If
+    // that fails the body does not leave; the client sees why.
+    if let Err(e) = witness_body(cfg, &body) {
+        let resp = Response::from_string(format!(
+            "causari proxy: PNX witness could not record the request body; not forwarded: {e:#}"
+        ))
+        .with_status_code(503);
+        let _ = request.respond(resp);
+        return Err(e);
+    }
 
     // Forward upstream. No overall timeout: SSE streams can run for minutes.
     // Non-2xx still has a body the client needs to see (error details), so
@@ -627,6 +779,7 @@ mod tests {
             openai: String::new(),
             anthropic: String::new(),
             sealer: None,
+            witness: None,
         };
         let request = json!({"model": "gpt-4o", "stream": true,
             "messages": [{"role": "user", "content": "add the helper"}]});
@@ -680,5 +833,75 @@ mod tests {
         assert!(!full.truncated);
         let last = std::fs::read_to_string(exchanges_path(&repo)).unwrap();
         assert!(!last.lines().last().unwrap().contains("truncated"));
+    }
+
+    #[test]
+    fn witness_mode_records_bodies_before_forwarding_and_signs_on_close() {
+        use crate::pnx::{verify_proof, verify_sheet};
+        use serde_json::json;
+        use std::collections::BTreeMap;
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let cfg = ProxyConfig {
+            openai: String::new(),
+            anthropic: String::new(),
+            sealer: None,
+            witness: Some(open_witness(&repo, Some("session-1")).unwrap()),
+        };
+        let secret = "sk-live-0123456789abcdef0123456789abcdef0123456789abcdef";
+        let leaked = serde_json::to_vec(&json!({"model": "gpt-4o", "messages": [
+            {"role": "user", "content": format!("why does this fail? KEY={secret}")}]}))
+        .unwrap();
+        let clean = serde_json::to_vec(&json!({"model": "gpt-4o", "messages": [
+            {"role": "user", "content": "rename the helper and add a docstring please"}]}))
+        .unwrap();
+        witness_body(&cfg, &leaked).unwrap();
+        witness_body(&cfg, &clean).unwrap();
+        witness_body(&cfg, b"").unwrap();
+        {
+            let run = cfg.witness.as_ref().unwrap().run.lock().unwrap();
+            assert_eq!(run.witness.bodies, 2, "empty bodies are not egress");
+            assert!(!run.is_closed());
+        }
+
+        close_witness(&cfg).unwrap();
+        let run = Run::load(&repo, "session-1").unwrap();
+        let sheet = run.sheet().unwrap();
+        assert!(verify_sheet(&sheet).is_empty());
+        assert_eq!(sheet["egress"]["bodies"], 2);
+        assert_eq!(
+            sheet["witness"]["id"],
+            pnx_run::witness_id(&pnx_run::witness_key(&repo).unwrap())
+        );
+
+        // The leaked key is found through json-strings-v1; an unrelated one is not.
+        let other = "AKIA0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";
+        let mut run = run;
+        let proof = run
+            .witness
+            .prove(
+                &sheet,
+                &[
+                    ("openai".to_string(), secret.as_bytes().to_vec()),
+                    ("aws".to_string(), other.as_bytes().to_vec()),
+                ],
+            )
+            .unwrap();
+        let supplied: BTreeMap<String, Vec<u8>> = [
+            ("openai".to_string(), secret.as_bytes().to_vec()),
+            ("aws".to_string(), other.as_bytes().to_vec()),
+        ]
+        .into_iter()
+        .collect();
+        let res = verify_proof(&proof, Some(&supplied));
+        assert!(res.ok, "{:?}", res.errors);
+        let got: BTreeMap<String, String> = res.assets.into_iter().collect();
+        assert_eq!(got["openai"], "present");
+        assert_eq!(got["aws"], "absent");
+
+        // A closed run takes no more bodies: the proxy would refuse to forward.
+        assert!(witness_body(&cfg, &clean).is_err());
+        // Closing twice is refused as well.
+        assert!(close_witness(&cfg).is_err());
     }
 }
