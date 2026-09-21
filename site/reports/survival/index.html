@@ -22,7 +22,7 @@
   <meta name="twitter:description" content="Weekly, numbered, citable: how many lines from AI-tagged commits are still at HEAD in open-source repositories. Counts and intervals, no ranks, no verdicts. Every number reproducible with re audit &lt;owner/repo&gt; --json." />
   <meta name="twitter:image" content="https://causari.dev/reports/survival/2026/01/card.png" />
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-  <link rel="stylesheet" href="/styles.css?v=a06cc110b7" />
+  <link rel="stylesheet" href="/styles.css?v=0c1191c49d" />
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "CollectionPage", "name": "Survival Report · weekly", "url": "https://causari.dev/reports/survival/", "description": "Weekly, numbered, citable: how many lines from AI-tagged commits are still at HEAD in open-source repositories. Counts and intervals, no ranks, no verdicts. Every number reproducible with re audit <owner/repo> --json.", "publisher": {"@type": "Organization", "name": "Crovia Trust", "url": "https://croviatrust.com"}, "hasPart": [{"@type": "Report", "name": "Survival Report #1", "url": "https://causari.dev/reports/survival/2026/01/", "datePublished": "2026-09-20"}]}</script>
 </head>
 <body>
@@ -40,6 +40,7 @@
       <a href="/reports/survival/" aria-current="page">reports</a>
       <a href="/method">method</a>
       <a href="/verify/">verify</a>
+      <a href="/faq">faq</a>
       <a href="https://github.com/croviatrust/causari" rel="noopener" class="hide-sm">source</a>
       <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
     </nav>
@@ -70,13 +71,14 @@
         </tbody>
       </table>
     </div>
-    <p class="muted">The report replaced the weekly measurements table in September 2026. Repositories are added by pull request to <a href="https://github.com/croviatrust/causari/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a>; maintainers opt out with one line in <a href="https://github.com/croviatrust/causari/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
+    <p class="muted">The report replaced the weekly measurements table in September 2026. Repositories enter <a href="https://github.com/croviatrust/causari/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a> by pull request or through the weekly discovery, which lists the public repositories where GitHub commit search finds the most commits carrying AI authorship metadata (<a href="/method#selection">how repositories are selected</a>); maintainers opt out with one line in <a href="https://github.com/croviatrust/causari/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
+    <p><a href="/r/">Every repository has a page and a badge</a>: its counts across reports, the exact bytes behind each number, and a README badge that follows the latest report.</p>
     </div>
 
     <div class="proof rp-positioning">
       <h3>What this report is, and is not</h3>
       <p>This report counts lines. For each repository it states how many lines were introduced by commits that carry machine-readable AI authorship metadata (trailers such as Co-Authored-By naming an agent, bot author identities, aider markers, git-ai notes), and how many of those lines git blame still attributes to those commits at HEAD, under method v2 (blame with -w -M -C, a per-commit weight cap, a sample floor, full clones only). Every row is reproducible with one command.</p>
-      <p>It is not a quality judgement: deleted lines include removed features and rewritten prototypes; surviving lines include dead code. It is not a sample of all AI-assisted code: inline completions leave no trace in git, untagged agent commits are invisible, and the repositories were added by pull request, not drawn at random. The intervals describe the sampled repositories only.</p>
+      <p>It is not a quality judgement: deleted lines include removed features and rewritten prototypes; surviving lines include dead code. It is not a sample of all AI-assisted code: inline completions leave no trace in git, untagged agent commits are invisible, and the repositories were selected, not drawn at random: a hand-picked list and the public repositories in which GitHub commit search finds the most commits carrying the same AI authorship metadata; each report states its own selection. The intervals describe the sampled repositories only.</p>
       <p>Prior measurement work asks related questions with different instruments. GitClear publishes churn reports built from code-change patterns across the repositories it analyses; <a href="https://arxiv.org/abs/2601.16809" rel="noopener">arXiv 2601.16809</a> (&quot;Will It Survive?&quot;) follows the modification of agent-authored code in 201 projects with its own detector and finds that such code is modified less often than human-written code. This report does not reproduce either method and does not adjudicate between them: it publishes counts from git metadata alone, with the method version, the tool version and the exact bytes behind every number, so that the three can be read side by side.</p>
 <pre translate="no"><code translate="no">re audit &lt;owner/repo&gt; --json   <span class="dim"># the exact bytes behind any row</span></code></pre>
     </div>
@@ -88,7 +90,7 @@
   <div class="container">
     <div class="foot-bottom">
       <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Crovia</a> · <em>causari</em> is a trademark of Crovia Trust. Report text and data <a href="https://creativecommons.org/licenses/by/4.0/" rel="license noopener">CC-BY-4.0</a>.</p>
-      <p class="muted">Every number reproducible: <code translate="no">re audit &lt;owner/repo&gt; --json</code> · <a href="/method">method</a> · <a href="/reports/survival/feed.xml">feed</a> · <a href="/">causari.dev</a></p>
+      <p class="muted">Every number reproducible: <code translate="no">re audit &lt;owner/repo&gt; --json</code> · <a href="/method">method</a> · <a href="/faq">faq</a> · <a href="/reports/survival/feed.xml">feed</a> · <a href="/">causari.dev</a></p>
     </div>
   </div>
 </footer>

@@ -252,6 +252,176 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(redirects.count(sr.REDIRECT_BEGIN), 1)
 
 
+class RepoPageTests(unittest.TestCase):
+    """site/r/<owner>/<repo>/: page, badge, latest.json; site/r/index.html."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.s = Scratch()
+        cls.f = cls.s.build()
+        cls.r = cls.s.site / "r"
+        cls.page = (cls.r / "alpha" / "first" / "index.html").read_text(encoding="utf-8")
+        cls.index = (cls.r / "index.html").read_text(encoding="utf-8")
+        cls.report_page = (cls.s.site / "reports" / "survival" / "2026" / "01" / "index.html").read_text(encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.s.close()
+
+    def test_tree_for_every_measured_repository_and_no_other(self) -> None:
+        measured = [r["repo"] for r in self.f["repositories"] + self.f["not_aggregated"]]
+        self.assertEqual(sorted(measured, key=str.lower), ["Alpha/first", "mid/one", "mid/small", "zeta/last"])
+        for repo in measured:
+            d = self.r / repo.lower()
+            for name in ("index.html", "badge.svg", "badge-dark.svg", "latest.json"):
+                self.assertTrue((d / name).exists(), f"{repo}: {name}")
+        for absent in ("mid/shallow", "opt/out", "gone/repo"):
+            self.assertFalse((self.r / absent).exists(), absent)
+        self.assertFalse((self.r / "Alpha").exists(), "paths are lowercase only")
+
+    def test_lowercase_paths_and_cased_redirect(self) -> None:
+        self.assertEqual(sr.repo_path("Alpha/first"), "/r/alpha/first/")
+        self.assertEqual(sr.repo_path("mid/one"), "/r/mid/one/")
+        redirects = (self.s.site / "_redirects").read_text(encoding="utf-8")
+        self.assertIsNotNone(re.search(r"^/r/Alpha/first/\s+/r/alpha/first/\s+301$", redirects, re.M))
+        self.assertNotIn("/r/mid/one/ ", redirects)  # already lowercase: no redirect needed
+        for href in re.findall(r'href="(/r/[^"]+)"', self.report_page + self.index + self.page):
+            self.assertEqual(href, href.lower(), href)
+        # the report page's repository names link to the repository pages; the numbers still link to the bytes
+        self.assertIn('href="/r/alpha/first/"', self.report_page)
+        self.assertIn('href="repos/Alpha__first.json"', self.report_page)
+
+    def test_page_with_one_report(self) -> None:
+        self.assertIn('<h1><a href="https://github.com/Alpha/first" rel="noopener" translate="no">Alpha/first</a></h1>', self.page)
+        self.assertIn("In Survival Report #1 (2026-09-21, method v2): 400 of 500 lines introduced by 10 AI-tagged commits are still at HEAD, 80.0 %.", self.page)
+        self.assertIn("re audit Alpha/first --json", self.page)
+        self.assertIn('href="/reports/survival/2026/01/repos/Alpha__first.json"', self.page)
+        self.assertIn("[![AI code survival](https://causari.dev/r/alpha/first/badge.svg)](https://causari.dev/r/alpha/first/)", self.page)
+        self.assertIn('data-copy="badge-md"', self.page)
+        self.assertIn("cursor", self.page)  # by agent
+        self.assertNotIn('class="spark"', self.page)  # one point is not a line
+        self.assertEqual(self.page.count("<tr><td><a href=\"/reports/survival/"), 1)  # one history row
+        self.assertIn("A line appears once the repository has been measured in two reports.", self.page)
+        self.assertIn('"@type": "Dataset"', self.page)
+        self.assertIn('"codeRepository": "https://github.com/Alpha/first"', self.page)
+        for m in re.finditer(r"<code\b[^>]*>", self.page):
+            self.assertIn('translate="no"', m.group(0), m.group(0))
+        for token in ("color:", "background:", "🟢", "🟡", "🔴", "Rank", "rank "):
+            self.assertNotIn(token, self.page)
+        for other in ("mid/one", "zeta/last", "mid/small"):
+            self.assertNotIn(other, self.page)  # no comparison with other repositories
+        text = visible_text(self.page)
+        for word in FORBIDDEN:
+            self.assertNotIn(word, text)
+
+    def test_small_sample_page_publishes_counts_not_ratio(self) -> None:
+        page = (self.r / "mid" / "small" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("10 of 50 lines introduced by 3 AI-tagged commits are still at HEAD. Fewer than 5 AI-tagged commits", page)
+        self.assertNotIn("20.0 %", page)
+        self.assertIn('<span class="n">n &lt; 5</span>', page)
+        self.assertNotIn("n < 5", page)
+        badge = (self.r / "mid" / "small" / "badge.svg").read_text(encoding="utf-8")
+        self.assertIn("AI code survival  n &lt; 5", badge)
+        self.assertNotIn("20.0", badge)
+
+    def test_badge_text_width_and_colours(self) -> None:
+        light = (self.r / "alpha" / "first" / "badge.svg").read_text(encoding="utf-8")
+        dark = (self.r / "alpha" / "first" / "badge-dark.svg").read_text(encoding="utf-8")
+        root = ET.fromstring(light)
+        ns = "{http://www.w3.org/2000/svg}"
+        texts = [t.text for t in root.iter(f"{ns}text")]
+        self.assertEqual(texts, ["AI code survival  80.0 %", "causari · #1"])
+        left = round(len(texts[0]) * sr.BADGE_CHAR + 2 * sr.BADGE_PAD)
+        right = round(len(texts[1]) * sr.BADGE_CHAR + 2 * sr.BADGE_PAD)
+        self.assertEqual(int(root.get("width")), left + right)
+        self.assertEqual(int(root.get("height")), 20)
+        title = root.find(f"{ns}title").text
+        self.assertIn("Alpha/first: In Survival Report #1 (2026-09-21, method v2): 400 of 500 lines", title)
+        colours = set(re.findall(r'fill="(#[0-9a-f]{6})"', light + dark))
+        self.assertEqual(colours, {sr.INK, sr.PAPER})
+        for word in ("red", "green", "#4c1", "#e05d44", "stroke="):
+            self.assertNotIn(word, light + dark)
+        # dark is the same badge with the two values swapped
+        self.assertEqual(dark.replace(sr.INK, "X").replace(sr.PAPER, sr.INK).replace("X", sr.PAPER), light)
+        self.assertIn("monospace", root.find(f"{ns}g").get("font-family"))
+        ET.fromstring(dark)
+
+    def test_latest_json_schema(self) -> None:
+        latest = json.loads((self.r / "alpha" / "first" / "latest.json").read_text(encoding="utf-8"))
+        self.assertEqual(latest["schema"], sr.REPO_SCHEMA)
+        self.assertEqual(latest["repo"], "Alpha/first")
+        self.assertEqual(latest["url"], "https://causari.dev/r/alpha/first/")
+        self.assertEqual(latest["badge"], "https://causari.dev/r/alpha/first/badge.svg")
+        self.assertEqual(latest["report"], {"number": 1, "id": "2026/01", "date": "2026-09-21", "url": "https://causari.dev/reports/survival/2026/01/"})
+        self.assertEqual(latest["method"], "v2")
+        self.assertEqual(latest["verified"]["introduced"], 500)
+        self.assertEqual(latest["verified"]["surviving"], 400)
+        self.assertAlmostEqual(latest["verified"]["survival_rate"], 0.8)
+        self.assertIn("interval_95", latest)
+        self.assertTrue(latest["aggregated"])
+        self.assertEqual(latest["reports"], 1)
+        self.assertEqual(latest["bytes"], "https://causari.dev/reports/survival/2026/01/repos/Alpha__first.json")
+        self.assertEqual(latest["reproduce"], "re audit Alpha/first --json")
+        self.assertFalse(json.loads((self.r / "mid" / "small" / "latest.json").read_text(encoding="utf-8"))["aggregated"])
+
+    def test_index_lists_every_repository_alphabetically(self) -> None:
+        repos = ["Alpha/first", "mid/one", "mid/small", "zeta/last"]
+        for repo in repos:
+            self.assertIn(f'href="{sr.repo_path(repo)}"', self.index)
+            self.assertIn(f">{repo}</a>", self.index)
+        positions = [self.index.index(f">{r}</a>") for r in repos]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("counts, not grades", self.index)
+        self.assertIn("n &lt; 5", self.index)
+        self.assertIn("80.0 %", self.index)
+        self.assertNotIn("Rank", self.index)
+        text = visible_text(self.index)
+        for word in FORBIDDEN:
+            self.assertNotIn(word, text)
+        # linked from the archive and listed in the sitemap
+        archive = (self.s.site / "reports" / "survival" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<a href="/r/">Every repository has a page and a badge</a>', archive)
+        sitemap = ET.parse(self.s.site / "sitemap.xml").getroot()
+        locs = [u.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc").text for u in sitemap]
+        self.assertIn("https://causari.dev/r/", locs)
+        self.assertIn("https://causari.dev/r/alpha/first/", locs)
+
+    def test_second_report_adds_history_and_sparkline(self) -> None:
+        s = Scratch()
+        try:
+            s.build(number=1, date="2026-09-21")
+            # the second run measures a different HEAD: fewer surviving lines
+            (s.run / "Alpha__first.json").write_text(json.dumps(audit(12, 600, 300, agent="cursor")), encoding="utf-8")
+            s.build(number=2, date="2026-09-28")
+            page = (s.site / "r" / "alpha" / "first" / "index.html").read_text(encoding="utf-8")
+            self.assertIn("In Survival Report #2 (2026-09-28, method v2): 300 of 600 lines introduced by 12 AI-tagged commits are still at HEAD, 50.0 %.", page)
+            self.assertIn('class="spark"', page)
+            self.assertIn("#1 80.0 %; #2 50.0 %", page)
+            rows = re.findall(r'<tr><td><a href="/reports/survival/(\d{4}/\d{2})/">', page)
+            self.assertEqual(rows, ["2026/01", "2026/02"])  # oldest first
+            badge = (s.site / "r" / "alpha" / "first" / "badge.svg").read_text(encoding="utf-8")
+            self.assertIn("AI code survival  50.0 %", badge)
+            self.assertIn("causari · #2", badge)
+            latest = json.loads((s.site / "r" / "alpha" / "first" / "latest.json").read_text(encoding="utf-8"))
+            self.assertEqual(latest["report"]["number"], 2)
+            self.assertEqual(latest["reports"], 2)
+            # a repository measured once keeps one row and no line
+            other = (s.site / "r" / "mid" / "one" / "index.html").read_text(encoding="utf-8")
+            self.assertIn('class="spark"', other)  # measured in both reports
+            self.assertEqual(sr.sparkline_svg([("1", 0.5)]), "")
+            self.assertEqual(sr.sparkline_svg([("1", 0.5), ("2", None)]), "")
+            self.assertIn("<polyline", sr.sparkline_svg([("1", 0.5), ("2", 0.6)]))
+        finally:
+            s.close()
+
+    def test_rebuild_is_idempotent_for_repo_tree(self) -> None:
+        snap = lambda: {str(p.relative_to(self.r)): p.read_bytes() for p in self.r.rglob("*") if p.is_file()}
+        before = snap()
+        sr.rebuild(self.s.site)
+        self.assertEqual(before, snap())
+        self.assertEqual(self.report_page, (self.s.site / "reports" / "survival" / "2026" / "01" / "index.html").read_text(encoding="utf-8"))
+
+
 class IntervalTests(unittest.TestCase):
     def test_reproducible_with_seed(self) -> None:
         pairs = [(1000 + 37 * k, 600 - 41 * k + 13 * (k % 3)) for k in range(12)]
@@ -320,6 +490,141 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(sr.from_existing(src, Path(tmp) / "out"), 0)
             self.assertTrue((Path(tmp) / "out" / "a__b.json").exists())
             self.assertEqual(json.loads((Path(tmp) / "out" / "run.json").read_text())["repos"], ["a/b"])
+
+
+class ScaleTests(unittest.TestCase):
+    """One hundred repositories, as the discovered list yields: every surface
+    carries all of them, the copy says "100 repositories", nothing assumes a
+    handful of rows."""
+
+    N = 100
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.s = Scratch()
+        for p in cls.s.run.glob("*__*.json"):
+            p.unlink()
+        cls.repos = []
+        for k in range(cls.N):
+            owner = f"org{k % 7}" if k % 3 else f"Org{k % 5}"  # mixed case, several owners
+            repo = f"{owner}/repo-{k:03d}"
+            cls.repos.append(repo)
+            intro = 1_000 + 137 * k
+            a = audit(6 + k % 40, intro, intro - (intro * (k % 10)) // 10 - (3 if k % 10 else 0), agent=["claude-code", "aider", "cursor", "openai-codex"][k % 4])
+            (cls.s.run / f"{sr.repo_slug(repo)}.json").write_text(json.dumps(a), encoding="utf-8")
+        (cls.s.run / "run.json").write_text(json.dumps({
+            "generated_at": "2026-10-05T05:17:00Z", "tool": "causari", "tool_version": "0.2.1", "method": "v2",
+            "command": "re audit <owner/repo> --json", "repos": cls.repos, "failed": [f"gone/repo-{k}" for k in range(12)], "opted_out": [],
+        }), encoding="utf-8")
+        (cls.s.root / ".github" / "survival-discovery.json").write_text(json.dumps({
+            "schema": "causari.survival_discovery.v1", "discovered_at": "2026-10-01T04:23:00Z",
+            "selection": {"floor": 5, "limit": 100},
+            "repositories": [{"repo": r, "seed": k < 30} for k, r in enumerate(cls.repos)],
+        }), encoding="utf-8")
+        cls.f = cls.s.build(number=2, date="2026-10-05")
+        cls.dir = cls.s.site / "reports" / "survival" / "2026" / "02"
+        cls.page = (cls.dir / "index.html").read_text(encoding="utf-8")
+        cls.md = (cls.dir / "report.md").read_text(encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.s.close()
+
+    def test_all_hundred_aggregated_alphabetically(self) -> None:
+        repos = [r["repo"] for r in self.f["repositories"]]
+        self.assertEqual(len(repos), self.N)
+        self.assertEqual(repos, sorted(repos, key=str.lower))
+        self.assertEqual(self.f["aggregate"]["repositories"], self.N)
+        self.assertEqual(self.f["aggregate"]["introduced"], sum(1_000 + 137 * k for k in range(self.N)))
+        self.assertEqual(self.page.count('<tr><td><a href="/r/'), self.N)
+        self.assertEqual(sum(1 for l in self.md.splitlines() if l.startswith("| ") and "re audit " in l), self.N)
+        self.assertEqual(len(self.f["excluded"]["failed"]), 12)
+
+    def test_copy_counts_one_hundred(self) -> None:
+        self.assertIn("in 100 open-source repositories", sr.headline(self.f))
+        self.assertIn("in 100 repositories are still at HEAD", (self.dir / "card.svg").read_text(encoding="utf-8"))
+        self.assertIn("of the 100 aggregated repositories", self.f["aggregate"]["interval_method"]["note"])
+        self.assertIn(">100</span><span class=\"l\">repositories aggregated", self.page)
+        iv = self.f["aggregate"]["survival_rate_interval_95"]
+        self.assertLess(iv["low"], self.f["aggregate"]["survival_rate"])
+        self.assertGreater(iv["high"], self.f["aggregate"]["survival_rate"])
+        ET.fromstring((self.dir / "card.svg").read_text(encoding="utf-8"))
+
+    def test_selection_sentence_from_discovery(self) -> None:
+        sel = self.f["method"]["selection"]
+        self.assertIn("30 hand-picked and 70 found by GitHub commit search", sel)
+        self.assertIn("at least 5 commits", sel)
+        self.assertIn("discovered 2026-10-01", sel)
+        self.assertIn(sel, self.page)
+        self.assertIn(sel, self.md)
+        self.assertNotIn("added by pull request", self.page)
+        for word in FORBIDDEN:
+            self.assertNotIn(word, sel)
+
+    def test_sizes_stay_reasonable(self) -> None:
+        self.assertLess((self.dir / "report.json").stat().st_size, 400_000)
+        self.assertLess((self.dir / "index.html").stat().st_size, 400_000)
+        self.assertEqual(len(list((self.dir / "repos").glob("*.json"))), self.N)
+        self.assertEqual(len(self.f["by_agent"]), 4)
+
+
+class ShardTests(unittest.TestCase):
+    def frag(self, k: int, repos: list[str], failed: list[str] = (), opted: list[str] = (), version: str = "0.2.1", at: str = "T05:20:00Z") -> dict:
+        return {"generated_at": f"2026-10-05{at}", "tool": "causari", "tool_version": version, "method": "v2",
+                "command": "re audit <owner/repo> --json", "repos": repos, "failed": list(failed), "opted_out": list(opted), "shard": k}
+
+    def test_merge_unions_fragments_and_records_unreported_repositories(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "root"
+            run = Path(tmp) / "run"
+            (root / ".github").mkdir(parents=True)
+            run.mkdir()
+            (root / ".github" / "survival-repos.txt").write_text(
+                "# list\na/one\nb/two\nc/three\nd/four\nOpt/Out\ne/five\n", encoding="utf-8")
+            (root / ".github" / "survival-optout.txt").write_text("opt/out\n", encoding="utf-8")
+            # shard 0: a/one audited, d/four failed; shard 1: b/two audited, c/three has no audit and no failure
+            # record (killed mid-run); shard 2 (e/five, Opt/Out) never uploaded at all
+            (run / "a__one.json").write_text(json.dumps(audit(6, 100, 50)), encoding="utf-8")
+            (run / "b__two.json").write_text(json.dumps(audit(6, 100, 50)), encoding="utf-8")
+            (run / "run-shard-0.json").write_text(json.dumps(self.frag(0, ["a/one", "d/four"], failed=["d/four"], at="T05:17:00Z")), encoding="utf-8")
+            (run / "run-shard-1.json").write_text(json.dumps(self.frag(1, ["b/two", "c/three"], opted=["Opt/Out"])), encoding="utf-8")
+            import contextlib
+            import io
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                merged = sr.merge_shards(run, root)
+            on_disk = json.loads((run / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual(on_disk, merged)
+            self.assertEqual(set(merged) >= {"generated_at", "tool", "tool_version", "method", "command", "repos", "failed", "opted_out"}, True)
+            self.assertEqual(merged["generated_at"], "2026-10-05T05:17:00Z")  # earliest shard
+            self.assertEqual(merged["tool_version"], "0.2.1")
+            self.assertEqual(merged["repos"], ["a/one", "b/two", "c/three", "d/four", "e/five"])
+            self.assertEqual(merged["failed"], ["c/three", "d/four", "e/five"])
+            self.assertEqual(merged["opted_out"], ["Opt/Out"])
+            self.assertIn("e/five", err.getvalue())
+            self.assertIn("c/three", err.getvalue())
+            # and the generator builds from the merged run: two rows, three failures, one opt-out
+            site = Path(tmp) / "site"
+            site.mkdir()
+            rc = sr.main(["--site", str(site), "--root", str(root), "build", "--run", str(run), "--number", "1", "--date", "2026-10-05", "--no-png"])
+            self.assertEqual(rc, 0)
+            f = json.loads((site / "reports" / "survival" / "2026" / "01" / "report.json").read_text(encoding="utf-8"))
+            self.assertEqual([r["repo"] for r in f["repositories"]], ["a/one", "b/two"])
+            self.assertEqual(f["excluded"]["failed"], ["c/three", "d/four", "e/five"])
+            self.assertEqual(f["excluded"]["opted_out"], 1)
+
+    def test_merge_refuses_without_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(SystemExit):
+                sr.merge_shards(Path(tmp), Path(tmp))
+
+    def test_shard_split_is_index_mod_n(self) -> None:
+        # the same rule the workflow applies in bash: shard k takes indices i with i % N == k
+        repos = [f"o/r{i}" for i in range(23)]
+        shards = [[r for i, r in enumerate(repos) if i % 10 == k] for k in range(10)]
+        self.assertEqual(sorted(sum(shards, [])), sorted(repos))
+        self.assertEqual(shards[0], ["o/r0", "o/r10", "o/r20"])
+        self.assertEqual(shards[3], ["o/r3", "o/r13"])
 
 
 class ZenodoTests(unittest.TestCase):

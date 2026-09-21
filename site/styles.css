@@ -298,6 +298,11 @@ table td.txt, table th.txt { text-align: left; }
 .rp-cite { margin-top: var(--s-4); font-size: var(--fs-small); color: var(--fg-3); }
 .rp-positioning { margin-top: var(--s-5); }
 .rp-positioning p { max-width: var(--prose); }
+/* repository pages (/r/): a one-colour sparkline in the text colour, badges at their natural 20 px */
+.spark { display: block; width: 160px; max-width: 100%; height: 36px; color: var(--fg); margin: 0 0 var(--s-1); }
+.rp-badges { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-2); align-items: center; margin: 0 0 var(--s-2); }
+.rp-badges img { height: 20px; width: auto; max-width: 100%; }
+.section-head h1 a { text-decoration-thickness: 1px; text-underline-offset: 6px; }
 
 /* ------------------------------------------------------------------ verify page: the verdict is text; no colour carries meaning */
 .vf-grid { display: grid; gap: var(--s-3); grid-template-columns: minmax(0, 1fr); align-items: start; margin-top: var(--s-4); }

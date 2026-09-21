@@ -14,7 +14,7 @@
   <meta property="og:url" content="https://causari.dev/method" />
   <meta property="og:image" content="https://causari.dev/assets/og.png" />
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-  <link rel="stylesheet" href="/styles.css?v=a06cc110b7" />
+  <link rel="stylesheet" href="/styles.css?v=0c1191c49d" />
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -30,6 +30,7 @@
       <a href="/reports/survival/">reports</a>
       <a href="/method" aria-current="page">method</a>
       <a href="/verify/">verify</a>
+      <a href="/faq">faq</a>
       <a href="https://github.com/croviatrust/causari" rel="noopener" class="hide-sm">source</a>
       <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
     </nav>
@@ -146,7 +147,31 @@ re seal verify audit.seal.json  <span class="dim"># or drop the file on causari.
   <a href="https://github.com/croviatrust/causari/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>;
   the next weekly run drops the row and it is not re-added.</p>
 
-  <h2 id="evidence"><span class="no">7</span>Evidence classes in the ledger</h2>
+  <h2 id="selection"><span class="no">7</span>How repositories are selected</h2>
+  <p>The Survival Report measures the repositories listed in
+  <a href="https://github.com/croviatrust/causari/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a>:
+  a hand-picked part, added by pull request, and a part filled every week, the day before the report, by
+  <a href="https://github.com/croviatrust/causari/blob/main/scripts/survival_discover.py" rel="noopener"><code translate="no">scripts/survival_discover.py</code></a>
+  from the GitHub commit search API. The script looks for public, non-merge commits that carry the
+  same signals section 1 classifies as VERIFIED (the <code translate="no">Co-Authored-By</code> identities, the
+  provenance trailers, the agent author identities), samples the most recent ones per signal, and for
+  every repository sampled at least twice asks the API how many such commits the whole repository holds.
+  Repositories with at least 5 such commits (the sample floor) are kept; forks, archived repositories
+  and every line of <code translate="no">.github/survival-optout.txt</code> are dropped; the remaining
+  ones are ordered by that count, then by stars, then by name, and the list is filled to 100 with the
+  hand-picked repositories kept. That order exists only to choose the sample: the list file and every
+  report page stay alphabetical. The counts behind each selection are published in
+  <a href="https://github.com/croviatrust/causari/blob/main/.github/survival-discovery.json" rel="noopener"><code translate="no">.github/survival-discovery.json</code></a>
+  and each report states how its list was selected.</p>
+  <p>Limits: commit search reads the default branch only, returns at most 1,000 results per query and
+  matches text, so a message that merely mentions a trailer is a hit; the audit of the clone, not the
+  search, decides what is counted. A commit carrying two signals counts twice in the selection count.
+  The selection favours repositories where AI-attributed commits are frequent; it is not a random sample
+  of open source, and the report says so.</p>
+<pre translate="no"><code translate="no">GITHUB_TOKEN=… python3 scripts/survival_discover.py --dry-run
+<span class="dim"># the same list, the same counts, from your own token</span></code></pre>
+
+  <h2 id="evidence"><span class="no">8</span>Evidence classes in the ledger</h2>
   <p>The audit reads git. The ledger (<code translate="no">re init</code>, <code translate="no">re hook</code>,
   <code translate="no">re proxy</code>, <code translate="no">re watch</code>) records agent actions as they happen, and
   every answer it gives names one of two evidence classes.</p>
@@ -169,7 +194,7 @@ re seal verify audit.seal.json  <span class="dim"># or drop the file on causari.
     </div>
   </div>
 
-  <h2 id="not-do"><span class="no">8</span>What we do not do</h2>
+  <h2 id="not-do"><span class="no">9</span>What we do not do</h2>
   <ul>
     <li>No rank, no colour, no "healthy" or "high churn" wording, no badge about repositories we do not own.</li>
     <li>No audit of a third-party repository on request through our infrastructure. Run it yourself; the tool is free.</li>
@@ -185,7 +210,7 @@ re seal verify audit.seal.json  <span class="dim"># or drop the file on causari.
 <footer class="footer">
   <div class="container foot-bottom">
     <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Crovia</a> · <em>causari</em> is a trademark of Crovia Trust.</p>
-    <p class="muted"><a href="/reports/survival/">Survival Report</a> · <a href="/verify/">verify</a> · <a href="/">causari.dev</a></p>
+    <p class="muted"><a href="/reports/survival/">Survival Report</a> · <a href="/verify/">verify</a> · <a href="/faq">faq</a> · <a href="/compare">compare</a> · <a href="/">causari.dev</a></p>
   </div>
 </footer>
 <script src="/app.js?v=eb85cbc8d5" defer></script>

@@ -27,10 +27,19 @@ Outputs (under site/reports/survival/)::
     latest.json              copy of the newest report.json
     plus managed blocks in site/_redirects and site/sitemap.xml
 
+and, for every repository measured in any report (under site/r/, paths
+always lowercase)::
+
+    <owner>/<repo>/index.html   the repository page: latest counts, by agent, history
+    <owner>/<repo>/badge.svg    one-colour text badge, ink on paper (badge-dark.svg: paper on ink)
+    <owner>/<repo>/latest.json  compact latest counts, report id, links to page and bytes
+    index.html                  alphabetical index of every measured repository
+
 Usage::
 
+    python3 scripts/survival_report.py merge-shards --run /tmp/run   # run-shard-*.json → run.json
     python3 scripts/survival_report.py build --run /tmp/run [--number N] [--date YYYY-MM-DD]
-    python3 scripts/survival_report.py rebuild            # archive, feed, latest, redirects
+    python3 scripts/survival_report.py rebuild            # report pages, archive, feed, latest, /r/, redirects, sitemap
     python3 scripts/survival_report.py from-existing site/survival-data.json --out /tmp/run
 
 Standard library only; Pillow is optional (card.png).
@@ -57,7 +66,9 @@ from site_version import asset_url  # noqa: E402  content-versioned /styles.css 
 SITE_URL = "https://causari.dev"
 REPO_URL = "https://github.com/croviatrust/causari"
 REPORTS_REL = "reports/survival"
+REPOS_REL = "r"
 SCHEMA = "causari.survival_report.v1"
+REPO_SCHEMA = "causari.repo_survival.v1"
 RESAMPLES = 2000
 LICENSE = "CC-BY-4.0"
 LICENSE_URL = "https://creativecommons.org/licenses/by/4.0/"
@@ -112,6 +123,14 @@ def slug_repo(slug: str) -> str:
     return slug.replace("__", "/", 1)
 
 
+def repo_path(repo: str) -> str:
+    """Site path of a repository page. Always lowercase: GitHub names are
+    case-insensitive, so one canonical URL serves every spelling and two
+    spellings can never collide on a case-insensitive file system. The page
+    itself shows the name as measured."""
+    return f"/{REPOS_REL}/{repo.lower()}/"
+
+
 def report_id(year: int, number: int) -> str:
     return f"{year}/{number:02d}"
 
@@ -132,6 +151,42 @@ def read_optout(root: Path) -> set[str]:
         if line and not line.startswith("#"):
             out.add(line.lower())
     return out
+
+
+def read_repo_list(root: Path) -> list[str]:
+    """`.github/survival-repos.txt`: one owner/repo per line, `#` comments,
+    in file order. The workflow shards this list by index."""
+    path = root / ".github" / "survival-repos.txt"
+    if not path.exists():
+        return []
+    return [l.strip() for l in path.read_text(encoding="utf-8").splitlines() if l.strip() and not l.strip().startswith("#")]
+
+
+SELECTION_BY_PR = "the repositories were added by pull request, not drawn at random."
+SELECTION_SERIES = (
+    "the repositories were selected, not drawn at random: a hand-picked list and the public repositories in which "
+    "GitHub commit search finds the most commits carrying the same AI authorship metadata; each report states its own selection."
+)
+
+
+def selection_sentence(root: Path) -> str:
+    """How the measured list was put together, for the positioning statement.
+    With `.github/survival-discovery.json` present the list was filled by
+    scripts/survival_discover.py and the sentence says so, with the floor and
+    the date; without it the list is the hand-picked one."""
+    d = load_json(root / ".github" / "survival-discovery.json", None)
+    if not isinstance(d, dict) or not isinstance(d.get("repositories"), list):
+        return SELECTION_BY_PR
+    rows = [r for r in d["repositories"] if isinstance(r, dict)]
+    seeds = sum(1 for r in rows if r.get("seed"))
+    found = len(rows) - seeds
+    floor = (d.get("selection") or {}).get("floor", 5)
+    date = str(d.get("discovered_at") or "")[:10]
+    return (
+        f"the repositories were selected, not drawn at random: {seeds} hand-picked and {found} found by GitHub commit search "
+        f"as public repositories with at least {floor} commits carrying the same AI authorship metadata"
+        f"{' (discovered ' + date + ')' if date else ''}; the selection rule and the counts behind it are public."
+    )
 
 
 # ----------------------------------------------------------------------------- statistics
@@ -317,6 +372,7 @@ def collect(run_dir: Path, number: int, date: str, root: Path) -> dict[str, Any]
             "cap_rule": "a commit weighs at most the 95th percentile of per-commit introduced line counts in its repository, and never more than 10,000 lines",
             "evidence_class": "VERIFIED only; PROBABLE is listed but never summed",
             "aggregation": "repositories with at least sample_floor VERIFIED commits and a full (non-shallow) clone",
+            "selection": selection_sentence(root),
         },
         "aggregate": {
             "repositories": len(aggregated),
@@ -383,8 +439,8 @@ POSITIONING = {
     "is_not": (
         "It is not a quality judgement: deleted lines include removed features and rewritten prototypes; "
         "surviving lines include dead code. It is not a sample of all AI-assisted code: inline completions "
-        "leave no trace in git, untagged agent commits are invisible, and the repositories were added by pull "
-        "request, not drawn at random. The intervals describe the sampled repositories only."
+        "leave no trace in git, untagged agent commits are invisible, and {selection} "
+        "The intervals describe the sampled repositories only."
     ),
     "context": (
         "Prior measurement work asks related questions with different instruments. GitClear publishes churn "
@@ -396,6 +452,16 @@ POSITIONING = {
         "so that the three can be read side by side."
     ),
 }
+
+
+def is_not_text(selection: str) -> str:
+    return POSITIONING["is_not"].format(selection=selection)
+
+
+def report_selection(f: dict[str, Any]) -> str:
+    """The selection sentence of one report: stored in report.json from the
+    run that discovered the list; earlier reports carry the hand-picked one."""
+    return (f.get("method") or {}).get("selection") or SELECTION_BY_PR
 
 
 def report_md(f: dict[str, Any]) -> str:
@@ -468,7 +534,7 @@ def report_md(f: dict[str, Any]) -> str:
               f"survival from `git blame {' '.join(m['blame_flags'])}` at HEAD. Per-commit cap: {m['cap_rule']}. "
               f"Sample floor: {m['sample_floor']} VERIFIED commits. {m['evidence_class']}. Full clones only. "
               f"Details, limits and how to contest a number: {m['url']}.",
-              "", "## What this report is, and is not", "", POSITIONING["is"], "", POSITIONING["is_not"], "", POSITIONING["context"],
+              "", "## What this report is, and is not", "", POSITIONING["is"], "", is_not_text(report_selection(f)), "", POSITIONING["context"],
               "", "## Cite", "", cite(f), ""]
     return "\n".join(lines)
 
@@ -590,6 +656,7 @@ def page_head(title: str, desc: str, url: str, image: str, jsonld: dict[str, Any
       <a href="/{REPORTS_REL}/" aria-current="page">reports</a>
       <a href="/method">method</a>
       <a href="/verify/">verify</a>
+      <a href="/faq">faq</a>
       <a href="{REPO_URL}" rel="noopener" class="hide-sm">source</a>
       <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
     </nav>
@@ -607,7 +674,7 @@ def page_foot() -> str:
   <div class="container">
     <div class="foot-bottom">
       <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Crovia</a> · <em>causari</em> is a trademark of Crovia Trust. Report text and data <a href="{LICENSE_URL}" rel="license noopener">{LICENSE}</a>.</p>
-      <p class="muted">Every number reproducible: <code translate="no">re audit &lt;owner/repo&gt; --json</code> · <a href="/method">method</a> · <a href="/{REPORTS_REL}/feed.xml">feed</a> · <a href="/">causari.dev</a></p>
+      <p class="muted">Every number reproducible: <code translate="no">re audit &lt;owner/repo&gt; --json</code> · <a href="/method">method</a> · <a href="/faq">faq</a> · <a href="/{REPORTS_REL}/feed.xml">feed</a> · <a href="/">causari.dev</a></p>
     </div>
   </div>
 </footer>
@@ -618,12 +685,12 @@ def page_foot() -> str:
 """
 
 
-def positioning_html() -> str:
+def positioning_html(selection: str) -> str:
     """The positioning statement as a proof card: title, the paragraphs, one command."""
     return f"""<div class="proof rp-positioning">
       <h3>What this report is, and is not</h3>
       <p>{esc(POSITIONING['is'])}</p>
-      <p>{esc(POSITIONING['is_not'])}</p>
+      <p>{esc(is_not_text(selection))}</p>
       <p>{esc(POSITIONING['context']).replace('arXiv 2601.16809', '<a href="https://arxiv.org/abs/2601.16809" rel="noopener">arXiv 2601.16809</a>')}</p>
 <pre translate="no"><code translate="no">re audit &lt;owner/repo&gt; --json   <span class="dim"># the exact bytes behind any row</span></code></pre>
     </div>"""
@@ -642,7 +709,7 @@ def repo_rows(rows: list[dict[str, Any]], full: bool) -> str:
         t = r["reproduce"]
         probable = f' <span class="muted">(+{fmt_int(p["commits"])} probable)</span>' if p["commits"] else ""
         cells = [
-            f'<td><a href="{esc(r["url"])}" rel="noopener">{esc(r["repo"])}</a></td>',
+            f'<td><a href="{esc(repo_path(r["repo"]))}" title="{esc(r["repo"])}: page, history and badge">{esc(r["repo"])}</a></td>',
             num_cell(fmt_int(r["total_commits"]), href, t),
             num_cell(fmt_int(v["commits"]), href, t).replace("</a></td>", f"</a>{probable}</td>"),
             num_cell(fmt_int(v["introduced"]), href, t),
@@ -762,7 +829,7 @@ def render_report(f: dict[str, Any]) -> str:
 {strip}
     <div class="rp-section">
     <h3 id="repositories">Repositories</h3>
-    <p class="muted">Alphabetical. VERIFIED commits only; PROBABLE counts are shown but never summed. <em>Capped</em>: no commit weighs more than the cap. <em>Median per commit</em>: the middle commit's own ratio. <em>Largest commit</em>: share of introduced lines from the single largest commit. Every number links to the audit bytes of this run; <code translate="no">{esc(m['command'])}</code> reproduces a row.</p>
+    <p class="muted">Alphabetical. VERIFIED commits only; PROBABLE counts are shown but never summed. <em>Capped</em>: no commit weighs more than the cap. <em>Median per commit</em>: the middle commit's own ratio. <em>Largest commit</em>: share of introduced lines from the single largest commit. Every number links to the audit bytes of this run; <code translate="no">{esc(m['command'])}</code> reproduces a row. Each repository name links to <a href="/{REPOS_REL}/">its own page</a>: history across reports and a badge.</p>
     <div class="tbl-scroll wide">
       <table class="lb-table" id="repos">
         <thead><tr><th>Repository</th><th>Commits</th><th>AI-tagged</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Capped</th><th>Median per commit</th><th>Largest commit</th></tr></thead>
@@ -796,7 +863,7 @@ def render_report(f: dict[str, Any]) -> str:
 
     <p class="rp-cite">Cite as: <code translate="no">{esc(cite(f))}</code></p>
 
-    {positioning_html()}
+    {positioning_html(report_selection(f))}
   </div>
 </section>
 """
@@ -846,10 +913,11 @@ def render_index(archive: list[dict[str, Any]]) -> str:
         </tbody>
       </table>
     </div>
-    <p class="muted">The report replaced the weekly measurements table in September 2026. Repositories are added by pull request to <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a>; maintainers opt out with one line in <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
+    <p class="muted">The report replaced the weekly measurements table in September 2026. Repositories enter <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a> by pull request or through the weekly discovery, which lists the public repositories where GitHub commit search finds the most commits carrying AI authorship metadata (<a href="/method#selection">how repositories are selected</a>); maintainers opt out with one line in <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
+    <p><a href="/{REPOS_REL}/">Every repository has a page and a badge</a>: its counts across reports, the exact bytes behind each number, and a README badge that follows the latest report.</p>
     </div>
 
-    {positioning_html()}
+    {positioning_html(SELECTION_SERIES)}
   </div>
 </section>
 """
@@ -891,6 +959,339 @@ def render_feed(archive: list[dict[str, Any]]) -> str:
 """
 
 
+# ----------------------------------------------------------------------------- repository pages
+
+def measured_repos(archive: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One entry per repository with a measured row (aggregated or not) in any
+    report, alphabetical by lowercase name. `history` runs oldest to newest;
+    the name is spelt as the latest report measured it."""
+    entries: dict[str, dict[str, Any]] = {}
+    for f in sorted(archive, key=lambda a: (a["number"], a["date"])):
+        for row in list(f.get("repositories") or []) + list(f.get("not_aggregated") or []):
+            key = row["repo"].lower()
+            e = entries.setdefault(key, {"key": key, "history": []})
+            e["repo"] = row["repo"]
+            e["history"].append({"report": f, "row": row})
+    out = sorted(entries.values(), key=lambda e: e["key"])
+    for e in out:
+        e["latest"] = e["history"][-1]
+        e["path"] = repo_path(e["repo"])
+        e["url"] = SITE_URL + e["path"]
+    return out
+
+
+def bytes_href(f: dict[str, Any], row: dict[str, Any]) -> str:
+    return f"/{REPORTS_REL}/{f['id']}/{row['audit_file']}"
+
+
+def ratio_text(row: dict[str, Any]) -> str:
+    """The line-weighted ratio, or the sample-floor marker the report uses
+    instead when there are too few AI-tagged commits to publish one."""
+    if row["coverage"]["small_sample"]:
+        return f"n < {row['coverage']['sample_floor']}"
+    return fmt_pct(row["verified"]["survival_rate"])
+
+
+def repo_sentence(e: dict[str, Any]) -> str:
+    f, row = e["latest"]["report"], e["latest"]["row"]
+    v = row["verified"]
+    s = (f"In Survival Report #{f['number']} ({f['date']}, method {f['method']['version']}): "
+         f"{fmt_int(v['surviving'])} of {fmt_int(v['introduced'])} lines introduced by {fmt_int(v['commits'])} "
+         f"AI-tagged commits are still at HEAD")
+    if row["coverage"]["small_sample"]:
+        return s + f". Fewer than {row['coverage']['sample_floor']} AI-tagged commits: the counts are published, no ratio is aggregated."
+    return s + f", {fmt_pct(v['survival_rate'])}."
+
+
+BADGE_FONT = "ui-monospace,'JetBrains Mono','SF Mono','Cascadia Mono',Menlo,Consolas,'Liberation Mono',monospace"
+BADGE_CHAR = 6.6   # advance of one monospace glyph at 11 px; textLength pins it in every renderer
+BADGE_PAD = 8
+BADGE_H = 20
+
+
+def badge_texts(e: dict[str, Any]) -> tuple[str, str]:
+    f, row = e["latest"]["report"], e["latest"]["row"]
+    return f"AI code survival  {ratio_text(row)}", f"causari · #{f['number']}"
+
+
+def badge_width(e: dict[str, Any]) -> tuple[int, int]:
+    left, right = badge_texts(e)
+    return round(len(left) * BADGE_CHAR + 2 * BADGE_PAD), round(len(right) * BADGE_CHAR + 2 * BADGE_PAD)
+
+
+def badge_svg(e: dict[str, Any], dark: bool = False) -> str:
+    """Text-only badge in the identity: ink on paper (or paper on ink), one
+    monospace line, the report number in a small right segment. No third
+    colour anywhere, so no red or green can ever mean good or bad."""
+    left, right = badge_texts(e)
+    lw, rw = badge_width(e)
+    w = lw + rw
+    fg, bg = (PAPER, INK) if dark else (INK, PAPER)
+    title = f"{e['repo']}: {repo_sentence(e)} causari.dev"
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{BADGE_H}" viewBox="0 0 {w} {BADGE_H}" role="img" aria-label="{esc(title)}">
+  <title>{esc(title)}</title>
+  <rect width="{w}" height="{BADGE_H}" rx="3" fill="{fg}"/>
+  <rect x="1" y="1" width="{lw - 1}" height="{BADGE_H - 2}" rx="2" fill="{bg}"/>
+  <g font-family="{BADGE_FONT}" font-size="11" text-rendering="geometricPrecision">
+    <text x="{BADGE_PAD}" y="14" fill="{fg}" textLength="{lw - 2 * BADGE_PAD}" lengthAdjust="spacingAndGlyphs" xml:space="preserve">{esc(left)}</text>
+    <text x="{lw + BADGE_PAD}" y="14" fill="{bg}" textLength="{rw - 2 * BADGE_PAD}" lengthAdjust="spacingAndGlyphs" xml:space="preserve">{esc(right)}</text>
+  </g>
+</svg>
+"""
+
+
+def badge_markdown(e: dict[str, Any]) -> str:
+    return f"[![AI code survival]({e['url']}badge.svg)]({e['url']})"
+
+
+def sparkline_svg(points: list[tuple[str, float | None]]) -> str:
+    """Inline one-colour sparkline of a ratio across reports on a fixed
+    0 – 100 % axis. Empty with fewer than two values: one point is not a line."""
+    vals = [(label, v) for label, v in points if v is not None]
+    if len(vals) < 2:
+        return ""
+    w, h, pad = 160, 36, 4
+    step = (w - 2 * pad) / (len(vals) - 1)
+    pts = [(pad + i * step, pad + (1 - min(max(v, 0.0), 1.0)) * (h - 2 * pad)) for i, (_, v) in enumerate(vals)]
+    poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2"/>' for x, y in pts)
+    title = "Line-weighted ratio across reports, 0 to 100 %: " + "; ".join(f"#{label} {fmt_pct(v)}" for label, v in vals)
+    return (f'<svg class="spark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}" role="img" aria-label="{esc(title)}">'
+            f"<title>{esc(title)}</title>"
+            f'<polyline points="{poly}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>'
+            f'<g fill="currentColor">{dots}</g></svg>')
+
+
+def repo_latest(e: dict[str, Any]) -> dict[str, Any]:
+    f, row = e["latest"]["report"], e["latest"]["row"]
+    v = row["verified"]
+    return {
+        "schema": REPO_SCHEMA,
+        "repo": e["repo"],
+        "repository_url": row["url"],
+        "url": e["url"],
+        "badge": e["url"] + "badge.svg",
+        "report": {"number": f["number"], "id": f["id"], "date": f["date"], "url": f["url"]},
+        "method": f["method"]["version"],
+        "tool": f["tool"],
+        "verified": {
+            "commits": v["commits"], "introduced": v["introduced"], "surviving": v["surviving"],
+            "survival_rate": v["survival_rate"], "capped_survival_rate": v["capped_survival_rate"],
+            "median_survival": v["median_survival"], "largest_commit_share": v["largest_commit_share"],
+        },
+        "interval_95": v.get("survival_rate_interval_95"),
+        "probable_commits": row["probable"]["commits"],
+        "total_commits": row["total_commits"],
+        "aggregated": bool(row.get("aggregated")),
+        "coverage": row["coverage"],
+        "reports": len(e["history"]),
+        "reproduce": row["reproduce"],
+        "bytes": SITE_URL + bytes_href(f, row),
+        "license": LICENSE,
+    }
+
+
+def render_repo_page(e: dict[str, Any]) -> str:
+    f, row = e["latest"]["report"], e["latest"]["row"]
+    v, p, cov = row["verified"], row["probable"], row["coverage"]
+    m = f["method"]
+    repo = e["repo"]
+    url = e["url"]
+    href = bytes_href(f, row)
+    sentence = repo_sentence(e)
+    title = f"{repo} · AI code survival"
+    desc = f"{sentence} Counts, not grades; every number links to the audit bytes and the method is public."
+    img = f["url"] + "card.png"
+    jsonld = {
+        "@context": "https://schema.org", "@type": "Dataset", "name": title, "description": sentence, "url": url,
+        "about": {"@type": "SoftwareSourceCode", "name": repo, "codeRepository": row["url"]},
+        "isPartOf": {"@type": "Report", "name": f"Survival Report #{f['number']}", "url": f["url"], "datePublished": f["date"]},
+        "datePublished": f["date"], "dateModified": f["generated_at"], "inLanguage": "en", "license": LICENSE_URL,
+        "creator": {"@type": "Organization", "name": "Crovia Trust", "url": "https://croviatrust.com"},
+        "measurementTechnique": f"{row['reproduce']} (method {m['version']}, git metadata only)",
+        "distribution": [
+            {"@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": url + "latest.json"},
+            {"@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": SITE_URL + href},
+        ],
+    }
+    small = cov["small_sample"]
+    ratio_label = "line-weighted" if not small else f"fewer than {cov['sample_floor']} AI-tagged commits: no ratio aggregated"
+    strip = f"""
+    <div class="rp-strip">
+      <a class="rp-stat" href="{esc(href)}"><span class="n">{fmt_int(v['commits'])}</span><span class="l">AI-tagged commits · of {fmt_int(row['total_commits'])}</span></a>
+      <a class="rp-stat" href="{esc(href)}"><span class="n">{fmt_int(v['introduced'])}</span><span class="l">lines introduced by them</span></a>
+      <a class="rp-stat" href="{esc(href)}"><span class="n">{fmt_int(v['surviving'])}</span><span class="l">still attributed to them at HEAD</span></a>
+      <a class="rp-stat" href="{esc(href)}"><span class="n">{esc(ratio_text(row))}</span><span class="l">{ratio_label}</span></a>
+      <a class="rp-stat" href="{esc(href)}"><span class="n">{'—' if small else fmt_pct(v['median_survival'])}</span><span class="l">median per commit{' · not published below the floor' if small else ''}</span></a>
+      <a class="rp-stat" href="{esc(href)}"><span class="n">{fmt_share(v['largest_commit_share'])}</span><span class="l">of introduced lines in the largest commit</span></a>
+    </div>"""
+    agent_cells = []
+    for agent, s in row["by_agent"].items():
+        ratio = esc(ratio_text(row)) if small else fmt_pct(s["survival_rate"])
+        capped = "—" if small else fmt_pct(s["capped_survival_rate"])
+        agent_cells.append(f"<tr><td>{esc(agent)}</td><td>{fmt_int(s['commits'])}</td><td>{fmt_int(s['introduced'])}</td>"
+                           f"<td>{fmt_int(s['surviving'])}</td><td>{ratio}</td><td>{capped}</td></tr>")
+    agents = ""
+    if agent_cells:
+        agents = f"""
+    <div class="rp-section">
+    <h3 id="by-agent">By agent, in Survival Report #{f['number']}</h3>
+    <p class="muted">Alphabetical. A commit is attributed to the agent its metadata names; one agent per commit. VERIFIED commits only.</p>
+    <div class="tbl-scroll">
+      <table class="lb-table" id="agents">
+        <thead><tr><th>Agent</th><th>Commits</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Capped</th></tr></thead>
+        <tbody>
+{chr(10).join(agent_cells)}
+        </tbody>
+      </table>
+    </div>
+    </div>"""
+    history_rows = []
+    points: list[tuple[str, float | None]] = []
+    for h in e["history"]:
+        hf, hr = h["report"], h["row"]
+        hv = hr["verified"]
+        hb = bytes_href(hf, hr)
+        points.append((str(hf["number"]), None if hr["coverage"]["small_sample"] else hv["survival_rate"]))
+        history_rows.append(
+            f'<tr><td><a href="/{REPORTS_REL}/{esc(hf["id"])}/">Survival Report #{hf["number"]}</a></td><td>{esc(hf["date"])}</td>'
+            + num_cell(fmt_int(hv["commits"]), hb, hr["reproduce"]) + num_cell(fmt_int(hv["introduced"]), hb, hr["reproduce"])
+            + num_cell(fmt_int(hv["surviving"]), hb, hr["reproduce"]) + num_cell(esc(ratio_text(hr)), hb, hr["reproduce"]) + "</tr>"
+        )
+    spark = sparkline_svg(points)
+    spark_note = (" The line is the line-weighted ratio on a fixed 0 – 100 % axis; each point is one report."
+                  if spark else " A line appears once the repository has been measured in two reports.")
+    probable = (f"{fmt_int(p['commits'])} PROBABLE commits ({fmt_int(p['introduced'])} lines introduced, {fmt_int(p['surviving'])} still at HEAD) "
+                "are listed here and never summed into the VERIFIED counts." if p["commits"] else "No PROBABLE commits: every counted commit carries machine-readable AI authorship metadata.")
+    coverage_items = [
+        f"<li><strong>Method {esc(cov['method'] or m['version'])}</strong>, {esc(f['tool']['name'])} {esc(f['tool']['version'])}. Detection from commit metadata only; survival from <code translate=\"no\">git blame {esc(' '.join(cov['blame_flags'] or m['blame_flags']))}</code> at HEAD.</li>",
+        f"<li><strong>Full clone</strong>: {'yes' if not cov['shallow'] else 'no'}. Method {esc(m['version'])} refuses shallow clones; this row comes from a complete history.</li>",
+        f"<li><strong>Sample</strong>: {fmt_int(v['commits'])} AI-tagged commits; the sample floor is {cov['sample_floor']}. "
+        + (f"Below the floor, so the counts are published and no ratio is aggregated into the report." if cov["small_sample"] else "At or above the floor, so the ratio is aggregated into the report.") + "</li>",
+        f"<li><strong>PROBABLE</strong>: {probable}</li>",
+        f"<li><strong>Cap</strong>: {fmt_int(v['cap_lines']) if v['cap_lines'] is not None else '—'} lines per commit in this repository; the capped ratio is {fmt_pct(v['capped_survival_rate']) if not cov['small_sample'] else 'not published below the floor'}.</li>",
+        f"<li><strong><code translate=\"no\">.git-blame-ignore-revs</code></strong>: {'honoured' if cov['ignore_revs_file'] else 'not present in this repository'}.</li>",
+    ]
+    body = f"""
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow"><a href="/{REPOS_REL}/">repository</a> · survival report #{f['number']} · {esc(f['date'])} · method {esc(m['version'])} · unranked</p>
+      <h1><a href="{esc(row['url'])}" rel="noopener" translate="no">{esc(repo)}</a></h1>
+      <p class="lede">{esc(sentence)} <strong>These are counts, not grades.</strong> No rank, no colour, no verdict, and no comparison with any other repository on this page. Every number links to the audit bytes behind it and the <a href="/method">method and its limits</a> are public.</p>
+      <p class="rp-meta"><a href="{esc(row['url'])}" rel="noopener">GitHub</a> · <a href="{esc(e['path'])}latest.json">latest.json</a> · <a href="{esc(e['path'])}badge.svg">badge.svg</a> · <a href="/{REPORTS_REL}/{esc(f['id'])}/">Survival Report #{f['number']}</a> · <a href="/{REPOS_REL}/">all repositories</a> · <a href="/{REPORTS_REL}/feed.xml">Atom feed</a></p>
+    </div>
+{strip}
+{agents}
+    <div class="rp-section">
+    <h3 id="history">History across reports</h3>
+    <p class="muted">One row per report this repository was measured in, oldest first; each report measured HEAD as of its own date.{spark_note}</p>
+    {spark}
+    <div class="tbl-scroll">
+      <table class="lb-table" id="history-table">
+        <thead><tr><th>Report</th><th>Date</th><th>AI-tagged commits</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th></tr></thead>
+        <tbody>
+{chr(10).join(history_rows)}
+        </tbody>
+      </table>
+    </div>
+    </div>
+
+    <div class="proof rp-section" id="reproduce">
+      <h3>Reproduce</h3>
+      <p>One command, any machine, no account: the same bytes the report was built from. The exact bytes behind this page are <a href="{esc(href)}"><code translate="no">{esc(row['audit_file'])}</code></a> of Survival Report #{f['number']}. Open an issue with your JSON if it differs.</p>
+<pre translate="no"><code translate="no">{esc(row['reproduce'])}   <span class="dim"># method {esc(m['version'])}, full clone</span></code></pre>
+    </div>
+
+    <div class="rp-section" id="badge">
+    <h3>Badge</h3>
+    <p class="muted">Text only, one colour, no red and no green. It follows the latest report and is cached for one hour. <code translate="no">badge-dark.svg</code> is the same badge as paper on ink.</p>
+    <p class="rp-badges"><img src="{esc(e['path'])}badge.svg" alt="{esc(badge_texts(e)[0])} · {esc(badge_texts(e)[1])}" width="{sum(badge_width(e))}" height="{BADGE_H}" /> <img src="{esc(e['path'])}badge-dark.svg" alt="{esc(badge_texts(e)[0])} · {esc(badge_texts(e)[1])}, paper on ink" width="{sum(badge_width(e))}" height="{BADGE_H}" /></p>
+    <div class="term">
+      <div class="term-head"><span>README · Markdown</span><button class="copy" data-copy="badge-md" aria-label="Copy the badge Markdown">copy</button></div>
+<pre translate="no" id="badge-md"><code translate="no">{esc(badge_markdown(e))}</code></pre>
+    </div>
+    </div>
+
+    <div class="rp-section">
+    <h3 id="coverage">Coverage</h3>
+    <ul class="rp-list">
+      {''.join(coverage_items)}
+    </ul>
+    </div>
+  </div>
+</section>
+"""
+    return page_head(title, desc, url, img, jsonld) + body + page_foot()
+
+
+def render_repo_index(entries: list[dict[str, Any]]) -> str:
+    url = f"{SITE_URL}/{REPOS_REL}/"
+    title = "Measured repositories · AI code survival"
+    desc = ("Every repository measured in the Survival Report has a page and a badge: counts across reports, the exact bytes "
+            "behind each number, no rank. Counts, not grades; every number reproducible with re audit <owner/repo> --json.")
+    jsonld = {"@context": "https://schema.org", "@type": "CollectionPage", "name": title, "url": url, "description": desc,
+              "publisher": {"@type": "Organization", "name": "Crovia Trust", "url": "https://croviatrust.com"},
+              "hasPart": [{"@type": "Dataset", "name": f"{e['repo']} · AI code survival", "url": e["url"]} for e in entries]}
+    rows = "\n".join(
+        f'<tr><td><a href="{esc(e["path"])}" translate="no">{esc(e["repo"])}</a></td>'
+        f'<td>{fmt_int(e["latest"]["row"]["verified"]["commits"])}</td>'
+        f'<td>{fmt_int(e["latest"]["row"]["verified"]["introduced"])}</td>'
+        f'<td>{fmt_int(e["latest"]["row"]["verified"]["surviving"])}</td>'
+        f'<td>{esc(ratio_text(e["latest"]["row"]))}</td>'
+        f'<td><a class="rp-num" href="/{REPORTS_REL}/{esc(e["latest"]["report"]["id"])}/" title="Survival Report #{e["latest"]["report"]["number"]}">#{e["latest"]["report"]["number"]}</a></td>'
+        f'<td>{esc(e["latest"]["report"]["date"])}</td></tr>'
+        for e in entries
+    )
+    empty = "" if entries else '<p class="muted">No repository has been measured yet.</p>'
+    body = f"""
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">{len(entries)} repositories · alphabetical · unranked</p>
+      <h1>Measured repositories</h1>
+      <p class="lede">Every repository that appears in a <a href="/{REPORTS_REL}/">Survival Report</a> has its own page: the latest counts, the counts by agent, the history across reports, the exact bytes behind each number and a README badge. <strong>These are counts, not grades.</strong> The list is alphabetical; nothing here ranks or compares repositories, and the <a href="/method">method and its limits</a> are public.</p>
+      <p class="rp-meta"><a href="/{REPORTS_REL}/">all reports</a> · <a href="/{REPORTS_REL}/feed.xml">Atom feed</a> · <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener">add a repository</a> · <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener">opt out</a></p>
+    </div>
+    <div class="rp-section">
+    <h3 id="repositories">Repositories</h3>
+    <p class="muted">Latest counts per repository, from the most recent report it was measured in. <em>n &lt; 5</em>: fewer AI-tagged commits than the sample floor; counts are published, no ratio is aggregated.</p>
+    {empty}
+    <div class="tbl-scroll wide">
+      <table class="lb-table" id="repos">
+        <thead><tr><th>Repository</th><th>AI-tagged commits</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Report</th><th>Date</th></tr></thead>
+        <tbody>
+{rows}
+        </tbody>
+      </table>
+    </div>
+    </div>
+    <div class="proof rp-section" id="badge">
+      <h3>The badge</h3>
+      <p>Each page carries a text-only badge in one colour, <code translate="no">/{REPOS_REL}/&lt;owner&gt;/&lt;repo&gt;/badge.svg</code>, that follows the latest report; <code translate="no">latest.json</code> next to it holds the same counts for machines. Paths are lowercase.</p>
+<pre translate="no"><code translate="no">[![AI code survival]({SITE_URL}/{REPOS_REL}/&lt;owner&gt;/&lt;repo&gt;/badge.svg)]({SITE_URL}/{REPOS_REL}/&lt;owner&gt;/&lt;repo&gt;/)</code></pre>
+    </div>
+  </div>
+</section>
+"""
+    return page_head(title, desc, url, f"{SITE_URL}/assets/og.png", jsonld) + body + page_foot()
+
+
+def write_repo_pages(site: Path, archive: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    entries = measured_repos(archive)
+    base = site / REPOS_REL
+    base.mkdir(parents=True, exist_ok=True)
+    for e in entries:
+        out = site / e["path"].strip("/")
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "index.html").write_text(render_repo_page(e), encoding="utf-8")
+        (out / "badge.svg").write_text(badge_svg(e), encoding="utf-8")
+        (out / "badge-dark.svg").write_text(badge_svg(e, dark=True), encoding="utf-8")
+        dump_json(out / "latest.json", repo_latest(e))
+    (base / "index.html").write_text(render_repo_index(entries), encoding="utf-8")
+    return entries
+
+
 # ----------------------------------------------------------------------------- site glue
 
 def replace_block(text: str, begin: str, end: str, body: str, insert_before: str | None) -> str:
@@ -903,7 +1304,7 @@ def replace_block(text: str, begin: str, end: str, body: str, insert_before: str
     return text.rstrip("\n") + "\n\n" + block + "\n"
 
 
-def update_redirects(site: Path, latest: dict[str, Any] | None) -> None:
+def update_redirects(site: Path, latest: dict[str, Any] | None, repos: list[dict[str, Any]] = ()) -> None:
     path = site / "_redirects"
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     lines = [
@@ -913,16 +1314,25 @@ def update_redirects(site: Path, latest: dict[str, Any] | None) -> None:
     target = f"/{REPORTS_REL}/{latest['id']}/" if latest else f"/{REPORTS_REL}/"
     lines.append(f"/report               {target}   302")
     lines.append(f"/report/latest        {target}   302")
+    # Repository pages live at lowercase paths; the spelling GitHub shows
+    # reaches the same page. Static rules only: splat rules are capped at 100.
+    for e in repos:
+        cased = f"/{REPOS_REL}/{e['repo']}/"
+        if cased != e["path"]:
+            lines.append(f"{cased:<21} {e['path']}   301")
     path.write_text(replace_block(text, REDIRECT_BEGIN, REDIRECT_END, "\n".join(lines), None), encoding="utf-8")
 
 
-def update_sitemap(site: Path, archive: list[dict[str, Any]]) -> None:
+def update_sitemap(site: Path, archive: list[dict[str, Any]], repos: list[dict[str, Any]] = ()) -> None:
     path = site / "sitemap.xml"
     text = path.read_text(encoding="utf-8") if path.exists() else (
         '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>\n')
     urls = [f"  <url><loc>{SITE_URL}/{REPORTS_REL}/</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>"]
     for a in archive:
         urls.append(f"  <url><loc>{esc(a['url'])}</loc><lastmod>{esc(a['date'])}</lastmod><changefreq>yearly</changefreq><priority>0.6</priority></url>")
+    urls.append(f"  <url><loc>{SITE_URL}/{REPOS_REL}/</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>")
+    for e in repos:
+        urls.append(f"  <url><loc>{esc(e['url'])}</loc><lastmod>{esc(e['latest']['report']['date'])}</lastmod><changefreq>weekly</changefreq><priority>0.5</priority></url>")
     path.write_text(replace_block(text, "  " + SITEMAP_BEGIN, "  " + SITEMAP_END, "\n".join(urls), "</urlset>"), encoding="utf-8")
 
 
@@ -942,15 +1352,22 @@ def next_number(site: Path) -> int:
 
 
 def rebuild(site: Path) -> list[dict[str, Any]]:
+    """Everything derived from the report.json files: each report page (so a
+    change to the templates reaches every report), archive, feed, latest.json,
+    the repository pages and badges, and the managed redirect and sitemap
+    blocks. Deterministic: the same inputs give the same bytes."""
     archive = load_archive(site)
     base = site / REPORTS_REL
     base.mkdir(parents=True, exist_ok=True)
+    for a in archive:
+        (base / a["id"] / "index.html").write_text(render_report(a), encoding="utf-8")
     (base / "index.html").write_text(render_index(archive), encoding="utf-8")
     (base / "feed.xml").write_text(render_feed(archive), encoding="utf-8")
     if archive:
         dump_json(base / "latest.json", archive[0])
-    update_redirects(site, archive[0] if archive else None)
-    update_sitemap(site, archive)
+    repos = write_repo_pages(site, archive)
+    update_redirects(site, archive[0] if archive else None, repos)
+    update_sitemap(site, archive, repos)
     return archive
 
 
@@ -1015,6 +1432,75 @@ def from_existing(src: Path, out: Path) -> int:
     return 0
 
 
+# ----------------------------------------------------------------------------- shards
+
+def _union(lists: list[list[Any]]) -> list[str]:
+    """Case-insensitive union keeping the first spelling, sorted case-insensitively."""
+    seen: dict[str, str] = {}
+    for lst in lists:
+        for item in lst or []:
+            s = str(item).strip()
+            if s and s.lower() not in seen:
+                seen[s.lower()] = s
+    return sorted(seen.values(), key=str.lower)
+
+
+def merge_shards(run_dir: Path, root: Path) -> dict[str, Any]:
+    """Merge the `run-shard-<k>.json` fragments the audit matrix uploaded
+    into one `run.json` with the same schema. The workflow shards the list
+    by index; every fragment carries its own repos, failed and opted_out.
+    A repository of the list that no fragment mentions (its shard timed out
+    or never uploaded) is recorded as failed, never silently dropped."""
+    fragments = []
+    for fp in sorted(run_dir.glob("run-shard-*.json")):
+        frag = load_json(fp, None)
+        if isinstance(frag, dict):
+            fragments.append((fp.name, frag))
+        else:
+            print(f"merge-shards: {fp.name} is not valid JSON; ignored", file=sys.stderr)
+    if not fragments:
+        raise SystemExit(f"{run_dir}: no run-shard-*.json to merge")
+
+    def first(key: str, default: Any) -> Any:
+        return next((f[key] for _, f in fragments if f.get(key)), default)
+
+    versions = sorted({str(f.get("tool_version")) for _, f in fragments if f.get("tool_version")})
+    if len(versions) > 1:
+        print(f"merge-shards: shards ran different tool versions: {', '.join(versions)}", file=sys.stderr)
+    generated = sorted(str(f["generated_at"]) for _, f in fragments if f.get("generated_at"))
+    repos = _union([f.get("repos") or [] for _, f in fragments])
+    failed = _union([f.get("failed") or [] for _, f in fragments])
+    opted = _union([f.get("opted_out") or [] for _, f in fragments])
+
+    optout = read_optout(root)
+    known = {r.lower() for r in repos} | {o.lower() for o in opted}
+    missing = [r for r in read_repo_list(root) if r.lower() not in known and r.lower() not in optout]
+    if missing:
+        print(f"merge-shards: {len(missing)} repositories of the list were reported by no shard; recorded as failed: "
+              f"{', '.join(missing)}", file=sys.stderr)
+    audited = {slug_repo(fp.stem).lower() for fp in run_dir.glob("*__*.json")}
+    unreported = [r for r in repos if r.lower() not in audited and r.lower() not in {x.lower() for x in failed}]
+    if unreported:
+        print(f"merge-shards: {len(unreported)} repositories have neither an audit nor a failure record; recorded as failed: "
+              f"{', '.join(unreported)}", file=sys.stderr)
+
+    run = {
+        "generated_at": generated[0] if generated else dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "tool": first("tool", "causari"),
+        "tool_version": first("tool_version", "unknown"),
+        "method": first("method", "v2"),
+        "command": first("command", "re audit <owner/repo> --json"),
+        "repos": _union([repos, missing]),
+        "failed": _union([failed, missing, unreported]),
+        "opted_out": opted,
+        "shards": [name for name, _ in fragments],
+    }
+    dump_json(run_dir / "run.json", run)
+    print(f"merge-shards: {len(fragments)} shards → run.json · {len(run['repos'])} repositories, {len(audited)} audits, "
+          f"{len(run['failed'])} failed, {len(opted)} opted out")
+    return run
+
+
 # ----------------------------------------------------------------------------- main
 
 def main(argv: list[str] | None = None) -> int:
@@ -1027,25 +1513,30 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--number", type=int, help="report number (default: existing report dirs + 1)")
     b.add_argument("--date", help="report date YYYY-MM-DD (default: run.json generated_at, else today UTC)")
     b.add_argument("--no-png", action="store_true", help="skip card.png even if Pillow is present")
-    sub.add_parser("rebuild", help="archive index, feed, latest.json, redirects, sitemap from existing report.json files")
+    sub.add_parser("rebuild", help="report pages, archive index, feed, latest.json, repository pages and badges (site/r/), redirects, sitemap from existing report.json files")
     rr = sub.add_parser("rerender", help="re-render one report's page and markdown from its report.json")
     rr.add_argument("report_dir")
     fe = sub.add_parser("from-existing", help="convert the retired survival-data.json into a run directory (v2 rows only)")
     fe.add_argument("src")
     fe.add_argument("--out", required=True)
+    ms = sub.add_parser("merge-shards", help="merge run-shard-*.json fragments of the audit matrix into run.json")
+    ms.add_argument("--run", required=True, help="directory holding the downloaded shard artifacts")
     args = ap.parse_args(argv)
 
     site = Path(args.site)
     root = Path(args.root)
     if args.cmd == "from-existing":
         return from_existing(Path(args.src), Path(args.out))
+    if args.cmd == "merge-shards":
+        merge_shards(Path(args.run), root)
+        return 0
     if args.cmd == "rerender":
         rerender(Path(args.report_dir))
         rebuild(site)
         return 0
     if args.cmd == "rebuild":
         archive = rebuild(site)
-        print(f"survival_report: rebuilt archive with {len(archive)} report(s)")
+        print(f"survival_report: rebuilt archive with {len(archive)} report(s), {len(measured_repos(archive))} repository page(s)")
         return 0
 
     run_dir = Path(args.run)

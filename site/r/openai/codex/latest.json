@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "openai/codex",
+ "repository_url": "https://github.com/openai/codex",
+ "url": "https://causari.dev/r/openai/codex/",
+ "badge": "https://causari.dev/r/openai/codex/badge.svg",
+ "report": {
+  "number": 1,
+  "id": "2026/01",
+  "date": "2026-09-20",
+  "url": "https://causari.dev/reports/survival/2026/01/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.1.5"
+ },
+ "verified": {
+  "commits": 364,
+  "introduced": 183908,
+  "surviving": 109674,
+  "survival_rate": 0.596352524088131,
+  "capped_survival_rate": 0.5912723220654207,
+  "median_survival": 0.5882490793438232,
+  "largest_commit_share": 0.06153620288405072
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 11046,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit openai/codex --json",
+ "bytes": "https://causari.dev/reports/survival/2026/01/repos/openai__codex.json",
+ "license": "CC-BY-4.0"
+}

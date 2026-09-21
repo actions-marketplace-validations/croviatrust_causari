@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "croviatrust/causari",
+ "repository_url": "https://github.com/croviatrust/causari",
+ "url": "https://causari.dev/r/croviatrust/causari/",
+ "badge": "https://causari.dev/r/croviatrust/causari/badge.svg",
+ "report": {
+  "number": 1,
+  "id": "2026/01",
+  "date": "2026-09-20",
+  "url": "https://causari.dev/reports/survival/2026/01/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.1.5"
+ },
+ "verified": {
+  "commits": 14,
+  "introduced": 6267,
+  "surviving": 5595,
+  "survival_rate": 0.8927716610818573,
+  "capped_survival_rate": 0.8927716610818573,
+  "median_survival": 0.9617821330902461,
+  "largest_commit_share": 0.24796553374820487
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 127,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit croviatrust/causari --json",
+ "bytes": "https://causari.dev/reports/survival/2026/01/repos/croviatrust__causari.json",
+ "license": "CC-BY-4.0"
+}

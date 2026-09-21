@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "anthropics/anthropic-sdk-typescript",
+ "repository_url": "https://github.com/anthropics/anthropic-sdk-typescript",
+ "url": "https://causari.dev/r/anthropics/anthropic-sdk-typescript/",
+ "badge": "https://causari.dev/r/anthropics/anthropic-sdk-typescript/badge.svg",
+ "report": {
+  "number": 1,
+  "id": "2026/01",
+  "date": "2026-09-20",
+  "url": "https://causari.dev/reports/survival/2026/01/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.1.5"
+ },
+ "verified": {
+  "commits": 48,
+  "introduced": 13796,
+  "surviving": 11394,
+  "survival_rate": 0.825891562771818,
+  "capped_survival_rate": 0.846647002154662,
+  "median_survival": 0.9605808054664045,
+  "largest_commit_share": 0.39873876485937954
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 1321,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit anthropics/anthropic-sdk-typescript --json",
+ "bytes": "https://causari.dev/reports/survival/2026/01/repos/anthropics__anthropic-sdk-typescript.json",
+ "license": "CC-BY-4.0"
+}

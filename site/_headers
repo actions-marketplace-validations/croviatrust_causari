@@ -43,6 +43,16 @@
 /reports/survival/*/*/card.png
   Cache-Control: public, max-age=86400
 
+# One page, one badge and one latest.json per measured repository
+# (scripts/survival_report.py). Badges sit in READMEs and follow the weekly
+# report, so nothing under /r/ is cached for more than an hour.
+/r/*
+  Cache-Control: public, max-age=3600
+
+/r/*/*/latest.json
+  Content-Type: application/json; charset=utf-8
+  Access-Control-Allow-Origin: *
+
 # The verifier promises to make no network request: the policy enforces it
 # (connect-src 'none'), and the scripts are pinned to this origin only.
 /verify/*

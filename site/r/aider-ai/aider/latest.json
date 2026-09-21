@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "Aider-AI/aider",
+ "repository_url": "https://github.com/Aider-AI/aider",
+ "url": "https://causari.dev/r/aider-ai/aider/",
+ "badge": "https://causari.dev/r/aider-ai/aider/badge.svg",
+ "report": {
+  "number": 1,
+  "id": "2026/01",
+  "date": "2026-09-20",
+  "url": "https://causari.dev/reports/survival/2026/01/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.1.5"
+ },
+ "verified": {
+  "commits": 11156,
+  "introduced": 374687,
+  "surviving": 235782,
+  "survival_rate": 0.6292772367335936,
+  "capped_survival_rate": 0.41864655522961985,
+  "median_survival": 0.3333333333333333,
+  "largest_commit_share": 0.2667266278253582
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 12461,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit Aider-AI/aider --json",
+ "bytes": "https://causari.dev/reports/survival/2026/01/repos/Aider-AI__aider.json",
+ "license": "CC-BY-4.0"
+}

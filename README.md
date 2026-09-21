@@ -21,6 +21,7 @@
   <img alt="CI" src="https://github.com/croviatrust/causari/actions/workflows/ci.yml/badge.svg?branch=main">
   <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-3b4252">
   <img alt="Platform" src="https://img.shields.io/badge/linux%20%7C%20macOS%20%7C%20windows-3b4252">
+  <a href="https://causari.dev/r/croviatrust/causari/"><img alt="AI code survival, measured by this tool on its own repository" src="https://causari.dev/r/croviatrust/causari/badge.svg"></a>
 </p>
 
 ---
@@ -68,6 +69,15 @@ trailer are UNKNOWN. A formatter pass or a moved function counts as a death
 under method v1. One bulk commit can dominate a line-weighted ratio; ratios
 under 5 AI-tagged commits are flagged. All of this is written out at
 [causari.dev/method](https://causari.dev/method), with how to contest a number.
+The questions people ask, answered with the command and the limit: [causari.dev/faq](https://causari.dev/faq); how this differs from `git blame`, vendor dashboards and churn reports: [causari.dev/compare](https://causari.dev/compare).
+
+The weekly [Survival Report](https://causari.dev/reports/survival/) runs
+`re audit` on about 100 open-source repositories: a hand-picked list plus the
+public repositories where GitHub commit search finds the most commits carrying
+the same AI authorship metadata, selected every week, the day before the report, by
+[`scripts/survival_discover.py`](scripts/survival_discover.py) under a rule
+stated on the [method page](https://causari.dev/method#selection); rows stay
+alphabetical, and one line in `.github/survival-optout.txt` removes a repository.
 
 ## In CI: a count on every pull request
 
