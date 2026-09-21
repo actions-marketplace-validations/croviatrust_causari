@@ -322,6 +322,141 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(json.loads((Path(tmp) / "out" / "run.json").read_text())["repos"], ["a/b"])
 
 
+class ScaleTests(unittest.TestCase):
+    """One hundred repositories, as the discovered list yields: every surface
+    carries all of them, the copy says "100 repositories", nothing assumes a
+    handful of rows."""
+
+    N = 100
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.s = Scratch()
+        for p in cls.s.run.glob("*__*.json"):
+            p.unlink()
+        cls.repos = []
+        for k in range(cls.N):
+            owner = f"org{k % 7}" if k % 3 else f"Org{k % 5}"  # mixed case, several owners
+            repo = f"{owner}/repo-{k:03d}"
+            cls.repos.append(repo)
+            intro = 1_000 + 137 * k
+            a = audit(6 + k % 40, intro, intro - (intro * (k % 10)) // 10 - (3 if k % 10 else 0), agent=["claude-code", "aider", "cursor", "openai-codex"][k % 4])
+            (cls.s.run / f"{sr.repo_slug(repo)}.json").write_text(json.dumps(a), encoding="utf-8")
+        (cls.s.run / "run.json").write_text(json.dumps({
+            "generated_at": "2026-10-05T05:17:00Z", "tool": "causari", "tool_version": "0.2.1", "method": "v2",
+            "command": "re audit <owner/repo> --json", "repos": cls.repos, "failed": [f"gone/repo-{k}" for k in range(12)], "opted_out": [],
+        }), encoding="utf-8")
+        (cls.s.root / ".github" / "survival-discovery.json").write_text(json.dumps({
+            "schema": "causari.survival_discovery.v1", "discovered_at": "2026-10-01T04:23:00Z",
+            "selection": {"floor": 5, "limit": 100},
+            "repositories": [{"repo": r, "seed": k < 30} for k, r in enumerate(cls.repos)],
+        }), encoding="utf-8")
+        cls.f = cls.s.build(number=2, date="2026-10-05")
+        cls.dir = cls.s.site / "reports" / "survival" / "2026" / "02"
+        cls.page = (cls.dir / "index.html").read_text(encoding="utf-8")
+        cls.md = (cls.dir / "report.md").read_text(encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.s.close()
+
+    def test_all_hundred_aggregated_alphabetically(self) -> None:
+        repos = [r["repo"] for r in self.f["repositories"]]
+        self.assertEqual(len(repos), self.N)
+        self.assertEqual(repos, sorted(repos, key=str.lower))
+        self.assertEqual(self.f["aggregate"]["repositories"], self.N)
+        self.assertEqual(self.f["aggregate"]["introduced"], sum(1_000 + 137 * k for k in range(self.N)))
+        self.assertEqual(self.page.count('<tr><td><a href="https://github.com/'), self.N)
+        self.assertEqual(sum(1 for l in self.md.splitlines() if l.startswith("| ") and "re audit " in l), self.N)
+        self.assertEqual(len(self.f["excluded"]["failed"]), 12)
+
+    def test_copy_counts_one_hundred(self) -> None:
+        self.assertIn("in 100 open-source repositories", sr.headline(self.f))
+        self.assertIn("in 100 repositories are still at HEAD", (self.dir / "card.svg").read_text(encoding="utf-8"))
+        self.assertIn("of the 100 aggregated repositories", self.f["aggregate"]["interval_method"]["note"])
+        self.assertIn(">100</span><span class=\"l\">repositories aggregated", self.page)
+        iv = self.f["aggregate"]["survival_rate_interval_95"]
+        self.assertLess(iv["low"], self.f["aggregate"]["survival_rate"])
+        self.assertGreater(iv["high"], self.f["aggregate"]["survival_rate"])
+        ET.fromstring((self.dir / "card.svg").read_text(encoding="utf-8"))
+
+    def test_selection_sentence_from_discovery(self) -> None:
+        sel = self.f["method"]["selection"]
+        self.assertIn("30 hand-picked and 70 found by GitHub commit search", sel)
+        self.assertIn("at least 5 commits", sel)
+        self.assertIn("discovered 2026-10-01", sel)
+        self.assertIn(sel, self.page)
+        self.assertIn(sel, self.md)
+        self.assertNotIn("added by pull request", self.page)
+        for word in FORBIDDEN:
+            self.assertNotIn(word, sel)
+
+    def test_sizes_stay_reasonable(self) -> None:
+        self.assertLess((self.dir / "report.json").stat().st_size, 400_000)
+        self.assertLess((self.dir / "index.html").stat().st_size, 400_000)
+        self.assertEqual(len(list((self.dir / "repos").glob("*.json"))), self.N)
+        self.assertEqual(len(self.f["by_agent"]), 4)
+
+
+class ShardTests(unittest.TestCase):
+    def frag(self, k: int, repos: list[str], failed: list[str] = (), opted: list[str] = (), version: str = "0.2.1", at: str = "T05:20:00Z") -> dict:
+        return {"generated_at": f"2026-10-05{at}", "tool": "causari", "tool_version": version, "method": "v2",
+                "command": "re audit <owner/repo> --json", "repos": repos, "failed": list(failed), "opted_out": list(opted), "shard": k}
+
+    def test_merge_unions_fragments_and_records_unreported_repositories(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "root"
+            run = Path(tmp) / "run"
+            (root / ".github").mkdir(parents=True)
+            run.mkdir()
+            (root / ".github" / "survival-repos.txt").write_text(
+                "# list\na/one\nb/two\nc/three\nd/four\nOpt/Out\ne/five\n", encoding="utf-8")
+            (root / ".github" / "survival-optout.txt").write_text("opt/out\n", encoding="utf-8")
+            # shard 0: a/one audited, d/four failed; shard 1: b/two audited, c/three has no audit and no failure
+            # record (killed mid-run); shard 2 (e/five, Opt/Out) never uploaded at all
+            (run / "a__one.json").write_text(json.dumps(audit(6, 100, 50)), encoding="utf-8")
+            (run / "b__two.json").write_text(json.dumps(audit(6, 100, 50)), encoding="utf-8")
+            (run / "run-shard-0.json").write_text(json.dumps(self.frag(0, ["a/one", "d/four"], failed=["d/four"], at="T05:17:00Z")), encoding="utf-8")
+            (run / "run-shard-1.json").write_text(json.dumps(self.frag(1, ["b/two", "c/three"], opted=["Opt/Out"])), encoding="utf-8")
+            import contextlib
+            import io
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                merged = sr.merge_shards(run, root)
+            on_disk = json.loads((run / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual(on_disk, merged)
+            self.assertEqual(set(merged) >= {"generated_at", "tool", "tool_version", "method", "command", "repos", "failed", "opted_out"}, True)
+            self.assertEqual(merged["generated_at"], "2026-10-05T05:17:00Z")  # earliest shard
+            self.assertEqual(merged["tool_version"], "0.2.1")
+            self.assertEqual(merged["repos"], ["a/one", "b/two", "c/three", "d/four", "e/five"])
+            self.assertEqual(merged["failed"], ["c/three", "d/four", "e/five"])
+            self.assertEqual(merged["opted_out"], ["Opt/Out"])
+            self.assertIn("e/five", err.getvalue())
+            self.assertIn("c/three", err.getvalue())
+            # and the generator builds from the merged run: two rows, three failures, one opt-out
+            site = Path(tmp) / "site"
+            site.mkdir()
+            rc = sr.main(["--site", str(site), "--root", str(root), "build", "--run", str(run), "--number", "1", "--date", "2026-10-05", "--no-png"])
+            self.assertEqual(rc, 0)
+            f = json.loads((site / "reports" / "survival" / "2026" / "01" / "report.json").read_text(encoding="utf-8"))
+            self.assertEqual([r["repo"] for r in f["repositories"]], ["a/one", "b/two"])
+            self.assertEqual(f["excluded"]["failed"], ["c/three", "d/four", "e/five"])
+            self.assertEqual(f["excluded"]["opted_out"], 1)
+
+    def test_merge_refuses_without_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(SystemExit):
+                sr.merge_shards(Path(tmp), Path(tmp))
+
+    def test_shard_split_is_index_mod_n(self) -> None:
+        # the same rule the workflow applies in bash: shard k takes indices i with i % N == k
+        repos = [f"o/r{i}" for i in range(23)]
+        shards = [[r for i, r in enumerate(repos) if i % 10 == k] for k in range(10)]
+        self.assertEqual(sorted(sum(shards, [])), sorted(repos))
+        self.assertEqual(shards[0], ["o/r0", "o/r10", "o/r20"])
+        self.assertEqual(shards[3], ["o/r3", "o/r13"])
+
+
 class ZenodoTests(unittest.TestCase):
     def test_dry_run_payload_without_token(self) -> None:
         s = Scratch()

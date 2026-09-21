@@ -29,6 +29,7 @@ Outputs (under site/reports/survival/)::
 
 Usage::
 
+    python3 scripts/survival_report.py merge-shards --run /tmp/run   # run-shard-*.json → run.json
     python3 scripts/survival_report.py build --run /tmp/run [--number N] [--date YYYY-MM-DD]
     python3 scripts/survival_report.py rebuild            # archive, feed, latest, redirects
     python3 scripts/survival_report.py from-existing site/survival-data.json --out /tmp/run
@@ -132,6 +133,42 @@ def read_optout(root: Path) -> set[str]:
         if line and not line.startswith("#"):
             out.add(line.lower())
     return out
+
+
+def read_repo_list(root: Path) -> list[str]:
+    """`.github/survival-repos.txt`: one owner/repo per line, `#` comments,
+    in file order. The workflow shards this list by index."""
+    path = root / ".github" / "survival-repos.txt"
+    if not path.exists():
+        return []
+    return [l.strip() for l in path.read_text(encoding="utf-8").splitlines() if l.strip() and not l.strip().startswith("#")]
+
+
+SELECTION_BY_PR = "the repositories were added by pull request, not drawn at random."
+SELECTION_SERIES = (
+    "the repositories were selected, not drawn at random: a hand-picked list and the public repositories in which "
+    "GitHub commit search finds the most commits carrying the same AI authorship metadata; each report states its own selection."
+)
+
+
+def selection_sentence(root: Path) -> str:
+    """How the measured list was put together, for the positioning statement.
+    With `.github/survival-discovery.json` present the list was filled by
+    scripts/survival_discover.py and the sentence says so, with the floor and
+    the date; without it the list is the hand-picked one."""
+    d = load_json(root / ".github" / "survival-discovery.json", None)
+    if not isinstance(d, dict) or not isinstance(d.get("repositories"), list):
+        return SELECTION_BY_PR
+    rows = [r for r in d["repositories"] if isinstance(r, dict)]
+    seeds = sum(1 for r in rows if r.get("seed"))
+    found = len(rows) - seeds
+    floor = (d.get("selection") or {}).get("floor", 5)
+    date = str(d.get("discovered_at") or "")[:10]
+    return (
+        f"the repositories were selected, not drawn at random: {seeds} hand-picked and {found} found by GitHub commit search "
+        f"as public repositories with at least {floor} commits carrying the same AI authorship metadata"
+        f"{' (discovered ' + date + ')' if date else ''}; the selection rule and the counts behind it are public."
+    )
 
 
 # ----------------------------------------------------------------------------- statistics
@@ -317,6 +354,7 @@ def collect(run_dir: Path, number: int, date: str, root: Path) -> dict[str, Any]
             "cap_rule": "a commit weighs at most the 95th percentile of per-commit introduced line counts in its repository, and never more than 10,000 lines",
             "evidence_class": "VERIFIED only; PROBABLE is listed but never summed",
             "aggregation": "repositories with at least sample_floor VERIFIED commits and a full (non-shallow) clone",
+            "selection": selection_sentence(root),
         },
         "aggregate": {
             "repositories": len(aggregated),
@@ -383,8 +421,8 @@ POSITIONING = {
     "is_not": (
         "It is not a quality judgement: deleted lines include removed features and rewritten prototypes; "
         "surviving lines include dead code. It is not a sample of all AI-assisted code: inline completions "
-        "leave no trace in git, untagged agent commits are invisible, and the repositories were added by pull "
-        "request, not drawn at random. The intervals describe the sampled repositories only."
+        "leave no trace in git, untagged agent commits are invisible, and {selection} "
+        "The intervals describe the sampled repositories only."
     ),
     "context": (
         "Prior measurement work asks related questions with different instruments. GitClear publishes churn "
@@ -396,6 +434,16 @@ POSITIONING = {
         "so that the three can be read side by side."
     ),
 }
+
+
+def is_not_text(selection: str) -> str:
+    return POSITIONING["is_not"].format(selection=selection)
+
+
+def report_selection(f: dict[str, Any]) -> str:
+    """The selection sentence of one report: stored in report.json from the
+    run that discovered the list; earlier reports carry the hand-picked one."""
+    return (f.get("method") or {}).get("selection") or SELECTION_BY_PR
 
 
 def report_md(f: dict[str, Any]) -> str:
@@ -468,7 +516,7 @@ def report_md(f: dict[str, Any]) -> str:
               f"survival from `git blame {' '.join(m['blame_flags'])}` at HEAD. Per-commit cap: {m['cap_rule']}. "
               f"Sample floor: {m['sample_floor']} VERIFIED commits. {m['evidence_class']}. Full clones only. "
               f"Details, limits and how to contest a number: {m['url']}.",
-              "", "## What this report is, and is not", "", POSITIONING["is"], "", POSITIONING["is_not"], "", POSITIONING["context"],
+              "", "## What this report is, and is not", "", POSITIONING["is"], "", is_not_text(report_selection(f)), "", POSITIONING["context"],
               "", "## Cite", "", cite(f), ""]
     return "\n".join(lines)
 
@@ -618,12 +666,12 @@ def page_foot() -> str:
 """
 
 
-def positioning_html() -> str:
+def positioning_html(selection: str) -> str:
     """The positioning statement as a proof card: title, the paragraphs, one command."""
     return f"""<div class="proof rp-positioning">
       <h3>What this report is, and is not</h3>
       <p>{esc(POSITIONING['is'])}</p>
-      <p>{esc(POSITIONING['is_not'])}</p>
+      <p>{esc(is_not_text(selection))}</p>
       <p>{esc(POSITIONING['context']).replace('arXiv 2601.16809', '<a href="https://arxiv.org/abs/2601.16809" rel="noopener">arXiv 2601.16809</a>')}</p>
 <pre translate="no"><code translate="no">re audit &lt;owner/repo&gt; --json   <span class="dim"># the exact bytes behind any row</span></code></pre>
     </div>"""
@@ -796,7 +844,7 @@ def render_report(f: dict[str, Any]) -> str:
 
     <p class="rp-cite">Cite as: <code translate="no">{esc(cite(f))}</code></p>
 
-    {positioning_html()}
+    {positioning_html(report_selection(f))}
   </div>
 </section>
 """
@@ -846,10 +894,10 @@ def render_index(archive: list[dict[str, Any]]) -> str:
         </tbody>
       </table>
     </div>
-    <p class="muted">The report replaced the weekly measurements table in September 2026. Repositories are added by pull request to <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a>; maintainers opt out with one line in <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
+    <p class="muted">The report replaced the weekly measurements table in September 2026. Repositories enter <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a> by pull request or through the monthly discovery, which lists the public repositories where GitHub commit search finds the most commits carrying AI authorship metadata (<a href="/method#selection">how repositories are selected</a>); maintainers opt out with one line in <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
     </div>
 
-    {positioning_html()}
+    {positioning_html(SELECTION_SERIES)}
   </div>
 </section>
 """
@@ -1015,6 +1063,75 @@ def from_existing(src: Path, out: Path) -> int:
     return 0
 
 
+# ----------------------------------------------------------------------------- shards
+
+def _union(lists: list[list[Any]]) -> list[str]:
+    """Case-insensitive union keeping the first spelling, sorted case-insensitively."""
+    seen: dict[str, str] = {}
+    for lst in lists:
+        for item in lst or []:
+            s = str(item).strip()
+            if s and s.lower() not in seen:
+                seen[s.lower()] = s
+    return sorted(seen.values(), key=str.lower)
+
+
+def merge_shards(run_dir: Path, root: Path) -> dict[str, Any]:
+    """Merge the `run-shard-<k>.json` fragments the audit matrix uploaded
+    into one `run.json` with the same schema. The workflow shards the list
+    by index; every fragment carries its own repos, failed and opted_out.
+    A repository of the list that no fragment mentions (its shard timed out
+    or never uploaded) is recorded as failed, never silently dropped."""
+    fragments = []
+    for fp in sorted(run_dir.glob("run-shard-*.json")):
+        frag = load_json(fp, None)
+        if isinstance(frag, dict):
+            fragments.append((fp.name, frag))
+        else:
+            print(f"merge-shards: {fp.name} is not valid JSON; ignored", file=sys.stderr)
+    if not fragments:
+        raise SystemExit(f"{run_dir}: no run-shard-*.json to merge")
+
+    def first(key: str, default: Any) -> Any:
+        return next((f[key] for _, f in fragments if f.get(key)), default)
+
+    versions = sorted({str(f.get("tool_version")) for _, f in fragments if f.get("tool_version")})
+    if len(versions) > 1:
+        print(f"merge-shards: shards ran different tool versions: {', '.join(versions)}", file=sys.stderr)
+    generated = sorted(str(f["generated_at"]) for _, f in fragments if f.get("generated_at"))
+    repos = _union([f.get("repos") or [] for _, f in fragments])
+    failed = _union([f.get("failed") or [] for _, f in fragments])
+    opted = _union([f.get("opted_out") or [] for _, f in fragments])
+
+    optout = read_optout(root)
+    known = {r.lower() for r in repos} | {o.lower() for o in opted}
+    missing = [r for r in read_repo_list(root) if r.lower() not in known and r.lower() not in optout]
+    if missing:
+        print(f"merge-shards: {len(missing)} repositories of the list were reported by no shard; recorded as failed: "
+              f"{', '.join(missing)}", file=sys.stderr)
+    audited = {slug_repo(fp.stem).lower() for fp in run_dir.glob("*__*.json")}
+    unreported = [r for r in repos if r.lower() not in audited and r.lower() not in {x.lower() for x in failed}]
+    if unreported:
+        print(f"merge-shards: {len(unreported)} repositories have neither an audit nor a failure record; recorded as failed: "
+              f"{', '.join(unreported)}", file=sys.stderr)
+
+    run = {
+        "generated_at": generated[0] if generated else dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "tool": first("tool", "causari"),
+        "tool_version": first("tool_version", "unknown"),
+        "method": first("method", "v2"),
+        "command": first("command", "re audit <owner/repo> --json"),
+        "repos": _union([repos, missing]),
+        "failed": _union([failed, missing, unreported]),
+        "opted_out": opted,
+        "shards": [name for name, _ in fragments],
+    }
+    dump_json(run_dir / "run.json", run)
+    print(f"merge-shards: {len(fragments)} shards → run.json · {len(run['repos'])} repositories, {len(audited)} audits, "
+          f"{len(run['failed'])} failed, {len(opted)} opted out")
+    return run
+
+
 # ----------------------------------------------------------------------------- main
 
 def main(argv: list[str] | None = None) -> int:
@@ -1033,12 +1150,17 @@ def main(argv: list[str] | None = None) -> int:
     fe = sub.add_parser("from-existing", help="convert the retired survival-data.json into a run directory (v2 rows only)")
     fe.add_argument("src")
     fe.add_argument("--out", required=True)
+    ms = sub.add_parser("merge-shards", help="merge run-shard-*.json fragments of the audit matrix into run.json")
+    ms.add_argument("--run", required=True, help="directory holding the downloaded shard artifacts")
     args = ap.parse_args(argv)
 
     site = Path(args.site)
     root = Path(args.root)
     if args.cmd == "from-existing":
         return from_existing(Path(args.src), Path(args.out))
+    if args.cmd == "merge-shards":
+        merge_shards(Path(args.run), root)
+        return 0
     if args.cmd == "rerender":
         rerender(Path(args.report_dir))
         rebuild(site)
