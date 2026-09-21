@@ -1,0 +1,42 @@
+{
+  "name": "causari",
+  "version": "0.2.0",
+  "description": "AI-written code has no author. It has causes. Causari measures how many lines from AI-tagged commits are still alive in any git repo and records the prompt, model and files behind every agent edit.",
+  "keywords": [
+    "ai",
+    "provenance",
+    "git",
+    "agents",
+    "mcp",
+    "audit",
+    "survival",
+    "claude-code",
+    "cursor",
+    "aider"
+  ],
+  "homepage": "https://causari.dev",
+  "bugs": "https://github.com/croviatrust/causari/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/croviatrust/causari.git",
+    "directory": "packaging/npm"
+  },
+  "license": "Apache-2.0",
+  "author": "Crovia Trust <info@croviatrust.com>",
+  "bin": {
+    "causari": "bin/causari.js",
+    "re": "bin/re.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "bash ../../scripts/tests/test_npm_shim.sh"
+  }
+}
