@@ -9,7 +9,11 @@ name: survival-report
 # Maintainers opt out with one line in .github/survival-optout.txt.
 #
 # Method v2 refuses shallow clones, so every repository is cloned in full
-# before it is measured. The report is committed to main, append-only.
+# before it is measured. The list (~100 repositories, filled monthly by
+# survival-discover.yml) is audited by a matrix of SHARDS jobs: shard k
+# takes every repository whose index in the list is k mod SHARDS, uploads
+# its results as an artifact, and the report job merges the shards, builds
+# the report and commits it to main, append-only.
 on:
   schedule:
     - cron: "17 5 * * 1" # every Monday, 05:17 UTC
@@ -32,24 +36,29 @@ concurrency:
   group: survival-report
   cancel-in-progress: false
 
+env:
+  SHARDS: 10
+
 jobs:
-  report:
+  # One job per shard. A repository that fails to clone or to audit is
+  # recorded in the shard's `failed` list and never fails the job; a shard
+  # that hits its own timeout leaves its remaining repositories unreported,
+  # and the merge records those as failed too.
+  audit:
+    if: ${{ !inputs.deposit_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     steps:
-      # Pushes to main go through branch protection (required check `lint`).
-      # The workflow token cannot pass it; a repository admin can. With the
-      # secret REPORT_PUSH_TOKEN (fine-grained PAT of an admin, this
-      # repository only, Contents: read and write) the report and the DOI
-      # write-back land on main; without it the run still measures,
-      # deposits and uploads the report as an artifact, and says so.
       - uses: actions/checkout@v7
         with:
           ref: main
-          token: ${{ secrets.REPORT_PUSH_TOKEN || github.token }}
 
       - name: install latest causari release
-        if: ${{ !inputs.deposit_only }}
         run: |
           set -euo pipefail
           TAG="$(gh release list --repo croviatrust/causari --limit 20 \
@@ -67,29 +76,31 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: python dependencies (card.png)
-        if: ${{ !inputs.deposit_only }}
-        run: python3 -m pip install --quiet pillow
-
       # Full clone per repository (never shallow), one `re audit --json`
       # each, the exact bytes kept for the report. Opt-outs are skipped here
       # and dropped again by the generator, so the list is honoured either way.
-      - name: audit repositories
-        if: ${{ !inputs.deposit_only }}
+      # This shard takes the repositories at index k, k+SHARDS, k+2·SHARDS…
+      # of the list, in file order.
+      - name: audit repositories (shard ${{ matrix.shard }} of ${{ env.SHARDS }})
         run: |
           set -uo pipefail
+          K=${{ matrix.shard }}; N="$SHARDS"
           RUN=/tmp/run; mkdir -p "$RUN"
-          mapfile -t ALL < <(grep -Ev '^\s*(#|$)' .github/survival-repos.txt)
+          mapfile -t ALL < <(grep -Ev '^\s*(#|$)' .github/survival-repos.txt | sed 's/[[:space:]]*$//')
           mapfile -t OPTOUT < <(grep -Ev '^\s*(#|$)' .github/survival-optout.txt || true)
           REPOS=(); OPTED=()
-          for r in "${ALL[@]}"; do
+          for i in "${!ALL[@]}"; do
+            [ $(( i % N )) -eq "$K" ] || continue
+            r="${ALL[$i]}"
             skip=false
             for o in "${OPTOUT[@]:-}"; do [ -n "$o" ] && [ "${r,,}" = "${o,,}" ] && skip=true; done
             if $skip; then echo "opt-out: $r"; OPTED+=("$r"); else REPOS+=("$r"); fi
           done
+          echo "shard $K of $N: ${#REPOS[@]} repositories (${#OPTED[@]} opted out) of ${#ALL[@]} listed"
           NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           FAILED=()
-          for repo in "${REPOS[@]}"; do
+          for repo in "${REPOS[@]:-}"; do
+            [ -n "$repo" ] || continue
             slug="${repo/\//__}"
             echo "::group::auditing $repo"
             CLONE="/tmp/clones/$slug"
@@ -98,6 +109,7 @@ jobs:
                && (cd "$CLONE" && git fetch --quiet origin '+refs/notes/ai:refs/notes/ai' 2>/dev/null || true) \
                && timeout 3600 re audit "$CLONE" --json > "$RUN/$slug.json" 2>"$RUN/$slug.err"; then
               jq -r '"\(.total_commits) commits · verified \(.verified.commits) commits, \(.verified.introduced) introduced, \(.verified.surviving) surviving · shallow=\(.coverage.shallow) small_sample=\(.coverage.small_sample)"' "$RUN/$slug.json"
+              rm -f "$RUN/$slug.err"
             else
               echo "audit failed for $repo (skipped):"
               tail -n 3 "$RUN/$slug.err" 2>/dev/null || true
@@ -107,15 +119,67 @@ jobs:
             rm -rf "$CLONE"
             echo "::endgroup::"
           done
-          jq -n --arg now "$NOW" --arg ver "$(re --version | awk '{print $2}')" \
-            --argjson repos "$(printf '%s\n' "${REPOS[@]}" | jq -R . | jq -s .)" \
+          jq -n --arg now "$NOW" --arg ver "$(re --version | awk '{print $2}')" --argjson shard "$K" \
+            --argjson repos "$(printf '%s\n' "${REPOS[@]:-}" | grep -v '^$' | jq -R . | jq -s .)" \
             --argjson failed "$(printf '%s\n' "${FAILED[@]:-}" | grep -v '^$' | jq -R . | jq -s .)" \
             --argjson opted "$(printf '%s\n' "${OPTED[@]:-}" | grep -v '^$' | jq -R . | jq -s .)" \
             '{generated_at: $now, tool: "causari", tool_version: $ver, method: "v2",
-              command: "re audit <owner/repo> --json", repos: $repos, failed: $failed, opted_out: $opted}' \
-            > "$RUN/run.json"
-          cat "$RUN/run.json"
-          ls "$RUN"/*__*.json | wc -l
+              command: "re audit <owner/repo> --json", repos: $repos, failed: $failed, opted_out: $opted, shard: $shard}' \
+            > "$RUN/run-shard-$K.json"
+          cat "$RUN/run-shard-$K.json"
+          echo "audits written: $(find "$RUN" -name '*__*.json' | wc -l)"
+
+      # The shard's bytes: audits, the .err of every failure, the fragment.
+      - name: upload shard ${{ matrix.shard }}
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-shard-${{ matrix.shard }}
+          path: /tmp/run
+          if-no-files-found: warn
+          retention-days: 14
+
+  report:
+    needs: audit
+    # Runs whether or not every shard succeeded, and when the matrix was
+    # skipped for deposit_only.
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      # Pushes to main go through branch protection (required check `lint`).
+      # The workflow token cannot pass it; a repository admin can. With the
+      # secret REPORT_PUSH_TOKEN (fine-grained PAT of an admin, this
+      # repository only, Contents: read and write) the report and the DOI
+      # write-back land on main; without it the run still measures,
+      # deposits and uploads the report as an artifact, and says so.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          token: ${{ secrets.REPORT_PUSH_TOKEN || github.token }}
+
+      - name: python dependencies (card.png)
+        if: ${{ !inputs.deposit_only }}
+        run: python3 -m pip install --quiet pillow
+
+      - name: download the shards
+        if: ${{ !inputs.deposit_only }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: run-shard-*
+          path: /tmp/run
+          merge-multiple: true
+
+      # One run.json from the fragments: union of repos, failed and opted_out;
+      # a repository no shard reported is recorded as failed.
+      - name: merge the shards
+        if: ${{ !inputs.deposit_only }}
+        run: |
+          set -euo pipefail
+          ls /tmp/run/run-shard-*.json
+          python3 scripts/survival_report.py merge-shards --run /tmp/run
+          jq '{generated_at, tool_version, repos: (.repos | length), failed, opted_out: (.opted_out | length), shards}' /tmp/run/run.json
+          ls /tmp/run/*__*.json | wc -l
 
       # Report number = existing report directories + 1; the generator refuses
       # to overwrite a directory that already holds a different report.

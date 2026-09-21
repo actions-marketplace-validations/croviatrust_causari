@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>causari and the other ways to count — causari</title>
+  <meta name="description" content="git blame alone, Copilot metrics, GitClear-style churn reports, DORA-type dashboards and causari, side by side: what each counts, what it needs, whether a third party can check it, and what it cannot see." />
+  <meta name="theme-color" content="#0b0d10" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="canonical" href="https://causari.dev/compare" />
+  <meta property="og:title" content="causari and the other ways to count" />
+  <meta property="og:description" content="Different tools answer different questions. What each counts, what it needs, whether a third party can check it, and what it cannot see." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://causari.dev/compare" />
+  <meta property="og:image" content="https://causari.dev/assets/og.png" />
+  <meta property="og:site_name" content="causari" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="causari and the other ways to count" />
+  <meta name="twitter:description" content="git blame, Copilot metrics, churn reports, DORA dashboards and causari: what each counts and what it cannot see." />
+  <meta name="twitter:image" content="https://causari.dev/assets/og.png" />
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+  <link rel="stylesheet" href="/styles.css?v=0c1191c49d" />
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" role="banner">
+  <div class="container nav-inner">
+    <a href="/" class="brand" aria-label="causari home">
+      <img src="/assets/mark.svg" alt="" width="34" height="34" class="mark-light" />
+      <img src="/assets/mark-white.svg" alt="" width="34" height="34" class="mark-dark" />
+      <span class="brand-name" translate="no">causari</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/reports/survival/">reports</a>
+      <a href="/method">method</a>
+      <a href="/verify/">verify</a>
+      <a href="https://github.com/croviatrust/causari" rel="noopener" class="hide-sm">source</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="article">
+  <p class="eyebrow">compare · what each instrument counts</p>
+  <h1>causari and the other ways to count</h1>
+  <p class="version">Each cell is a fact we can defend from public documentation or from the code. Where a vendor has not published something, the cell says <em>not stated publicly</em> rather than guessing. If a cell is wrong, <a href="https://github.com/croviatrust/causari/issues" rel="noopener">open an issue</a>; it is corrected in public.</p>
+
+  <p class="lede">Different tools answer different questions. <code translate="no">git blame</code> answers "which commit last touched this line". A vendor's usage dashboard answers "how much was this product used". A churn report answers "how much code changed soon after it was written". A DORA dashboard answers "how fast and how safely does this team ship". <code translate="no">re audit</code> answers one question only: of the lines that commits with AI authorship metadata introduced, how many does <code translate="no">git blame</code> still attribute to them. None of these replaces another.</p>
+
+  <div class="tbl-scroll wide">
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th></th>
+        <th><code translate="no">git blame</code> alone</th>
+        <th>Copilot metrics API / dashboards</th>
+        <th>GitClear-style churn reports</th>
+        <th>DORA-type dashboards</th>
+        <th>causari (<code translate="no">re audit</code>)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>What it counts</td>
+        <td>Which commit and author last changed each line of a file at one revision.</td>
+        <td>Usage of one vendor's product in an organisation: active users, suggestions shown and accepted, lines accepted, chat use, per day, editor and language, as documented for the metrics API.</td>
+        <td>Code-change patterns over the repositories it analyses: lines added, deleted, moved, updated and copied, and churn, meaning lines changed again shortly after they were written; the window is the vendor's definition.</td>
+        <td>Four delivery measures: deployment frequency, lead time for changes, change failure rate, time to restore service. Nothing about who or what wrote the code.</td>
+        <td>Lines introduced by commits carrying machine-readable AI authorship metadata, and how many of them <code translate="no">git blame -w -M -C</code> still attributes to those commits at HEAD, with a per-commit cap and a sample floor. <a href="/method#counted">Rules.</a></td>
+      </tr>
+      <tr>
+        <td>Needs the agent's cooperation?</td>
+        <td>No. It also has no notion of an agent: every line has a human committer.</td>
+        <td>The data is the product's own telemetry, so it covers that product and only that product.</td>
+        <td>No. It works from diffs. Attribution to AI, where its reports make one, is statistical over time, not per commit.</td>
+        <td>No. It does not attribute code to anyone.</td>
+        <td>Yes, in the weak sense that the commit must carry a trailer, a bot author or a git-ai note. Untagged commits are UNKNOWN and never counted; inline completions are invisible.</td>
+      </tr>
+      <tr>
+        <td>Needs a vendor account?</td>
+        <td>No.</td>
+        <td>Yes: a GitHub organisation or enterprise with the product enabled, and admin access to call the API.</td>
+        <td>Yes for your own repositories: a hosted service. Its published reports are readable without one.</td>
+        <td>Depends on the implementation. The four definitions are public; most dashboards that compute them are hosted products, some are self-built.</td>
+        <td>No. One static binary; no telemetry, no account, no server.</td>
+      </tr>
+      <tr>
+        <td>Works on any git repo?</td>
+        <td>Yes.</td>
+        <td>No: repositories and organisations where the product is enabled, as reported by the product.</td>
+        <td>Repositories connected to the service. Its public reports describe the repositories it analysed.</td>
+        <td>Git alone is not enough: it needs deployment and incident data from the delivery pipeline.</td>
+        <td>Yes, any full clone, local or by <code translate="no">owner/repo</code>. Shallow clones are refused.</td>
+      </tr>
+      <tr>
+        <td>Records the prompt?</td>
+        <td>No.</td>
+        <td>No: the documented metrics are daily aggregates.</td>
+        <td>No.</td>
+        <td>No.</td>
+        <td>Not the audit. The optional local ledger does (<code translate="no">re hook claude-code</code>, <code translate="no">re proxy</code>), on your machine, gitignored. <a href="/method#evidence">Evidence classes.</a></td>
+      </tr>
+      <tr>
+        <td>Verifiable by a third party?</td>
+        <td>Yes: anyone with the clone gets the same output.</td>
+        <td>No: the figures come from the vendor's telemetry and cannot be recomputed from the repository.</td>
+        <td>The reports state a method; the per-repository data behind them is the vendor's. Independent recomputation: not stated publicly.</td>
+        <td>Depends on the data source. The definitions are public; the inputs are usually internal.</td>
+        <td>Yes: <code translate="no">re audit owner/repo --json</code> reproduces the bytes, <code translate="no">--seal</code> signs them, <code translate="no">re seal verify</code> or <a href="/verify/">/verify</a> checks the seal offline.</td>
+      </tr>
+      <tr>
+        <td>Open source?</td>
+        <td>Yes: git, GPL-2.0.</td>
+        <td>No: a hosted product with a documented API.</td>
+        <td>No: a hosted product. Its reports are published as documents.</td>
+        <td>The definitions are public research. Implementations vary: some open source (Four Keys), most hosted.</td>
+        <td>Yes: Apache-2.0, <a href="https://github.com/croviatrust/causari" rel="noopener">github.com/croviatrust/causari</a>.</td>
+      </tr>
+      <tr>
+        <td>What it cannot see</td>
+        <td>Which commits involved AI. Without <code translate="no">-w -M -C</code>, a formatter pass or a moved function re-attributes the line.</td>
+        <td>Code from any other tool. What happens to an accepted suggestion after acceptance is not among the documented metrics.</td>
+        <td>Which specific lines were AI-written, and the prompt. Attribution is aggregate.</td>
+        <td>Anything about which code was written by AI, or what became of it.</td>
+        <td>Inline completions (Copilot, Cursor Tab, Windsurf, …); untagged agent commits; a human's edits inside an AI co-authored commit; whether a line is good. <a href="/method#cannot-see">Full list.</a></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2 id="notes">Notes on the cells</h2>
+  <ul>
+    <li><strong>Copilot metrics.</strong> The column describes the vendor's documented metrics API and the dashboards built on it, as of September 2026. Coding-agent commits made through the same product carry a <code translate="no">Co-Authored-By</code> trailer and are visible to <code translate="no">re audit</code>; the Survival Report lists them under the agent <code translate="no">github-copilot</code>.</li>
+    <li><strong>GitClear-style churn reports.</strong> The column describes the published reports and the service as they describe themselves. The churn window and the exact classification rules are the vendor's; we do not reproduce them. Our own report reads next to theirs, not instead of them: <a href="/reports/survival/">Survival Report</a>.</li>
+    <li><strong>DORA-type dashboards.</strong> Included because the question "is AI making us faster" is often answered with them. They are about delivery, not authorship, and the two columns measure different things.</li>
+    <li><strong>causari.</strong> The column is derived from the code and the <a href="/method">method</a> page. A survival ratio is a count, not a grade: deleted lines include removed features and rewritten prototypes; surviving lines include dead code.</li>
+  </ul>
+
+  <div class="proof-grid" id="check">
+    <div class="proof">
+      <h3>Check our numbers yourself</h3>
+      <p>Every row of the <a href="/reports/survival/">Survival Report</a> names the command that reproduces it. Report #1 counted 462,838 of 754,476 lines from 12,349 AI-tagged commits still at HEAD across 10 repositories (61.3 %, 95 % bootstrap interval over the sample 53.0 % to 64.9 %). Run the audit, sign it, and verify the seal with nothing but the file.</p>
+<pre translate="no"><code translate="no">re audit owner/repo --json        <span class="dim"># the exact bytes behind a row</span>
+re audit --seal                   <span class="dim"># signed, bound to the commit</span>
+re seal verify audit.seal.json    <span class="dim"># offline · or drop it on causari.dev/verify</span></code></pre>
+      <p><a class="btn" href="/verify/">Verify a seal in the browser</a></p>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container foot-bottom">
+    <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Crovia</a> · <em>causari</em> is a trademark of Crovia Trust.</p>
+    <p class="muted"><a href="/reports/survival/">Survival Report</a> · <a href="/method">method</a> · <a href="/verify/">verify</a> · <a href="/">causari.dev</a></p>
+  </div>
+</footer>
+<script src="/app.js?v=eb85cbc8d5" defer></script>
+</body>
+</html>

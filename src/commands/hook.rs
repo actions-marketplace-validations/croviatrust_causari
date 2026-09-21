@@ -15,7 +15,9 @@ use crate::repo::Repo;
 use crate::snapshot::{flatten_tree, snapshot_workspace};
 use crate::store::Store;
 
-/// `re hook claude-code` — native capture where hooks exist.
+mod cursor;
+
+/// `re hook <agent>` — native capture where hooks exist.
 ///
 /// Claude Code exposes lifecycle hooks (UserPromptSubmit, PostToolUse) that
 /// hand us the *real* prompt and the *real* tool call — no inference needed.
@@ -25,18 +27,27 @@ use crate::store::Store;
 /// - PostToolUse (Edit|Write|MultiEdit|NotebookEdit) → `re hook-event post-tool`
 ///   (records a full Causari event: snapshot, prompt, tool, file)
 ///
-/// Hooks carry no model, token or cost information. When Claude Code also
-/// runs through `re proxy` (`ANTHROPIC_BASE_URL`), the post-tool event
+/// Claude Code's hooks carry no model, token or cost information. When it
+/// also runs through `re proxy` (`ANTHROPIC_BASE_URL`), the post-tool event
 /// borrows those from the one recent Claude exchange whose completion
 /// contains the lines it just wrote, and claims that exchange.
 ///
-/// Where hooks don't exist (Cursor, custom agents), `re proxy` + `re watch`
-/// cover the same ground via content correlation.
+/// Cursor has its own hooks (`.cursor/hooks.json`), wired by `re hook
+/// cursor`; see [`cursor`]. Where hooks don't exist (custom agents),
+/// `re proxy` + `re watch` cover the same ground via content correlation.
 pub fn run(args: HookArgs) -> Result<()> {
     match args.target.as_str() {
-        "claude-code" => install_claude_code(),
+        "claude-code" => {
+            if args.user {
+                return Err(anyhow!(
+                    "--user is not supported for claude-code (hooks go to the project's .claude/settings.json)"
+                ));
+            }
+            install_claude_code(args.dry_run)
+        }
+        "cursor" => cursor::install(args.user, args.dry_run),
         other => Err(anyhow!(
-            "unknown hook target '{}' (supported: claude-code)",
+            "unknown hook target '{}' (supported: claude-code, cursor)",
             other
         )),
     }
@@ -50,10 +61,9 @@ const TOOL_MATCHER: &str = "Edit|Write|MultiEdit|NotebookEdit";
 /// Max entries per section injected at session start — keep the context lean.
 const SESSION_BRIEF_LIMIT: usize = 3;
 
-fn install_claude_code() -> Result<()> {
+fn install_claude_code(dry_run: bool) -> Result<()> {
     let repo = Repo::discover()?;
     let dir = repo.root.join(".claude");
-    std::fs::create_dir_all(&dir)?;
     let path = dir.join("settings.json");
 
     let mut root: Value = if path.exists() {
@@ -74,6 +84,11 @@ fn install_claude_code() -> Result<()> {
     ensure_hook(hooks, "PostToolUse", Some(TOOL_MATCHER), TOOL_HOOK_CMD)?;
     ensure_hook(hooks, "SessionStart", None, SESSION_HOOK_CMD)?;
 
+    if dry_run {
+        println!("{}", serde_json::to_string_pretty(&root)?);
+        return Ok(());
+    }
+    std::fs::create_dir_all(&dir)?;
     std::fs::write(&path, serde_json::to_string_pretty(&root)?)?;
 
     println!(
@@ -109,12 +124,7 @@ fn ensure_hook(hooks: &mut Value, kind: &str, matcher: Option<&str>, command: &s
     let arr = entries
         .as_array_mut()
         .ok_or_else(|| anyhow!("'hooks.{}' is not an array", kind))?;
-    let already = arr.iter().any(|e| {
-        serde_json::to_string(e)
-            .unwrap_or_default()
-            .contains(command)
-    });
-    if already {
+    if hook_present(arr, command) {
         return Ok(());
     }
     let mut entry = json!({
@@ -127,6 +137,17 @@ fn ensure_hook(hooks: &mut Value, kind: &str, matcher: Option<&str>, command: &s
     Ok(())
 }
 
+/// Is `command` already wired somewhere in this list of hook entries?
+/// Matched on the serialized entry, so any shape of entry (Claude Code's
+/// nested `hooks[]`, Cursor's flat `{command}`) is recognised.
+fn hook_present(entries: &[Value], command: &str) -> bool {
+    entries.iter().any(|e| {
+        serde_json::to_string(e)
+            .unwrap_or_default()
+            .contains(command)
+    })
+}
+
 // ---------------------------------------------------------------------------
 // `re hook-event` — the hidden command the hooks actually invoke
 // ---------------------------------------------------------------------------
@@ -134,7 +155,16 @@ fn ensure_hook(hooks: &mut Value, kind: &str, matcher: Option<&str>, command: &s
 /// Invoked by the agent runtime with a JSON payload on stdin.
 /// Must NEVER fail loudly: a non-zero exit or stderr noise would degrade the
 /// agent session. Errors are swallowed by design.
+///
+/// `cursor:<event>` kinds are Cursor's native hooks; they always answer with
+/// a JSON object on stdout, because Cursor reads one.
 pub fn run_event(args: HookEventArgs) -> Result<()> {
+    if let Some(event) = args.kind.strip_prefix("cursor:") {
+        let mut input = String::new();
+        let _ = std::io::stdin().read_to_string(&mut input);
+        println!("{}", cursor::run_event(event, &input));
+        return Ok(());
+    }
     let _ = run_event_inner(&args.kind);
     Ok(())
 }
@@ -165,6 +195,8 @@ fn run_event_inner(kind: &str) -> Result<()> {
                     ts_ms: now_ms(),
                     session_id,
                     prompt,
+                    model: None,
+                    attachments: Vec::new(),
                 },
             )
         }
@@ -260,9 +292,48 @@ fn take_pending_pre(repo: &Repo, session_id: Option<&str>) -> Option<String> {
     found
 }
 
+/// Drop every pending pre-state of a session: the agent loop ended, so no
+/// PostToolUse of that session will ever claim them. Without this, the
+/// snapshot of a denied or interrupted tool call would become the
+/// pre-state of the next turn's first edit and absorb whatever a human
+/// changed in between.
+fn discard_pending_pre(repo: &Repo, session_id: Option<&str>) -> Result<()> {
+    let path = pending_pre_path(repo);
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+        return Ok(());
+    };
+    let body: String = raw
+        .lines()
+        .filter(|line| {
+            serde_json::from_str::<PendingPre>(line)
+                .map(|p| p.session_id.as_deref() != session_id)
+                .unwrap_or(false)
+        })
+        .map(|l| l.to_string() + "\n")
+        .collect();
+    crate::keys::write_atomic(&path, body.as_bytes())
+}
+
+/// A file path as the ledger stores it: relative to the repository root,
+/// forward slashes. `None` when the path lies outside the repository.
+fn relative_to_repo(repo: &Repo, file: &str) -> Option<String> {
+    let path = std::path::Path::new(file);
+    let rel = match path.strip_prefix(&repo.root) {
+        Ok(r) => r.to_path_buf(),
+        // Symlinked roots (`/tmp` → `/private/tmp` on macOS) compare equal
+        // only once both sides are canonical.
+        Err(_) => {
+            let root = std::fs::canonicalize(&repo.root).ok()?;
+            let file = std::fs::canonicalize(path).ok()?;
+            file.strip_prefix(&root).ok()?.to_path_buf()
+        }
+    };
+    let rel = rel.to_string_lossy().replace('\\', "/");
+    if rel.is_empty() { None } else { Some(rel) }
+}
+
 /// Record a full Causari event from a Claude Code PostToolUse payload.
 fn record_tool_event(repo: &Repo, v: &Value, session_id: Option<&str>) -> Result<()> {
-    let store = Store::new(repo);
     let tool = v
         .get("tool_name")
         .and_then(|t| t.as_str())
@@ -274,6 +345,64 @@ fn record_tool_event(repo: &Repo, v: &Value, session_id: Option<&str>) -> Result
         .and_then(|i| i.get("file_path").or_else(|| i.get("notebook_path")))
         .and_then(|f| f.as_str())
         .map(String::from);
+    let rel_file = file.as_deref().map(|f| {
+        std::path::Path::new(f)
+            .strip_prefix(&repo.root)
+            .map(|r| r.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_else(|_| f.replace('\\', "/"))
+    });
+    let message = match &rel_file {
+        Some(f) => format!("{} {}", tool, f),
+        None => tool.clone(),
+    };
+    record_tool_action(
+        repo,
+        ToolAction {
+            agent: "claude-code",
+            evidence_source: "claude-code-hook",
+            exchange_marker: "claude",
+            session_id,
+            tool,
+            message,
+            rel_file,
+            model: None,
+            reads: Vec::new(),
+            added: None,
+        },
+    )
+    .map(|_| ())
+}
+
+/// One tool call an agent runtime declared through a hook, in the terms
+/// the ledger needs. Built from each runtime's own payload shape.
+struct ToolAction<'a> {
+    /// Agent id on the event (`claude-code`, `cursor`).
+    agent: &'a str,
+    /// `source` of the event's declared evidence.
+    evidence_source: &'a str,
+    /// Substring an exchange's User-Agent must carry to be this runtime's.
+    exchange_marker: &'a str,
+    /// The runtime's session or conversation id; scopes prompt and pre-state.
+    session_id: Option<&'a str>,
+    tool: String,
+    message: String,
+    /// The written file, relative to the repository root.
+    rel_file: Option<String>,
+    /// The model the runtime itself declared, when its payload carries one.
+    model: Option<String>,
+    /// Files the runtime declared as context for this action.
+    reads: Vec<String>,
+    /// The lines the runtime says it inserted. `None`: derive them from the
+    /// snapshot diff of `rel_file`.
+    added: Option<Vec<String>>,
+}
+
+/// Record a declared tool action as a full Causari event: pre-state,
+/// post-state, prompt of the same session, the proxy exchange behind it
+/// when exactly one qualifies. `Ok(None)` when nothing changed on disk.
+fn record_tool_action(repo: &Repo, action: ToolAction) -> Result<Option<String>> {
+    let store = Store::new(repo);
+    let session_id = action.session_id;
 
     let _lock = repo.lock()?;
     let parent_id = crate::commit::resolve_parent(repo, None)?;
@@ -287,7 +416,7 @@ fn record_tool_event(repo: &Repo, v: &Value, session_id: Option<&str>) -> Result
 
     // Skip no-op tool calls (nothing actually changed on disk).
     if crate::commit::tree_unchanged(&store, &pre_snapshot_id, &post_tree)? {
-        return Ok(());
+        return Ok(None);
     }
     let post_snapshot_id = store.write_snapshot(&Snapshot {
         tree: post_tree,
@@ -300,44 +429,46 @@ fn record_tool_event(repo: &Repo, v: &Value, session_id: Option<&str>) -> Result
     let prompt = match session_id {
         Some(_) => last_prompt(repo, session_id)?,
         None => last_prompt(repo, None)?,
-    }
-    .map(|p| p.prompt);
-
-    let rel_file = file.as_deref().map(|f| {
-        std::path::Path::new(f)
-            .strip_prefix(&repo.root)
-            .map(|r| r.to_string_lossy().replace('\\', "/"))
-            .unwrap_or_else(|_| f.replace('\\', "/"))
-    });
-    let message = match &rel_file {
-        Some(f) => format!("{} {}", tool, f),
-        None => tool.clone(),
     };
+    let mut reads = action.reads;
+    if reads.is_empty() {
+        reads = prompt
+            .as_ref()
+            .map(|p| p.attachments.clone())
+            .unwrap_or_default();
+    }
+    let declared_model = action
+        .model
+        .or_else(|| prompt.as_ref().and_then(|p| p.model.clone()));
+    let prompt = prompt.map(|p| p.prompt);
 
     // The hook knows what was written; only the proxy knows which model
     // wrote it and what it cost. Merge the two when the evidence is
     // unambiguous, otherwise leave the event as declared.
-    let exchange = rel_file.as_deref().and_then(|rel| {
+    let exchange = action.rel_file.as_deref().and_then(|rel| {
         let since = now_ms().saturating_sub(HOOK_MERGE_WINDOW_MS);
         let exchanges = load_unclaimed_exchanges_since(repo, since).ok()?;
         if exchanges.is_empty() {
             return None;
         }
-        let added = inserted_lines_of(&store, &pre_snapshot_id, &post_snapshot_id, rel).ok()?;
-        matching_exchange(&exchanges, rel, &added)
+        let added = match action.added {
+            Some(lines) => lines,
+            None => inserted_lines_of(&store, &pre_snapshot_id, &post_snapshot_id, rel).ok()?,
+        };
+        matching_exchange(&exchanges, rel, &added, action.exchange_marker)
     });
 
     let event = Event {
         schema: "causari.event.v0.2".to_string(),
         parent: parent_id,
-        agent: Some("claude-code".to_string()),
-        model: exchange.as_ref().and_then(|e| e.model.clone()),
-        tool: Some(tool),
-        message: Some(message),
+        agent: Some(action.agent.to_string()),
+        model: declared_model.or_else(|| exchange.as_ref().and_then(|e| e.model.clone())),
+        tool: Some(action.tool),
+        message: Some(action.message),
         prompt,
         reasoning: None,
-        reads: Vec::new(),
-        writes: rel_file.into_iter().collect(),
+        reads,
+        writes: action.rel_file.into_iter().collect(),
         tokens_in: exchange.as_ref().and_then(|e| e.tokens_in),
         tokens_out: exchange.as_ref().and_then(|e| e.tokens_out),
         cost_usd: exchange.as_ref().and_then(|e| e.cost_usd),
@@ -345,7 +476,7 @@ fn record_tool_event(repo: &Repo, v: &Value, session_id: Option<&str>) -> Result
         post_snapshot: post_snapshot_id,
         exit_code: None,
         created_at: Utc::now().to_rfc3339(),
-        evidence: Some(crate::object::Evidence::declared("claude-code-hook")),
+        evidence: Some(crate::object::Evidence::declared(action.evidence_source)),
     };
     let id = crate::commit::commit_event(repo, &store, &event, None)?;
     if let Some(e) = &exchange {
@@ -353,7 +484,7 @@ fn record_tool_event(repo: &Repo, v: &Value, session_id: Option<&str>) -> Result
         // not attribute them a second time.
         claim_exchange(repo, e, &id)?;
     }
-    Ok(())
+    Ok(Some(id))
 }
 
 /// How far back a proxy exchange may lie to be the completion behind a
@@ -365,12 +496,18 @@ const HOOK_MERGE_WINDOW_MS: u64 = 120 * 1000;
 /// The proxy exchange behind this tool call, when exactly one qualifies.
 ///
 /// Neither stream carries the other's key, so the join is by evidence: an
-/// unclaimed exchange from a Claude client (Claude Code's User-Agent starts
-/// with `claude-cli`) whose completion contains the lines that just landed
-/// in the declared file — the same overlap bar as `correlate`, or at least
-/// one significant line together with the file's own name. Zero or several
-/// candidates → `None`: a wrong model or cost is worse than none.
-fn matching_exchange(exchanges: &[Exchange], rel_file: &str, added: &[String]) -> Option<Exchange> {
+/// unclaimed exchange from this runtime's client (`agent_marker`, e.g.
+/// `claude` — Claude Code's User-Agent starts with `claude-cli`) whose
+/// completion contains the lines that just landed in the declared file —
+/// the same overlap bar as `correlate`, or at least one significant line
+/// together with the file's own name. Zero or several candidates →
+/// `None`: a wrong model or cost is worse than none.
+fn matching_exchange(
+    exchanges: &[Exchange],
+    rel_file: &str,
+    added: &[String],
+    agent_marker: &str,
+) -> Option<Exchange> {
     let considered = significant_lines(added);
     if considered.is_empty() {
         return None;
@@ -380,12 +517,12 @@ fn matching_exchange(exchanges: &[Exchange], rel_file: &str, added: &[String]) -
         .map(|n| n.to_string_lossy().into_owned())
         .filter(|n| !n.is_empty())?;
     let mut hits = exchanges.iter().filter(|e| {
-        let from_claude = e
+        let from_runtime = e
             .agent
             .as_deref()
-            .map(|a| a.to_ascii_lowercase().contains("claude"))
+            .map(|a| a.to_ascii_lowercase().contains(agent_marker))
             .unwrap_or(false);
-        if !from_claude {
+        if !from_runtime {
             return false;
         }
         let matched = count_contained(&considered, &e.response_text);
@@ -566,6 +703,9 @@ mod tests {
 
     #[test]
     fn matching_requires_claude_agent_and_content_overlap() {
+        let matching_exchange = |ex: &[Exchange], rel: &str, added: &[String]| {
+            matching_exchange(ex, rel, added, "claude")
+        };
         let added: Vec<String> = CODE.lines().map(String::from).collect();
         let good = exchange(
             "g",
