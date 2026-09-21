@@ -252,6 +252,176 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(redirects.count(sr.REDIRECT_BEGIN), 1)
 
 
+class RepoPageTests(unittest.TestCase):
+    """site/r/<owner>/<repo>/: page, badge, latest.json; site/r/index.html."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.s = Scratch()
+        cls.f = cls.s.build()
+        cls.r = cls.s.site / "r"
+        cls.page = (cls.r / "alpha" / "first" / "index.html").read_text(encoding="utf-8")
+        cls.index = (cls.r / "index.html").read_text(encoding="utf-8")
+        cls.report_page = (cls.s.site / "reports" / "survival" / "2026" / "01" / "index.html").read_text(encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.s.close()
+
+    def test_tree_for_every_measured_repository_and_no_other(self) -> None:
+        measured = [r["repo"] for r in self.f["repositories"] + self.f["not_aggregated"]]
+        self.assertEqual(sorted(measured, key=str.lower), ["Alpha/first", "mid/one", "mid/small", "zeta/last"])
+        for repo in measured:
+            d = self.r / repo.lower()
+            for name in ("index.html", "badge.svg", "badge-dark.svg", "latest.json"):
+                self.assertTrue((d / name).exists(), f"{repo}: {name}")
+        for absent in ("mid/shallow", "opt/out", "gone/repo"):
+            self.assertFalse((self.r / absent).exists(), absent)
+        self.assertFalse((self.r / "Alpha").exists(), "paths are lowercase only")
+
+    def test_lowercase_paths_and_cased_redirect(self) -> None:
+        self.assertEqual(sr.repo_path("Alpha/first"), "/r/alpha/first/")
+        self.assertEqual(sr.repo_path("mid/one"), "/r/mid/one/")
+        redirects = (self.s.site / "_redirects").read_text(encoding="utf-8")
+        self.assertIsNotNone(re.search(r"^/r/Alpha/first/\s+/r/alpha/first/\s+301$", redirects, re.M))
+        self.assertNotIn("/r/mid/one/ ", redirects)  # already lowercase: no redirect needed
+        for href in re.findall(r'href="(/r/[^"]+)"', self.report_page + self.index + self.page):
+            self.assertEqual(href, href.lower(), href)
+        # the report page's repository names link to the repository pages; the numbers still link to the bytes
+        self.assertIn('href="/r/alpha/first/"', self.report_page)
+        self.assertIn('href="repos/Alpha__first.json"', self.report_page)
+
+    def test_page_with_one_report(self) -> None:
+        self.assertIn('<h1><a href="https://github.com/Alpha/first" rel="noopener" translate="no">Alpha/first</a></h1>', self.page)
+        self.assertIn("In Survival Report #1 (2026-09-21, method v2): 400 of 500 lines introduced by 10 AI-tagged commits are still at HEAD, 80.0 %.", self.page)
+        self.assertIn("re audit Alpha/first --json", self.page)
+        self.assertIn('href="/reports/survival/2026/01/repos/Alpha__first.json"', self.page)
+        self.assertIn("[![AI code survival](https://causari.dev/r/alpha/first/badge.svg)](https://causari.dev/r/alpha/first/)", self.page)
+        self.assertIn('data-copy="badge-md"', self.page)
+        self.assertIn("cursor", self.page)  # by agent
+        self.assertNotIn('class="spark"', self.page)  # one point is not a line
+        self.assertEqual(self.page.count("<tr><td><a href=\"/reports/survival/"), 1)  # one history row
+        self.assertIn("A line appears once the repository has been measured in two reports.", self.page)
+        self.assertIn('"@type": "Dataset"', self.page)
+        self.assertIn('"codeRepository": "https://github.com/Alpha/first"', self.page)
+        for m in re.finditer(r"<code\b[^>]*>", self.page):
+            self.assertIn('translate="no"', m.group(0), m.group(0))
+        for token in ("color:", "background:", "🟢", "🟡", "🔴", "Rank", "rank "):
+            self.assertNotIn(token, self.page)
+        for other in ("mid/one", "zeta/last", "mid/small"):
+            self.assertNotIn(other, self.page)  # no comparison with other repositories
+        text = visible_text(self.page)
+        for word in FORBIDDEN:
+            self.assertNotIn(word, text)
+
+    def test_small_sample_page_publishes_counts_not_ratio(self) -> None:
+        page = (self.r / "mid" / "small" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("10 of 50 lines introduced by 3 AI-tagged commits are still at HEAD. Fewer than 5 AI-tagged commits", page)
+        self.assertNotIn("20.0 %", page)
+        self.assertIn('<span class="n">n &lt; 5</span>', page)
+        self.assertNotIn("n < 5", page)
+        badge = (self.r / "mid" / "small" / "badge.svg").read_text(encoding="utf-8")
+        self.assertIn("AI code survival  n &lt; 5", badge)
+        self.assertNotIn("20.0", badge)
+
+    def test_badge_text_width_and_colours(self) -> None:
+        light = (self.r / "alpha" / "first" / "badge.svg").read_text(encoding="utf-8")
+        dark = (self.r / "alpha" / "first" / "badge-dark.svg").read_text(encoding="utf-8")
+        root = ET.fromstring(light)
+        ns = "{http://www.w3.org/2000/svg}"
+        texts = [t.text for t in root.iter(f"{ns}text")]
+        self.assertEqual(texts, ["AI code survival  80.0 %", "causari · #1"])
+        left = round(len(texts[0]) * sr.BADGE_CHAR + 2 * sr.BADGE_PAD)
+        right = round(len(texts[1]) * sr.BADGE_CHAR + 2 * sr.BADGE_PAD)
+        self.assertEqual(int(root.get("width")), left + right)
+        self.assertEqual(int(root.get("height")), 20)
+        title = root.find(f"{ns}title").text
+        self.assertIn("Alpha/first: In Survival Report #1 (2026-09-21, method v2): 400 of 500 lines", title)
+        colours = set(re.findall(r'fill="(#[0-9a-f]{6})"', light + dark))
+        self.assertEqual(colours, {sr.INK, sr.PAPER})
+        for word in ("red", "green", "#4c1", "#e05d44", "stroke="):
+            self.assertNotIn(word, light + dark)
+        # dark is the same badge with the two values swapped
+        self.assertEqual(dark.replace(sr.INK, "X").replace(sr.PAPER, sr.INK).replace("X", sr.PAPER), light)
+        self.assertIn("monospace", root.find(f"{ns}g").get("font-family"))
+        ET.fromstring(dark)
+
+    def test_latest_json_schema(self) -> None:
+        latest = json.loads((self.r / "alpha" / "first" / "latest.json").read_text(encoding="utf-8"))
+        self.assertEqual(latest["schema"], sr.REPO_SCHEMA)
+        self.assertEqual(latest["repo"], "Alpha/first")
+        self.assertEqual(latest["url"], "https://causari.dev/r/alpha/first/")
+        self.assertEqual(latest["badge"], "https://causari.dev/r/alpha/first/badge.svg")
+        self.assertEqual(latest["report"], {"number": 1, "id": "2026/01", "date": "2026-09-21", "url": "https://causari.dev/reports/survival/2026/01/"})
+        self.assertEqual(latest["method"], "v2")
+        self.assertEqual(latest["verified"]["introduced"], 500)
+        self.assertEqual(latest["verified"]["surviving"], 400)
+        self.assertAlmostEqual(latest["verified"]["survival_rate"], 0.8)
+        self.assertIn("interval_95", latest)
+        self.assertTrue(latest["aggregated"])
+        self.assertEqual(latest["reports"], 1)
+        self.assertEqual(latest["bytes"], "https://causari.dev/reports/survival/2026/01/repos/Alpha__first.json")
+        self.assertEqual(latest["reproduce"], "re audit Alpha/first --json")
+        self.assertFalse(json.loads((self.r / "mid" / "small" / "latest.json").read_text(encoding="utf-8"))["aggregated"])
+
+    def test_index_lists_every_repository_alphabetically(self) -> None:
+        repos = ["Alpha/first", "mid/one", "mid/small", "zeta/last"]
+        for repo in repos:
+            self.assertIn(f'href="{sr.repo_path(repo)}"', self.index)
+            self.assertIn(f">{repo}</a>", self.index)
+        positions = [self.index.index(f">{r}</a>") for r in repos]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("counts, not grades", self.index)
+        self.assertIn("n &lt; 5", self.index)
+        self.assertIn("80.0 %", self.index)
+        self.assertNotIn("Rank", self.index)
+        text = visible_text(self.index)
+        for word in FORBIDDEN:
+            self.assertNotIn(word, text)
+        # linked from the archive and listed in the sitemap
+        archive = (self.s.site / "reports" / "survival" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<a href="/r/">Every repository has a page and a badge</a>', archive)
+        sitemap = ET.parse(self.s.site / "sitemap.xml").getroot()
+        locs = [u.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc").text for u in sitemap]
+        self.assertIn("https://causari.dev/r/", locs)
+        self.assertIn("https://causari.dev/r/alpha/first/", locs)
+
+    def test_second_report_adds_history_and_sparkline(self) -> None:
+        s = Scratch()
+        try:
+            s.build(number=1, date="2026-09-21")
+            # the second run measures a different HEAD: fewer surviving lines
+            (s.run / "Alpha__first.json").write_text(json.dumps(audit(12, 600, 300, agent="cursor")), encoding="utf-8")
+            s.build(number=2, date="2026-09-28")
+            page = (s.site / "r" / "alpha" / "first" / "index.html").read_text(encoding="utf-8")
+            self.assertIn("In Survival Report #2 (2026-09-28, method v2): 300 of 600 lines introduced by 12 AI-tagged commits are still at HEAD, 50.0 %.", page)
+            self.assertIn('class="spark"', page)
+            self.assertIn("#1 80.0 %; #2 50.0 %", page)
+            rows = re.findall(r'<tr><td><a href="/reports/survival/(\d{4}/\d{2})/">', page)
+            self.assertEqual(rows, ["2026/01", "2026/02"])  # oldest first
+            badge = (s.site / "r" / "alpha" / "first" / "badge.svg").read_text(encoding="utf-8")
+            self.assertIn("AI code survival  50.0 %", badge)
+            self.assertIn("causari · #2", badge)
+            latest = json.loads((s.site / "r" / "alpha" / "first" / "latest.json").read_text(encoding="utf-8"))
+            self.assertEqual(latest["report"]["number"], 2)
+            self.assertEqual(latest["reports"], 2)
+            # a repository measured once keeps one row and no line
+            other = (s.site / "r" / "mid" / "one" / "index.html").read_text(encoding="utf-8")
+            self.assertIn('class="spark"', other)  # measured in both reports
+            self.assertEqual(sr.sparkline_svg([("1", 0.5)]), "")
+            self.assertEqual(sr.sparkline_svg([("1", 0.5), ("2", None)]), "")
+            self.assertIn("<polyline", sr.sparkline_svg([("1", 0.5), ("2", 0.6)]))
+        finally:
+            s.close()
+
+    def test_rebuild_is_idempotent_for_repo_tree(self) -> None:
+        snap = lambda: {str(p.relative_to(self.r)): p.read_bytes() for p in self.r.rglob("*") if p.is_file()}
+        before = snap()
+        sr.rebuild(self.s.site)
+        self.assertEqual(before, snap())
+        self.assertEqual(self.report_page, (self.s.site / "reports" / "survival" / "2026" / "01" / "index.html").read_text(encoding="utf-8"))
+
+
 class IntervalTests(unittest.TestCase):
     def test_reproducible_with_seed(self) -> None:
         pairs = [(1000 + 37 * k, 600 - 41 * k + 13 * (k % 3)) for k in range(12)]

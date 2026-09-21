@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "browser-use/browser-use",
+ "repository_url": "https://github.com/browser-use/browser-use",
+ "url": "https://causari.dev/r/browser-use/browser-use/",
+ "badge": "https://causari.dev/r/browser-use/browser-use/badge.svg",
+ "report": {
+  "number": 1,
+  "id": "2026/01",
+  "date": "2026-09-20",
+  "url": "https://causari.dev/reports/survival/2026/01/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.1.5"
+ },
+ "verified": {
+  "commits": 220,
+  "introduced": 18186,
+  "surviving": 3184,
+  "survival_rate": 0.1750797316617178,
+  "capped_survival_rate": 0.2339353926984145,
+  "median_survival": 0.0,
+  "largest_commit_share": 0.21148135928736392
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 7000,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit browser-use/browser-use --json",
+ "bytes": "https://causari.dev/reports/survival/2026/01/repos/browser-use__browser-use.json",
+ "license": "CC-BY-4.0"
+}

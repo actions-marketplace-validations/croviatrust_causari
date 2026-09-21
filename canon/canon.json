@@ -75,6 +75,8 @@
       "action.yml",
       "site/index.html",
       "site/reports/survival/index.html",
+      "site/r/index.html",
+      "site/r/croviatrust/causari/index.html",
       "site/method.html",
       "site/llms.txt",
       "site/README.md",
@@ -84,6 +86,8 @@
     "html": [
       "site/index.html",
       "site/reports/survival/index.html",
+      "site/r/index.html",
+      "site/r/croviatrust/causari/index.html",
       "site/method.html",
       "site/verify/index.html"
     ],
@@ -102,6 +106,7 @@
       "site/reports/survival/index.html",
       "site/reports/survival/feed.xml",
       "site/reports/survival/latest.json",
+      "site/r/index.html",
       "site/verify/index.html",
       "site/verify/verify.js",
       "site/verify/seal-core.js"
@@ -117,7 +122,7 @@
       ]
     ],
     "generated": {
-      "rule": "site/reports/survival/** is written by scripts/survival_report.py from `re audit --json` runs and never edited by hand; report directories are append-only.",
+      "rule": "site/reports/survival/** and site/r/** are written by scripts/survival_report.py from `re audit --json` runs and never edited by hand; report directories are append-only; repository pages live at lowercase paths and carry no rank, no colour and no comparison.",
       "generator": "scripts/survival_report.py",
       "tests": "scripts/tests/test_survival_report.py"
     }
@@ -208,6 +213,17 @@
         "feed.xml",
         "not a sample of all AI-assisted code"
       ],
+      "site/r/index.html": [
+        "counts, not grades",
+        "/method",
+        "badge.svg"
+      ],
+      "site/r/croviatrust/causari/index.html": [
+        "counts, not grades",
+        "/method",
+        "re audit croviatrust/causari --json",
+        "badge.svg"
+      ],
       "docs/survival-report.md": [
         "not a quality judgement",
         "arXiv 2601.16809",
@@ -270,6 +286,10 @@
       "/reports/survival/": "Survival Report",
       "/reports/survival/feed.xml": "<feed",
       "/reports/survival/latest.json": "causari.survival_report.v1",
+      "/r/": "Measured repositories",
+      "/r/croviatrust/causari/": "re audit croviatrust/causari --json",
+      "/r/croviatrust/causari/badge.svg": "AI code survival",
+      "/r/croviatrust/causari/latest.json": "causari.repo_survival.v1",
       "/verify/": "does not prove",
       "/verify/seal-core.js": "CROVIA-SEAL-v1",
       "/verify/verify.js": "causari.audit-seal.v1"
@@ -283,7 +303,8 @@
       "/report": "/reports/survival/",
       "/survival-data.json": "/reports/survival/latest.json",
       "/verify": "/verify/",
-      "/seal": "/verify/"
+      "/seal": "/verify/",
+      "/r/Aider-AI/aider/": "/r/aider-ai/aider/"
     },
     "headers": {
       "/": {
@@ -298,6 +319,14 @@
       },
       "/reports/survival/latest.json": {
         "content-type": "application/json"
+      },
+      "/r/croviatrust/causari/badge.svg": {
+        "content-type": "image/svg+xml",
+        "cache-control": "max-age=3600"
+      },
+      "/r/croviatrust/causari/latest.json": {
+        "content-type": "application/json",
+        "cache-control": "max-age=3600"
       },
       "/verify/": {
         "content-security-policy": "connect-src 'none'",

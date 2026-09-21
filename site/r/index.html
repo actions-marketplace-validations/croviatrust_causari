@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Measured repositories · AI code survival — causari</title>
+  <meta name="description" content="Every repository measured in the Survival Report has a page and a badge: counts across reports, the exact bytes behind each number, no rank. Counts, not grades; every number reproducible with re audit &lt;owner/repo&gt; --json." />
+  <meta name="theme-color" content="#0b0d10" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="canonical" href="https://causari.dev/r/" />
+  <link rel="alternate" type="application/atom+xml" title="Causari Survival Report" href="/reports/survival/feed.xml" />
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="Measured repositories · AI code survival" />
+  <meta property="og:description" content="Every repository measured in the Survival Report has a page and a badge: counts across reports, the exact bytes behind each number, no rank. Counts, not grades; every number reproducible with re audit &lt;owner/repo&gt; --json." />
+  <meta property="og:url" content="https://causari.dev/r/" />
+  <meta property="og:image" content="https://causari.dev/assets/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:site_name" content="causari" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Measured repositories · AI code survival" />
+  <meta name="twitter:description" content="Every repository measured in the Survival Report has a page and a badge: counts across reports, the exact bytes behind each number, no rank. Counts, not grades; every number reproducible with re audit &lt;owner/repo&gt; --json." />
+  <meta name="twitter:image" content="https://causari.dev/assets/og.png" />
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+  <link rel="stylesheet" href="/styles.css?v=0c1191c49d" />
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "CollectionPage", "name": "Measured repositories · AI code survival", "url": "https://causari.dev/r/", "description": "Every repository measured in the Survival Report has a page and a badge: counts across reports, the exact bytes behind each number, no rank. Counts, not grades; every number reproducible with re audit <owner/repo> --json.", "publisher": {"@type": "Organization", "name": "Crovia Trust", "url": "https://croviatrust.com"}, "hasPart": [{"@type": "Dataset", "name": "Aider-AI/aider · AI code survival", "url": "https://causari.dev/r/aider-ai/aider/"}, {"@type": "Dataset", "name": "anthropics/anthropic-sdk-python · AI code survival", "url": "https://causari.dev/r/anthropics/anthropic-sdk-python/"}, {"@type": "Dataset", "name": "anthropics/anthropic-sdk-typescript · AI code survival", "url": "https://causari.dev/r/anthropics/anthropic-sdk-typescript/"}, {"@type": "Dataset", "name": "browser-use/browser-use · AI code survival", "url": "https://causari.dev/r/browser-use/browser-use/"}, {"@type": "Dataset", "name": "cline/cline · AI code survival", "url": "https://causari.dev/r/cline/cline/"}, {"@type": "Dataset", "name": "continuedev/continue · AI code survival", "url": "https://causari.dev/r/continuedev/continue/"}, {"@type": "Dataset", "name": "croviatrust/causari · AI code survival", "url": "https://causari.dev/r/croviatrust/causari/"}, {"@type": "Dataset", "name": "ghostty-org/ghostty · AI code survival", "url": "https://causari.dev/r/ghostty-org/ghostty/"}, {"@type": "Dataset", "name": "openai/codex · AI code survival", "url": "https://causari.dev/r/openai/codex/"}, {"@type": "Dataset", "name": "sst/opencode · AI code survival", "url": "https://causari.dev/r/sst/opencode/"}]}</script>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" role="banner">
+  <div class="container nav-inner">
+    <a href="/" class="brand" aria-label="causari home">
+      <img src="/assets/mark.svg" alt="" width="34" height="34" class="mark-light" />
+      <img src="/assets/mark-white.svg" alt="" width="34" height="34" class="mark-dark" />
+      <span class="brand-name" translate="no">causari</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/reports/survival/" aria-current="page">reports</a>
+      <a href="/method">method</a>
+      <a href="/verify/">verify</a>
+      <a href="https://github.com/croviatrust/causari" rel="noopener" class="hide-sm">source</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <p class="eyebrow">10 repositories · alphabetical · unranked</p>
+      <h1>Measured repositories</h1>
+      <p class="lede">Every repository that appears in a <a href="/reports/survival/">Survival Report</a> has its own page: the latest counts, the counts by agent, the history across reports, the exact bytes behind each number and a README badge. <strong>These are counts, not grades.</strong> The list is alphabetical; nothing here ranks or compares repositories, and the <a href="/method">method and its limits</a> are public.</p>
+      <p class="rp-meta"><a href="/reports/survival/">all reports</a> · <a href="/reports/survival/feed.xml">Atom feed</a> · <a href="https://github.com/croviatrust/causari/blob/main/.github/survival-repos.txt" rel="noopener">add a repository</a> · <a href="https://github.com/croviatrust/causari/edit/main/.github/survival-optout.txt" rel="noopener">opt out</a></p>
+    </div>
+    <div class="rp-section">
+    <h3 id="repositories">Repositories</h3>
+    <p class="muted">Latest counts per repository, from the most recent report it was measured in. <em>n &lt; 5</em>: fewer AI-tagged commits than the sample floor; counts are published, no ratio is aggregated.</p>
+    
+    <div class="tbl-scroll wide">
+      <table class="lb-table" id="repos">
+        <thead><tr><th>Repository</th><th>AI-tagged commits</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Report</th><th>Date</th></tr></thead>
+        <tbody>
+<tr><td><a href="/r/aider-ai/aider/" translate="no">Aider-AI/aider</a></td><td>11,156</td><td>374,687</td><td>235,782</td><td>62.9 %</td><td><a class="rp-num" href="/reports/survival/2026/01/" title="Survival Report #1">#1</a></td><td>2026-09-20</td></tr>
+<tr><td><a href="/r/anthropics/anthropic-sdk-python/" translate="no">anthropics/anthropic-sdk-python</a></td><td>38</td><td>4,852</td><td>4,043</td><td>83.3 %</td><td><a class="rp-num" href="/reports/survival/2026/01/" title="Survival Report #1">#1</a></td><td>2026-09-20</td></tr>
+<tr><td><a href="/r/anthropics/anthropic-sdk-typescript/" translate="no">anthropics/anthropic-sdk-typescript</a></td><td>48</td><td>13,796</td><td>11,394</td><td>82.6 %</td><td><a class="rp-num" href="/reports/survival/2026/01/" title="Survival Report #1">#1</a></td><td>2026-09-20</td></tr>
+<tr><td><a href="/r/browser-use/browser-use/" translate="no">browser-use/browser-use</a></td><td>220</td><td>18,186</td><td>3,184</td><td>17.5 %</td><td><a class="rp-num" href="/reports/survival/2026/01/" title="Survival Report #1">#1</a></td><td>2026-09-20</td></tr>
+<tr><td><a href="/r/cline/cline/" translate="no">cline/cline</a></td><td>154</td><td>95,301</td><td>63,063</td><td>66.2 %</td><td><a class="rp-num" href="/reports/survival/2026/01/" title="Survival Report #1">#1</a></td><td>2026-09-20</td></tr>
+<tr><td><a href="/r/continuedev/continue/" translate="no">continuedev/continue</a></td><td>228</td><td>27,756</td><td>18,063</td><td>65.1 %</td><td><a class="rp-num" href="/reports/survival/2026/01/" title="Survival Report #1">#1</a></td><td>2026-09-20</td></tr>
+<tr><td><a href="/r/croviatrust/causari/" translate="no">croviatrust/causari</a></td><td>14</td><td>6,267</td><td>5,595</td><td>89.3 %</td><td><a class="rp-num" href="/reports/survival/2026/01/" title="Survival Report #1">#1</a></td><td>2026-09-20</td></tr>
+<tr><td><a href="/r/ghostty-org/ghostty/" translate="no">ghostty-org/ghostty</a></td><td>77</td><td>3,725</td><td>2,570</td><td>69.0 %</td><td><a class="rp-num" href="/reports/survival/2026/01/" title="Survival Report #1">#1</a></td><td>2026-09-20</td></tr>
+<tr><td><a href="/r/openai/codex/" translate="no">openai/codex</a></td><td>364</td><td>183,908</td><td>109,674</td><td>59.6 %</td><td><a class="rp-num" href="/reports/survival/2026/01/" title="Survival Report #1">#1</a></td><td>2026-09-20</td></tr>
+<tr><td><a href="/r/sst/opencode/" translate="no">sst/opencode</a></td><td>50</td><td>25,998</td><td>9,470</td><td>36.4 %</td><td><a class="rp-num" href="/reports/survival/2026/01/" title="Survival Report #1">#1</a></td><td>2026-09-20</td></tr>
+        </tbody>
+      </table>
+    </div>
+    </div>
+    <div class="proof rp-section" id="badge">
+      <h3>The badge</h3>
+      <p>Each page carries a text-only badge in one colour, <code translate="no">/r/&lt;owner&gt;/&lt;repo&gt;/badge.svg</code>, that follows the latest report; <code translate="no">latest.json</code> next to it holds the same counts for machines. Paths are lowercase.</p>
+<pre translate="no"><code translate="no">[![AI code survival](https://causari.dev/r/&lt;owner&gt;/&lt;repo&gt;/badge.svg)](https://causari.dev/r/&lt;owner&gt;/&lt;repo&gt;/)</code></pre>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div class="foot-bottom">
+      <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Crovia</a> · <em>causari</em> is a trademark of Crovia Trust. Report text and data <a href="https://creativecommons.org/licenses/by/4.0/" rel="license noopener">CC-BY-4.0</a>.</p>
+      <p class="muted">Every number reproducible: <code translate="no">re audit &lt;owner/repo&gt; --json</code> · <a href="/method">method</a> · <a href="/reports/survival/feed.xml">feed</a> · <a href="/">causari.dev</a></p>
+    </div>
+  </div>
+</footer>
+
+<script src="/app.js?v=eb85cbc8d5" defer></script>
+</body>
+</html>

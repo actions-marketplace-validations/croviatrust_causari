@@ -12,6 +12,9 @@ Ways to use Causari without installing anything:
   and intervals, no ranks; Atom feed at /reports/survival/feed.xml, JSON at
   /reports/survival/latest.json, a Zenodo DOI per report; method and limits
   at https://causari.dev/method)
+- One page and one badge per measured repository: https://causari.dev/r/<owner>/<repo>/
+  (lowercase; index at https://causari.dev/r/; badge.svg, badge-dark.svg and
+  latest.json next to each page; counts and history, no rank)
 - Add one CI step to any repo: `uses: croviatrust/causari@v1` posts the
   survival counts on every pull request.
 

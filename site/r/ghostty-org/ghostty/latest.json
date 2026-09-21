@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "ghostty-org/ghostty",
+ "repository_url": "https://github.com/ghostty-org/ghostty",
+ "url": "https://causari.dev/r/ghostty-org/ghostty/",
+ "badge": "https://causari.dev/r/ghostty-org/ghostty/badge.svg",
+ "report": {
+  "number": 1,
+  "id": "2026/01",
+  "date": "2026-09-20",
+  "url": "https://causari.dev/reports/survival/2026/01/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.1.5"
+ },
+ "verified": {
+  "commits": 77,
+  "introduced": 3725,
+  "surviving": 2570,
+  "survival_rate": 0.6899328859060403,
+  "capped_survival_rate": 0.7335434214151884,
+  "median_survival": 0.8599388379204893,
+  "largest_commit_share": 0.12536912751677853
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 13460,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit ghostty-org/ghostty --json",
+ "bytes": "https://causari.dev/reports/survival/2026/01/repos/ghostty-org__ghostty.json",
+ "license": "CC-BY-4.0"
+}

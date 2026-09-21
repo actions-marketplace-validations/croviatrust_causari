@@ -155,7 +155,8 @@ def site_path_exists(target: str, redirects: dict[str, str]) -> bool:
         return True
     p = target.split("?")[0]
     candidates = [ROOT / "site" / p.lstrip("/")]
-    if not Path(p).suffix:
+    # a directory URL is a directory even when its last segment has a dot (/r/vercel/next.js/)
+    if p.endswith("/") or not Path(p).suffix:
         candidates.append(ROOT / "site" / (p.lstrip("/") + ".html"))
         candidates.append(ROOT / "site" / p.lstrip("/") / "index.html")
     return any(c.is_file() for c in candidates)
