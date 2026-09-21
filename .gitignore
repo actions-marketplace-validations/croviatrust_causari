@@ -35,6 +35,13 @@ npm-debug.log*
 /dist
 /release-assets
 
+# === Registry launchers (packaging/): local builds ===
+/packaging/npm/node_modules
+/packaging/npm/*.tgz
+/packaging/pypi/build
+/packaging/pypi/dist
+/packaging/pypi/*.egg-info
+
 
 # === Demo recording scratch dir (created by scripts/demo-record.sh) ===
 /demo-recording
