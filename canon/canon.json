@@ -1,6 +1,6 @@
 {
   "schema": "causari.canon.v1",
-  "revised": "2026-09-20",
+  "revised": "2026-09-21",
   "identity": {
     "name": "Causari",
     "wordmark": "causari",
@@ -90,13 +90,17 @@
       "site/verify/index.html",
       "packaging/README.md",
       "packaging/npm/README.md",
-      "packaging/pypi/README.md"
+      "packaging/pypi/README.md",
+      "site/faq.html",
+      "site/compare.html"
     ],
     "html": [
       "site/index.html",
       "site/reports/survival/index.html",
       "site/method.html",
-      "site/verify/index.html"
+      "site/verify/index.html",
+      "site/faq.html",
+      "site/compare.html"
     ],
     "required_files": [
       "site/assets/mark.svg",
@@ -238,6 +242,20 @@
         "no network request",
         "re seal verify",
         "/method"
+      ],
+      "site/faq.html": [
+        "\"@type\": \"FAQPage\"",
+        "does not grade",
+        "survival-optout.txt",
+        "re seal verify",
+        "/method"
+      ],
+      "site/compare.html": [
+        "Different tools answer different questions",
+        "not stated publicly",
+        "not a grade",
+        "re seal verify",
+        "/verify/"
       ]
     }
   },
@@ -288,6 +306,8 @@
     "pages": {
       "/": "It has causes",
       "/method": "Reproduce or contest",
+      "/faq": "\"@type\": \"FAQPage\"",
+      "/compare": "Different tools answer different questions",
       "/llms.txt": "not grades",
       "/robots.txt": "Sitemap",
       "/sitemap.xml": "causari.dev/verify/",

@@ -68,6 +68,7 @@ trailer are UNKNOWN. A formatter pass or a moved function counts as a death
 under method v1. One bulk commit can dominate a line-weighted ratio; ratios
 under 5 AI-tagged commits are flagged. All of this is written out at
 [causari.dev/method](https://causari.dev/method), with how to contest a number.
+The questions people ask, answered with the command and the limit: [causari.dev/faq](https://causari.dev/faq); how this differs from `git blame`, vendor dashboards and churn reports: [causari.dev/compare](https://causari.dev/compare).
 
 ## In CI: a count on every pull request
 

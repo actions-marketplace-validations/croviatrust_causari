@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>FAQ: measuring AI code survival with causari — causari</title>
+  <meta name="description" content="Plain answers to the questions people ask about AI-written code: how much of a repository AI wrote, what survival means, which agents leave a git trace, what a seal proves, how the Survival Report is made, how to opt out." />
+  <meta name="theme-color" content="#0b0d10" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="canonical" href="https://causari.dev/faq" />
+  <meta property="og:title" content="FAQ: measuring AI code survival with causari" />
+  <meta property="og:description" content="How much of my code was written by AI? What does survival mean? Which agents leave a git trace? What does a seal prove? Sixteen questions, answered with the command and the limit." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://causari.dev/faq" />
+  <meta property="og:image" content="https://causari.dev/assets/og.png" />
+  <meta property="og:site_name" content="causari" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="FAQ: measuring AI code survival with causari" />
+  <meta name="twitter:description" content="Sixteen questions about counting AI-written code in git, answered with the command and the limit." />
+  <meta name="twitter:image" content="https://causari.dev/assets/og.png" />
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
+  <link rel="stylesheet" href="/styles.css?v=a06cc110b7" />
+  <!-- faq-jsonld: begin (each acceptedAnswer.text is the text of the visible .faq-a block; checked before commit) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": "https://causari.dev/faq",
+    "url": "https://causari.dev/faq",
+    "name": "FAQ: measuring AI code survival with causari",
+    "inLanguage": "en",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "causari",
+      "url": "https://causari.dev"
+    },
+    "publisher": {
+      "@id": "https://croviatrust.com/#org"
+    },
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#how-much-ai",
+        "name": "How much of my code was written by AI?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Causari cannot tell you that. It counts something narrower: the lines introduced by commits that carry machine-readable AI authorship metadata (a Co-Authored-By trailer naming an agent, a bot author, an AI-* trailer, a git-ai note), and how many of those lines git blame still attributes to them at HEAD. Code from inline completions or from untagged commits counts as human. Run re audit in any repository; the output states what was counted and what was not. Rules: causari.dev/method."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#what-is-survival",
+        "name": "What does \"survival\" mean here?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A line survives if git blame -w -M -C at HEAD still attributes it to the AI-tagged commit that introduced it. The survival ratio is surviving lines divided by introduced lines, summed over all such commits, so it is line-weighted; method v2 also reports a capped ratio and the median per commit. A rewritten line is a death even when the meaning is unchanged; a surviving line may be dead code. It is a count from git history, not a judgement about quality. Definition: causari.dev/method#survival."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#how-to-measure",
+        "name": "How do I measure whether AI-generated code survives?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Install the binary and run re audit inside a repository, or name a public one (re audit owner/repo clones it to a temporary directory and removes it afterwards). It reads git only: no account, no upload. --json prints the exact bytes behind every number; --summary writes Markdown for CI; --save appends a snapshot so you can compare a repository with itself over time. Full clones only: a shallow clone is refused because its history is truncated. Install options: github.com/croviatrust/causari#install."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#token-account-server",
+        "name": "Does causari need a token, an account, or a server?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. re audit is one static binary of about 5 MB that reads the git repository in front of it. Nothing is uploaded; there is no telemetry, no account and no paid tier. Auditing a public repository by name clones it over plain git into a temporary directory. The installer checks the archive against the SHA256SUMS.txt published with each release and refuses to install on a mismatch; every archive carries a signed SLSA provenance attestation. Details: github.com/croviatrust/causari#install."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#which-agents",
+        "name": "Which AI agents does it detect?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Those that leave machine-readable metadata in git: Co-Authored-By trailers naming Claude, Copilot, aider, Codex, ChatGPT or OpenHands (Devin, Jules, Gemini and Cursor only with a bot identity or vendor domain); bot author identities such as noreply@anthropic.com, devin-ai, openhands, cursoragent, google-labs-jules; AI-* and Assisted-by: trailers; git-ai notes under refs/notes/ai. An agent that commits without any of these is UNKNOWN and never counted. The full rule table, signal by signal: causari.dev/method#counted."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#copilot-cursor-tab",
+        "name": "Does it work with Copilot or Cursor Tab?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Inline completions (Copilot, Cursor Tab, Windsurf, Continue, Zed AI, JetBrains AI) leave no trace in git: a person accepts the suggestion and commits it under their own name, so re audit counts those lines as human. \"No git signal\" means no metadata, not no AI. Agents that commit with a trailer or a bot identity (Claude Code, aider, Codex CLI, the Copilot coding agent, Devin, Jules) are visible. What stays invisible: causari.dev/method#cannot-see."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#good-or-bad",
+        "name": "Can it tell whether AI code is good or bad?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Causari counts; it does not grade. A deleted line may be a removed feature or a rewritten prototype; a surviving line may be dead code. There is no rank, no colour and no score, and a ratio from fewer than five AI-tagged commits is flagged as a small sample. For scale: Survival Report #1 found 61.3 % of lines from AI-tagged commits still at HEAD across 10 repositories, 95 % interval over that sample 53.0 % to 64.9 %. Source: causari.dev/reports/survival/2026/01/."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#audit-seal",
+        "name": "What is an audit seal and how do I verify one offline?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "re audit --seal signs the exact audit JSON, bound to the audited commit and the method version, with the repository's Ed25519 issuer key as a crovia.seal.v1 receipt (audit.seal.json). re seal verify audit.seal.json checks it with the file alone; causari.dev/verify does the same in the browser without a network request. A valid seal proves that this key signed these numbers for this commit and that nothing changed since. It does not prove the numbers are true: rerun re audit on the commit and compare the bytes."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#survival-report",
+        "name": "What is the Survival Report, how are repositories chosen, and how do I opt out?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A weekly, numbered, citable page of counts for open-source repositories: alphabetical, unranked, with a DOI and the audit JSON behind every row. Report #1 (2026-09-20) measured 10 repositories: 462,838 of 754,476 lines from 12,349 AI-tagged commits still at HEAD, 61.3 %, 95 % bootstrap interval over the sample 53.0 % to 64.9 %. Repositories are added by pull request to .github/survival-repos.txt, not drawn at random. To opt out, add one line to .github/survival-optout.txt; the next run drops the row and never re-adds it. Archive: causari.dev/reports/survival/."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#open-source-license",
+        "name": "Is it open source? What license?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Causari is written in Rust and published under Apache-2.0 at github.com/croviatrust/causari; contributions are signed off under the DCO. \"Causari\" is a trademark of Crovia Trust and the licence grants no trademark rights (see NOTICE). Survival Report data is CC-BY-4.0. Every release archive and its SHA256SUMS.txt carry a signed SLSA build-provenance attestation that gh attestation verify checks against the repository."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#run-in-ci",
+        "name": "How do I run it in CI?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "One step. The GitHub Action croviatrust/causari@v1 downloads the prebuilt Linux binary, runs re audit --summary, writes the count to the job summary and keeps one sticky comment per pull request. fetch-depth: 0 matters: the audit reads every commit and refuses shallow clones. No cloud, no account, no verdict: a count with its coverage statement. A live example: causari-audit-demo/pull/1."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#vs-git-blame",
+        "name": "How is this different from git blame?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "git blame says which commit last touched each line. Causari runs it, then adds what blame does not do: it decides which commits carry AI authorship metadata by a public rule table, sums introduced against surviving lines per commit, applies a per-commit cap and a sample floor, and writes a coverage block into every result. It can then sign the result for offline verification. You could script the same; the point is that everyone runs one method and gets the same bytes. Other ways to count: causari.dev/compare."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#wrong-number",
+        "name": "I think a published number is wrong. What do I do?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Rerun re audit owner/repo --json and compare the bytes with the published row; every report row links its JSON. If they differ, or a commit was misclassified, open an issue with the JSON at github.com/croviatrust/causari/issues. Corrections are made in public and recorded in the data history. The known ways a number can mislead (bulk commits, formatting, small samples, age) are written down first, at causari.dev/method#misleads."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#the-ledger",
+        "name": "What is the ledger, and do I need it?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "You do not need it: the audit works on any git history. The ledger is the optional second half. re init creates a local, gitignored .causari/; re hook claude-code or re proxy then record each agent action as it happens (prompt, model, files read and written), and re why src/file.ts:42 names the event and the prompt behind a line. Everything stays on your machine. Treat .causari/ as sensitive: the proxy stores prompts verbatim. What each agent gives you today: the README table."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#what-is-crovia",
+        "name": "What is Crovia?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Crovia Trust is the maker of Causari and of the family it belongs to: TACET (verifiable silence proofs), PNX (proof of non-exfiltration) and the Crovia Seal receipt format, all at croviatrust.com."
+        }
+      },
+      {
+        "@type": "Question",
+        "@id": "https://causari.dev/faq#badge",
+        "name": "Can my repository get a badge?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "For your own repository, yes: re audit --badge writes causari-badge.svg with the count for your README, and re audit --card writes a self-contained survival card. Both are one colour and carry no verdict. We issue no badge about repositories we do not own. If your repository is in the Survival Report, the report lists it with its counts and the exact command to reproduce them: causari.dev/reports/survival/."
+        }
+      }
+    ]
+  }
+  </script>
+  <!-- faq-jsonld: end -->
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" role="banner">
+  <div class="container nav-inner">
+    <a href="/" class="brand" aria-label="causari home">
+      <img src="/assets/mark.svg" alt="" width="34" height="34" class="mark-light" />
+      <img src="/assets/mark-white.svg" alt="" width="34" height="34" class="mark-dark" />
+      <span class="brand-name" translate="no">causari</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/reports/survival/">reports</a>
+      <a href="/method">method</a>
+      <a href="/verify/">verify</a>
+      <a href="https://github.com/croviatrust/causari" rel="noopener" class="hide-sm">source</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="article">
+  <p class="eyebrow">faq · the questions as people ask them</p>
+  <h1>Questions and answers</h1>
+  <p class="version">Every answer names the command where there is one and links to where its numbers come from. Numbers are counts with their interval, never grades. The long form is the <a href="/method">method</a>; how this differs from other ways to count is on <a href="/compare">/compare</a>.</p>
+
+  <p class="lede">Sixteen questions, written the way they are typed into a search box or a chatbot. Each heading is a deep link.</p>
+
+  <section class="faq-q" id="how-much-ai">
+    <h2>How much of my code was written by AI?</h2>
+    <div class="faq-a">
+      <p>Causari cannot tell you that. It counts something narrower: the lines introduced by commits that carry machine-readable AI authorship metadata (a <code translate="no">Co-Authored-By</code> trailer naming an agent, a bot author, an <code translate="no">AI-*</code> trailer, a git-ai note), and how many of those lines <code translate="no">git blame</code> still attributes to them at HEAD. Code from inline completions or from untagged commits counts as human. Run <code translate="no">re audit</code> in any repository; the output states what was counted and what was not. Rules: <a href="/method#counted">causari.dev/method</a>.</p>
+    </div>
+    <div class="term">
+<pre translate="no"><code translate="no">re audit                    <span class="dim"># the repository you are in</span>
+re audit --json             <span class="dim"># "coverage": what was counted, what was not</span></code></pre>
+    </div>
+  </section>
+
+  <section class="faq-q" id="what-is-survival">
+    <h2>What does "survival" mean here?</h2>
+    <div class="faq-a">
+      <p>A line survives if <code translate="no">git blame -w -M -C</code> at HEAD still attributes it to the AI-tagged commit that introduced it. The survival ratio is surviving lines divided by introduced lines, summed over all such commits, so it is line-weighted; method v2 also reports a capped ratio and the median per commit. A rewritten line is a death even when the meaning is unchanged; a surviving line may be dead code. It is a count from git history, not a judgement about quality. Definition: <a href="/method#survival">causari.dev/method#survival</a>.</p>
+    </div>
+  </section>
+
+  <section class="faq-q" id="how-to-measure">
+    <h2>How do I measure whether AI-generated code survives?</h2>
+    <div class="faq-a">
+      <p>Install the binary and run <code translate="no">re audit</code> inside a repository, or name a public one (<code translate="no">re audit owner/repo</code> clones it to a temporary directory and removes it afterwards). It reads git only: no account, no upload. <code translate="no">--json</code> prints the exact bytes behind every number; <code translate="no">--summary</code> writes Markdown for CI; <code translate="no">--save</code> appends a snapshot so you can compare a repository with itself over time. Full clones only: a shallow clone is refused because its history is truncated. Install options: <a href="https://github.com/croviatrust/causari#install" rel="noopener">github.com/croviatrust/causari#install</a>.</p>
+    </div>
+    <div class="term">
+<pre translate="no"><code translate="no">curl -fsSL https://causari.dev/install.sh | sh
+re audit                    <span class="dim"># this repository</span>
+re audit vercel/next.js     <span class="dim"># any public repository</span>
+re audit --json             <span class="dim"># the exact bytes</span></code></pre>
+    </div>
+  </section>
+
+  <section class="faq-q" id="token-account-server">
+    <h2>Does causari need a token, an account, or a server?</h2>
+    <div class="faq-a">
+      <p>No. <code translate="no">re audit</code> is one static binary of about 5 MB that reads the git repository in front of it. Nothing is uploaded; there is no telemetry, no account and no paid tier. Auditing a public repository by name clones it over plain git into a temporary directory. The installer checks the archive against the <code translate="no">SHA256SUMS.txt</code> published with each release and refuses to install on a mismatch; every archive carries a signed SLSA provenance attestation. Details: <a href="https://github.com/croviatrust/causari#install" rel="noopener">github.com/croviatrust/causari#install</a>.</p>
+    </div>
+    <div class="term">
+<pre translate="no"><code translate="no">curl -fsSL https://causari.dev/install.sh | sh    <span class="dim"># Linux, macOS</span>
+irm https://causari.dev/install.ps1 | iex           <span class="dim"># Windows</span>
+brew install croviatrust/tap/causari                <span class="dim"># Homebrew</span></code></pre>
+    </div>
+  </section>
+
+  <section class="faq-q" id="which-agents">
+    <h2>Which AI agents does it detect?</h2>
+    <div class="faq-a">
+      <p>Those that leave machine-readable metadata in git: <code translate="no">Co-Authored-By</code> trailers naming Claude, Copilot, aider, Codex, ChatGPT or OpenHands (Devin, Jules, Gemini and Cursor only with a bot identity or vendor domain); bot author identities such as <code translate="no">noreply@anthropic.com</code>, <code translate="no">devin-ai</code>, <code translate="no">openhands</code>, <code translate="no">cursoragent</code>, <code translate="no">google-labs-jules</code>; <code translate="no">AI-*</code> and <code translate="no">Assisted-by:</code> trailers; git-ai notes under <code translate="no">refs/notes/ai</code>. An agent that commits without any of these is UNKNOWN and never counted. The full rule table, signal by signal: <a href="/method#counted">causari.dev/method#counted</a>.</p>
+    </div>
+  </section>
+
+  <section class="faq-q" id="copilot-cursor-tab">
+    <h2>Does it work with Copilot or Cursor Tab?</h2>
+    <div class="faq-a">
+      <p>No. Inline completions (Copilot, Cursor Tab, Windsurf, Continue, Zed AI, JetBrains AI) leave no trace in git: a person accepts the suggestion and commits it under their own name, so <code translate="no">re audit</code> counts those lines as human. "No git signal" means no metadata, not no AI. Agents that commit with a trailer or a bot identity (Claude Code, aider, Codex CLI, the Copilot coding agent, Devin, Jules) are visible. What stays invisible: <a href="/method#cannot-see">causari.dev/method#cannot-see</a>.</p>
+    </div>
+  </section>
+
+  <section class="faq-q" id="good-or-bad">
+    <h2>Can it tell whether AI code is good or bad?</h2>
+    <div class="faq-a">
+      <p>No. Causari counts; it does not grade. A deleted line may be a removed feature or a rewritten prototype; a surviving line may be dead code. There is no rank, no colour and no score, and a ratio from fewer than five AI-tagged commits is flagged as a small sample. For scale: Survival Report #1 found 61.3 % of lines from AI-tagged commits still at HEAD across 10 repositories, 95 % interval over that sample 53.0 % to 64.9 %. Source: <a href="/reports/survival/2026/01/">causari.dev/reports/survival/2026/01/</a>.</p>
+    </div>
+  </section>
+
+  <section class="faq-q" id="audit-seal">
+    <h2>What is an audit seal and how do I verify one offline?</h2>
+    <div class="faq-a">
+      <p><code translate="no">re audit --seal</code> signs the exact audit JSON, bound to the audited commit and the method version, with the repository's Ed25519 issuer key as a <code translate="no">crovia.seal.v1</code> receipt (<code translate="no">audit.seal.json</code>). <code translate="no">re seal verify audit.seal.json</code> checks it with the file alone; <a href="/verify/">causari.dev/verify</a> does the same in the browser without a network request. A valid seal proves that this key signed these numbers for this commit and that nothing changed since. It does not prove the numbers are true: rerun <code translate="no">re audit</code> on the commit and compare the bytes.</p>
+    </div>
+    <div class="term">
+<pre translate="no"><code translate="no">re audit --seal                  <span class="dim"># writes audit.seal.json</span>
+re seal verify audit.seal.json   <span class="dim"># 0 valid · 1 invalid · 2 unreadable</span></code></pre>
+    </div>
+  </section>
+
+  <section class="faq-q" id="survival-report">
+    <h2>What is the Survival Report, how are repositories chosen, and how do I opt out?</h2>
+    <div class="faq-a">
+      <p>A weekly, numbered, citable page of counts for open-source repositories: alphabetical, unranked, with a DOI and the audit JSON behind every row. <a href="/reports/survival/2026/01/">Report #1</a> (2026-09-20) measured 10 repositories: 462,838 of 754,476 lines from 12,349 AI-tagged commits still at HEAD, 61.3 %, 95 % bootstrap interval over the sample 53.0 % to 64.9 %. Repositories are added by pull request to <code translate="no">.github/survival-repos.txt</code>, not drawn at random. To opt out, add one line to <a href="https://github.com/croviatrust/causari/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>; the next run drops the row and never re-adds it. Archive: <a href="/reports/survival/">causari.dev/reports/survival/</a>.</p>
+    </div>
+    <div class="term">
+<pre translate="no"><code translate="no"><span class="dim"># .github/survival-optout.txt — one owner/repo per line, no questions asked</span>
+owner/repo</code></pre>
+    </div>
+  </section>
+
+  <section class="faq-q" id="open-source-license">
+    <h2>Is it open source? What license?</h2>
+    <div class="faq-a">
+      <p>Yes. Causari is written in Rust and published under Apache-2.0 at <a href="https://github.com/croviatrust/causari" rel="noopener">github.com/croviatrust/causari</a>; contributions are signed off under the <a href="https://github.com/croviatrust/causari/blob/main/DCO.md" rel="noopener">DCO</a>. "Causari" is a trademark of Crovia Trust and the licence grants no trademark rights (see <a href="https://github.com/croviatrust/causari/blob/main/NOTICE" rel="noopener">NOTICE</a>). Survival Report data is CC-BY-4.0. Every release archive and its <code translate="no">SHA256SUMS.txt</code> carry a signed SLSA build-provenance attestation that <code translate="no">gh attestation verify</code> checks against the repository.</p>
+    </div>
+  </section>
+
+  <section class="faq-q" id="run-in-ci">
+    <h2>How do I run it in CI?</h2>
+    <div class="faq-a">
+      <p>One step. The GitHub Action <code translate="no">croviatrust/causari@v1</code> downloads the prebuilt Linux binary, runs <code translate="no">re audit --summary</code>, writes the count to the job summary and keeps one sticky comment per pull request. <code translate="no">fetch-depth: 0</code> matters: the audit reads every commit and refuses shallow clones. No cloud, no account, no verdict: a count with its coverage statement. A live example: <a href="https://github.com/croviatrust/causari-audit-demo/pull/1" rel="noopener">causari-audit-demo/pull/1</a>.</p>
+    </div>
+    <div class="term">
+<pre translate="no"><code translate="no"><span class="dim"># .github/workflows/causari.yml</span>
+on: pull_request
+permissions: { contents: read, pull-requests: write }
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: croviatrust/causari@v1</code></pre>
+    </div>
+  </section>
+
+  <section class="faq-q" id="vs-git-blame">
+    <h2>How is this different from git blame?</h2>
+    <div class="faq-a">
+      <p><code translate="no">git blame</code> says which commit last touched each line. Causari runs it, then adds what blame does not do: it decides which commits carry AI authorship metadata by a public rule table, sums introduced against surviving lines per commit, applies a per-commit cap and a sample floor, and writes a coverage block into every result. It can then sign the result for offline verification. You could script the same; the point is that everyone runs one method and gets the same bytes. Other ways to count: <a href="/compare">causari.dev/compare</a>.</p>
+    </div>
+  </section>
+
+  <section class="faq-q" id="wrong-number">
+    <h2>I think a published number is wrong. What do I do?</h2>
+    <div class="faq-a">
+      <p>Rerun <code translate="no">re audit owner/repo --json</code> and compare the bytes with the published row; every report row links its JSON. If they differ, or a commit was misclassified, open an issue with the JSON at <a href="https://github.com/croviatrust/causari/issues" rel="noopener">github.com/croviatrust/causari/issues</a>. Corrections are made in public and recorded in the data history. The known ways a number can mislead (bulk commits, formatting, small samples, age) are written down first, at <a href="/method#misleads">causari.dev/method#misleads</a>.</p>
+    </div>
+    <div class="term">
+<pre translate="no"><code translate="no">diff &lt;(re audit owner/repo --json) repos/owner__repo.json</code></pre>
+    </div>
+  </section>
+
+  <section class="faq-q" id="the-ledger">
+    <h2>What is the ledger, and do I need it?</h2>
+    <div class="faq-a">
+      <p>You do not need it: the audit works on any git history. The ledger is the optional second half. <code translate="no">re init</code> creates a local, gitignored <code translate="no">.causari/</code>; <code translate="no">re hook claude-code</code> or <code translate="no">re proxy</code> then record each agent action as it happens (prompt, model, files read and written), and <code translate="no">re why src/file.ts:42</code> names the event and the prompt behind a line. Everything stays on your machine. Treat <code translate="no">.causari/</code> as sensitive: the proxy stores prompts verbatim. What each agent gives you today: <a href="https://github.com/croviatrust/causari#what-each-agent-actually-gives-you-today" rel="noopener">the README table</a>.</p>
+    </div>
+    <div class="term">
+<pre translate="no"><code translate="no">re init                     <span class="dim"># .causari/, added to .gitignore</span>
+re hook claude-code         <span class="dim"># every prompt and edit, exactly</span>
+re why src/auth.ts:42       <span class="dim"># which event introduced this line</span></code></pre>
+    </div>
+  </section>
+
+  <section class="faq-q" id="what-is-crovia">
+    <h2>What is Crovia?</h2>
+    <div class="faq-a">
+      <p>Crovia Trust is the maker of Causari and of the family it belongs to: TACET (verifiable silence proofs), PNX (proof of non-exfiltration) and the Crovia Seal receipt format, all at <a href="https://croviatrust.com" rel="noopener">croviatrust.com</a>.</p>
+    </div>
+  </section>
+
+  <section class="faq-q" id="badge">
+    <h2>Can my repository get a badge?</h2>
+    <div class="faq-a">
+      <p>For your own repository, yes: <code translate="no">re audit --badge</code> writes <code translate="no">causari-badge.svg</code> with the count for your README, and <code translate="no">re audit --card</code> writes a self-contained survival card. Both are one colour and carry no verdict. We issue no badge about repositories we do not own. If your repository is in the Survival Report, the report lists it with its counts and the exact command to reproduce them: <a href="/reports/survival/">causari.dev/reports/survival/</a>.</p>
+    </div>
+    <div class="term">
+<pre translate="no"><code translate="no">re audit --badge            <span class="dim"># causari-badge.svg</span>
+re audit --card             <span class="dim"># causari-survival.svg</span></code></pre>
+    </div>
+  </section>
+
+  <p class="version">Not answered here? The <a href="/method">method</a> page is the long form; <a href="https://github.com/croviatrust/causari/issues" rel="noopener">open an issue</a> and the answer is added.</p>
+</main>
+
+<footer class="footer">
+  <div class="container foot-bottom">
+    <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Crovia</a> · <em>causari</em> is a trademark of Crovia Trust.</p>
+    <p class="muted"><a href="/reports/survival/">Survival Report</a> · <a href="/method">method</a> · <a href="/verify/">verify</a> · <a href="/">causari.dev</a></p>
+  </div>
+</footer>
+<script src="/app.js?v=eb85cbc8d5" defer></script>
+</body>
+</html>
