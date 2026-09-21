@@ -27,8 +27,8 @@ carry no interval and are therefore not quoted here.
 - No verdict adjectives about any repository, agent or vendor.
 - No claim about inline completions: they leave no git trace and the texts
   say so.
-- No badge snippet in the maintainer note: per-repository pages (`/r/`) are
-  not on `main` at the time of writing. When they are, add the snippet the
-  page offers and nothing more.
+- The maintainer note links the repository's own page (`/r/<owner>/<repo>/`)
+  and mentions the badge that page offers, once, as an option. It never asks
+  for it.
 - Forbidden wording is the list in `canon/canon.json → forbidden_words`;
   the drafts were checked against it.

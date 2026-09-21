@@ -36,6 +36,8 @@ If you would rather not be measured at all, add one line with your repository na
 
 in https://github.com/croviatrust/causari (a pull request, or reply to this message and I will do it). The next weekly run drops the row and it is never re-added. No questions asked.
 
+Your repository also has a page with its counts across reports and the exact bytes behind each number: https://causari.dev/r/{owner-lowercase}/{repo-lowercase}/ — if you find it useful, the same page offers a text-only badge that follows the latest report; if not, nothing changes.
+
 Thank you for your work on {owner/repo}.
 
 {maintainer name}

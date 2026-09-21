@@ -21,6 +21,7 @@
   <img alt="CI" src="https://github.com/croviatrust/causari/actions/workflows/ci.yml/badge.svg?branch=main">
   <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-3b4252">
   <img alt="Platform" src="https://img.shields.io/badge/linux%20%7C%20macOS%20%7C%20windows-3b4252">
+  <a href="https://causari.dev/r/croviatrust/causari/"><img alt="AI code survival, measured by this tool on its own repository" src="https://causari.dev/r/croviatrust/causari/badge.svg"></a>
 </p>
 
 ---
