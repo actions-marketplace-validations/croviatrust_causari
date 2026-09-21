@@ -177,7 +177,9 @@ class Client:
 
     def wait_for(self, status: int, headers: dict[str, str]) -> float | None:
         """Seconds to sleep before retrying, from Retry-After or X-RateLimit-Reset;
-        None when the response is not a rate limit."""
+        None when the response is not a rate limit. A 403 from the search API
+        without either header is GitHub's secondary limit ("abuse detection"),
+        which names no delay: wait a minute."""
         if status not in (403, 429):
             return None
         remaining = headers.get("x-ratelimit-remaining")
@@ -187,9 +189,7 @@ class Client:
             return min(MAX_WAIT_S, max(1.0, float(retry_after)))
         if reset and reset.strip().isdigit() and (remaining is None or remaining.strip() == "0"):
             return min(MAX_WAIT_S, max(1.0, float(reset) - time.time() + 1))
-        if remaining is not None and remaining.strip() == "0":
-            return 60.0
-        return None
+        return 60.0
 
     def get_json(self, url: str, pace: bool = False, attempts: int = 4) -> tuple[int, Any]:
         for attempt in range(attempts):
@@ -544,7 +544,7 @@ def main(argv: list[str] | None = None) -> int:
     token = token_from_env()
     if not token:
         print("survival_discover: no GITHUB_TOKEN/GH_TOKEN; unauthenticated search allows 10 requests per minute", file=sys.stderr)
-    client = Client(lambda url: urllib_fetch(url, token), pace_s=args.pace if token else 6.5)
+    client = Client(lambda url: urllib_fetch(url, token), pace_s=args.pace if token else 7.0)
     root = Path(args.root)
     result = discover(client, root, floor=args.floor, limit=args.limit, pages=args.pages, per_page=min(100, max(1, args.per_page)),
                       candidate_min=args.candidate_min, verify_max=args.verify_max, verify=not args.no_verify)

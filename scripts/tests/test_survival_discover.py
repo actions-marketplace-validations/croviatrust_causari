@@ -358,8 +358,9 @@ class ClientTests(unittest.TestCase):
         client = sd.Client(lambda u: (200, {}, b""), sleep=lambda s: None)
         w = client.wait_for(403, {"x-ratelimit-remaining": "0", "x-ratelimit-reset": str(int(time.time()) + 30)})
         self.assertTrue(25 <= w <= 32)
-        self.assertIsNone(client.wait_for(403, {"x-ratelimit-remaining": "12"}))
+        self.assertEqual(client.wait_for(403, {"x-ratelimit-remaining": "12"}), 60.0)  # secondary limit: no delay named
         self.assertIsNone(client.wait_for(200, {}))
+        self.assertIsNone(client.wait_for(422, {}))
         self.assertEqual(client.wait_for(429, {"retry-after": "9999"}), sd.MAX_WAIT_S)
 
     def test_paging_stops_on_short_page_and_paces(self) -> None:
