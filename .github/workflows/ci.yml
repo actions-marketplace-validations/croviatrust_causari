@@ -102,3 +102,20 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v
+
+  # The npm and PyPI launchers in packaging/: the Python one against a fake
+  # downloader, the Node one against the real release named in package.json
+  # (download, checksum, cache, tampered archive, exit codes).
+  launchers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m unittest discover -s packaging/pypi/tests -t packaging/pypi/tests -v
+      - run: python3 -m pip install --upgrade build && python3 -m build --outdir /tmp/pypi-dist packaging/pypi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - run: bash scripts/tests/test_npm_shim.sh
