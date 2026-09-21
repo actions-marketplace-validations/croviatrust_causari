@@ -96,7 +96,9 @@ one-file change in < 50 ms; the adversarial harness passes on Linux.
       published with DOI 10.5281/zenodo.22863966; the series has concept DOI
       10.5281/zenodo.22863965 and every Monday's report becomes a version of
       it.
-- [ ] Hook targets: Cursor `hooks.json`, Gemini CLI.
+- [x] Hook target: Cursor `hooks.json` (`re hook cursor`; prompt, edit and
+      model from the runtime, tokens and cost not reported by it).
+- [ ] Hook target: Gemini CLI.
 - [ ] Ledger events optionally stored in `refs/notes/causari` so provenance
       travels with `git push`.
 
