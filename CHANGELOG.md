@@ -3,6 +3,31 @@
 Each section is the release note of the tag with the same number; the
 release workflow copies it verbatim. Counts, not adjectives.
 
+## Unreleased
+
+### Record
+
+- `re hook cursor`: capture from Cursor's native hooks. Merges seven
+  command hooks into `.cursor/hooks.json` (`--project`, the default, also
+  run by Cursor cloud agents) or `~/.cursor/hooks.json` (`--user`);
+  `--dry-run` prints the merged file; idempotent, other hooks in the file
+  are kept. `beforeSubmitPrompt` records the prompt, its attachments and
+  the model per `conversation_id`; `preToolUse` (Shell|Write) snapshots
+  the tree before the tool; `afterFileEdit` records one declared event per
+  written file (agent `cursor`, evidence `cursor-hook`, model from the
+  payload, prompt of the same conversation, attachments as `reads`);
+  `afterShellExecution` records a command that changed the tree with the
+  command as message; `afterAgentResponse` stores the answer as an
+  exchange under agent `cursor`; `stop` drops the conversation's unused
+  pre-states; `sessionStart` returns the experience briefing as
+  `additional_context`. Files outside the repository are ignored. Every
+  hook answers a JSON object, `{"permission":"allow"}` for the permission
+  hook, even without a ledger. `re` must be on `PATH` for Cursor.
+- Prompt records carry the runtime's `model` and `attachments` when its
+  payload has them; Claude Code lines are unchanged.
+- Integration matrix: Cursor is its own row (prompt and file exact, model
+  yes, tokens and cost no); Windsurf and Copilot stay on MCP self-report.
+
 ## 0.2.0 — 2026-09-20
 
 The first release after the 2026-09-20 review (`docs/review-2026-09-20/`).

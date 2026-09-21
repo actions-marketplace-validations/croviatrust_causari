@@ -166,6 +166,7 @@ By agent <span class="dim">(verified only)</span>
       <div class="term">
 <pre translate="no"><code translate="no">re init                     <span class="dim"># .causari/, added to .gitignore</span>
 re hook claude-code         <span class="dim"># every prompt and edit, exactly</span>
+re hook cursor              <span class="dim"># same, from Cursor's hooks.json</span>
 
 <span class="dim">$</span> re why src/auth.ts:42
 
@@ -189,7 +190,8 @@ src/auth.ts:42  ⊢  introduced by event 2d070eb8cf
             <tr><td>Claude Code</td><td>yes, via lifecycle hooks</td><td>not yet</td><td><code translate="no">re hook claude-code</code></td></tr>
             <tr><td>Aider</td><td>heuristic join, measured</td><td>yes</td><td><code translate="no">OPENAI_API_BASE</code> → <code translate="no">re proxy</code> + <code translate="no">re watch</code></td></tr>
             <tr><td>Codex CLI, Agents SDK</td><td>not yet</td><td>yes</td><td><code translate="no">OPENAI_BASE_URL</code> → <code translate="no">re proxy</code></td></tr>
-            <tr><td>Cursor, Windsurf, Copilot</td><td>what the agent self-reports</td><td>no</td><td><code translate="no">re mcp</code></td></tr>
+            <tr><td>Cursor</td><td>yes, via native hooks</td><td>model yes; tokens, cost no</td><td><code translate="no">re hook cursor</code></td></tr>
+            <tr><td>Windsurf, Copilot</td><td>what the agent self-reports</td><td>no</td><td><code translate="no">re mcp</code></td></tr>
             <tr><td>Cline / Roo, scripts, curl</td><td>heuristic join</td><td>yes</td><td>base URL → <code translate="no">re proxy</code> + <code translate="no">re watch</code></td></tr>
           </tbody>
         </table>
