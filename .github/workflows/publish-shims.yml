@@ -1,0 +1,167 @@
+name: publish-shims
+
+# Publishes the two registry launchers in packaging/ for every release:
+# `causari` on npm (npx causari) and `causari` on PyPI (pipx run causari).
+# Both are thin, dependency-free shims that download the release archive on
+# first run and verify it against SHA256SUMS.txt; nothing is bundled.
+#
+# Authentication is Trusted Publishing (OIDC) on both registries: no
+# long-lived token lives in this repository. One-time setup, in
+# packaging/README.md under "Owner: one-time setup":
+#   npm   → the package must exist first (one publish by hand), then
+#           npmjs.com → causari → Settings → Trusted Publisher:
+#           GitHub Actions · croviatrust · causari · publish-shims.yml · npm
+#   PyPI  → pypi.org → Publishing → pending publisher:
+#           project causari · croviatrust/causari · publish-shims.yml · pypi
+# Until those entries exist the publish steps fail and nothing is published,
+# which is the intended failure mode.
+#
+# Triggers: the tag push (release.yml creates the GitHub release with the
+# repository token, and events raised by that token do not start other
+# workflows, so `release: published` alone would never fire for a normal
+# release); a release published by hand; and a manual run for a version.
+# Each job waits until the release serves SHA256SUMS.txt, runs the launcher
+# against it, and skips the upload when the version is already on the
+# registry, so a double trigger is harmless.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release to publish the launchers for, without the v (e.g. 0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  # The tag being published and the check that both launchers carry it.
+  # scripts/audit_surfaces.py enforces the same equality against Cargo.toml
+  # on every push; this is the last line of defence at publish time.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - name: resolve tag
+        id: tag
+        run: |
+          set -euo pipefail
+          case "${{ github.event_name }}" in
+            workflow_dispatch) TAG="v${{ inputs.version }}" ;;
+            release)           TAG="${{ github.event.release.tag_name }}" ;;
+            *)                 TAG="${GITHUB_REF_NAME}" ;;
+          esac
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "not a release tag: $TAG" >&2; exit 1 ;;
+          esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+      - name: package.json and pyproject.toml carry the tag version
+        run: |
+          set -euo pipefail
+          V="${{ steps.tag.outputs.version }}"
+          NPM="$(node -p "require('./packaging/npm/package.json').version")"
+          PYPI="$(python3 -c 'import tomllib; print(tomllib.load(open("packaging/pypi/pyproject.toml", "rb"))["project"]["version"])')"
+          [ "$NPM" = "$V" ]  || { echo "packaging/npm/package.json says $NPM, tag is v$V" >&2; exit 1; }
+          [ "$PYPI" = "$V" ] || { echo "packaging/pypi/pyproject.toml says $PYPI, tag is v$V" >&2; exit 1; }
+          echo "both launchers are at $V"
+      - name: wait for the release to serve SHA256SUMS.txt
+        run: |
+          set -euo pipefail
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ steps.tag.outputs.tag }}/SHA256SUMS.txt"
+          for i in $(seq 1 60); do
+            if curl -fsSIL -o /dev/null "$URL"; then echo "release assets are up"; exit 0; fi
+            sleep 30
+          done
+          echo "the release does not serve $URL yet; run this workflow again once release.yml has finished" >&2
+          exit 1
+
+  npm:
+    needs: version
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      # Trusted Publishing needs npm >= 11.5.1; the runner image may lag.
+      - run: npm install -g npm@latest && npm --version
+      - name: the launcher runs the release it will point at
+        run: |
+          set -euo pipefail
+          bash scripts/tests/test_npm_shim.sh
+          OUT="$(node packaging/npm/bin/re.js --version)"
+          [ "$OUT" = "causari ${{ needs.version.outputs.version }}" ] || { echo "launcher ran '$OUT'" >&2; exit 1; }
+      - name: already on npm?
+        id: exists
+        run: |
+          if npm view "causari@${{ needs.version.outputs.version }}" version >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::causari@${{ needs.version.outputs.version }} is already on npm; nothing to publish"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: npm publish
+        if: steps.exists.outputs.skip != 'true'
+        working-directory: packaging/npm
+        run: npm publish --provenance --access public
+
+  pypi-build:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest discover -s packaging/pypi/tests -t packaging/pypi/tests -v
+      - run: python -m pip install --upgrade build
+      - run: python -m build --outdir dist packaging/pypi
+      - name: the wheel runs the release it will point at
+        run: |
+          set -euo pipefail
+          python -m pip install dist/*.whl
+          OUT="$(re --version)"
+          [ "$OUT" = "causari ${{ needs.version.outputs.version }}" ] || { echo "launcher ran '$OUT'" >&2; exit 1; }
+          causari --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pypi-dist
+          path: dist/*
+          if-no-files-found: error
+
+  pypi:
+    needs: [version, pypi-build]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pypi-dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          skip-existing: true
