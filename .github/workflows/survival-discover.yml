@@ -1,6 +1,6 @@
 name: survival-discover
 
-# Monthly: fill .github/survival-repos.txt with the public repositories
+# Weekly, the day before the report: fill .github/survival-repos.txt with the public repositories
 # where AI writes code, found through the GitHub commit search API by the
 # same signals `re audit` classifies as VERIFIED (scripts/survival_discover.py,
 # method page "How repositories are selected"). The hand-picked seeds stay;
@@ -13,7 +13,7 @@ name: survival-discover
 # uploaded as an artifact instead).
 on:
   schedule:
-    - cron: "23 4 1 * *" # the 1st of every month, 04:23 UTC
+    - cron: "23 4 * * 0" # every Sunday, 04:23 UTC; the report runs Monday 05:17
   workflow_dispatch:
     inputs:
       limit:

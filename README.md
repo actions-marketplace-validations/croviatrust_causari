@@ -72,7 +72,7 @@ under 5 AI-tagged commits are flagged. All of this is written out at
 The weekly [Survival Report](https://causari.dev/reports/survival/) runs
 `re audit` on about 100 open-source repositories: a hand-picked list plus the
 public repositories where GitHub commit search finds the most commits carrying
-the same AI authorship metadata, selected once a month by
+the same AI authorship metadata, selected every week, the day before the report, by
 [`scripts/survival_discover.py`](scripts/survival_discover.py) under a rule
 stated on the [method page](https://causari.dev/method#selection); rows stay
 alphabetical, and one line in `.github/survival-optout.txt` removes a repository.

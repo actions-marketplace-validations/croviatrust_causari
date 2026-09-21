@@ -144,7 +144,7 @@ python3 -m pytest scripts/tests -q
 ## How the list is filled
 
 [`.github/workflows/survival-discover.yml`](../.github/workflows/survival-discover.yml),
-the 1st of every month, 04:23 UTC, or on demand, runs
+every Sunday, 04:23 UTC (the day before the report), or on demand, runs
 `python3 scripts/survival_discover.py` with the workflow token and commits
 `.github/survival-repos.txt` and `.github/survival-discovery.json` to `main`
 as `causari-report[bot]` (same push rules and fallback as the report). The
