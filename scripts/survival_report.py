@@ -656,6 +656,7 @@ def page_head(title: str, desc: str, url: str, image: str, jsonld: dict[str, Any
       <a href="/{REPORTS_REL}/" aria-current="page">reports</a>
       <a href="/method">method</a>
       <a href="/verify/">verify</a>
+      <a href="/faq">faq</a>
       <a href="{REPO_URL}" rel="noopener" class="hide-sm">source</a>
       <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
     </nav>
