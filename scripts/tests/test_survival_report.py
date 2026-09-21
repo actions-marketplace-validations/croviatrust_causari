@@ -536,7 +536,7 @@ class ScaleTests(unittest.TestCase):
         self.assertEqual(repos, sorted(repos, key=str.lower))
         self.assertEqual(self.f["aggregate"]["repositories"], self.N)
         self.assertEqual(self.f["aggregate"]["introduced"], sum(1_000 + 137 * k for k in range(self.N)))
-        self.assertEqual(self.page.count('<tr><td><a href="https://github.com/'), self.N)
+        self.assertEqual(self.page.count('<tr><td><a href="/r/'), self.N)
         self.assertEqual(sum(1 for l in self.md.splitlines() if l.startswith("| ") and "re audit " in l), self.N)
         self.assertEqual(len(self.f["excluded"]["failed"]), 12)
 
