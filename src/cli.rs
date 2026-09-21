@@ -16,7 +16,7 @@ Record (the ledger, in .causari/):
   init      Start a ledger in this repository
   record    Record one agent action (flags or JSON on stdin)
   watch     Record every file change as an event (passive recorder)
-  hook      Install agent-side hooks (`re hook claude-code`)
+  hook      Install agent-side hooks (`re hook claude-code`, `re hook cursor`)
   proxy     Local LLM proxy: prompt, completion, tokens, cost per exchange
   mcp       Run as an MCP server (causari_record / recall / why)
 
@@ -154,7 +154,7 @@ pub enum Command {
     /// assets never appeared in the traffic witnessed by `re proxy --pnx`
     Pnx(PnxArgs),
 
-    /// Install agent-side capture hooks (e.g. `re hook claude-code`)
+    /// Install agent-side capture hooks (`re hook claude-code`, `re hook cursor`)
     Hook(HookArgs),
 
     /// Internal: invoked by agent hooks with a JSON payload on stdin
@@ -583,13 +583,29 @@ pub enum SealCommand {
 
 #[derive(Args, Debug)]
 pub struct HookArgs {
-    /// Agent runtime to hook into (supported: claude-code)
+    /// Agent runtime to hook into (supported: claude-code, cursor)
     pub target: String,
+
+    /// Install into the project: `.claude/settings.json` or
+    /// `.cursor/hooks.json` in the repository root (the default; teams
+    /// commit these)
+    #[arg(long, conflicts_with = "user")]
+    pub project: bool,
+
+    /// Install for this user instead: `~/.cursor/hooks.json` (cursor only;
+    /// cloud agents read the project file, not this one)
+    #[arg(long)]
+    pub user: bool,
+
+    /// Print the merged hooks file instead of writing it
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 #[derive(Args, Debug)]
 pub struct HookEventArgs {
     /// Hook kind: user-prompt | pre-tool | post-tool | session-start
+    /// (Claude Code), or cursor:<event> (Cursor's hooks.json events)
     pub kind: String,
 }
 

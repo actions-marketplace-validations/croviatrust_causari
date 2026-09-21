@@ -79,13 +79,23 @@ pub struct Exchange {
     pub truncated: bool,
 }
 
-/// A user prompt reported by an agent-side hook (e.g. Claude Code).
+/// A user prompt reported by an agent-side hook (e.g. Claude Code, Cursor).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptRecord {
     pub ts_ms: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     pub prompt: String,
+    /// The model the runtime declared for this turn, when its hook payload
+    /// carries one (Cursor does; Claude Code's does not). Absent on lines
+    /// written for Claude Code, so those bytes are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Files and rules the runtime attached to the prompt as context,
+    /// relative to the repository root. Become the `reads` of the events
+    /// this prompt produces.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<String>,
 }
 
 pub fn now_ms() -> u64 {
