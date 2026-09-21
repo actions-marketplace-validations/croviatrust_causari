@@ -582,8 +582,8 @@ def page_head(title: str, desc: str, url: str, image: str, jsonld: dict[str, Any
 <header class="nav" role="banner">
   <div class="container nav-inner">
     <a href="/" class="brand" aria-label="causari home">
-      <img src="/assets/mark.svg" alt="" width="26" height="26" class="mark-light" />
-      <img src="/assets/mark-white.svg" alt="" width="26" height="26" class="mark-dark" />
+      <img src="/assets/mark.svg" alt="" width="34" height="34" class="mark-light" />
+      <img src="/assets/mark-white.svg" alt="" width="34" height="34" class="mark-dark" />
       <span class="brand-name" translate="no">causari</span>
     </a>
     <nav class="nav-links" aria-label="Primary">
