@@ -174,7 +174,7 @@ runs:
 
     - name: Upload audit seal
       if: inputs.seal == 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: causari-audit-seal
         path: causari-audit.seal.json

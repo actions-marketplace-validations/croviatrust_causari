@@ -143,7 +143,7 @@ jobs:
           OUT="$(re --version)"
           [ "$OUT" = "causari ${{ needs.version.outputs.version }}" ] || { echo "launcher ran '$OUT'" >&2; exit 1; }
           causari --version
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pypi-dist
           path: dist/*

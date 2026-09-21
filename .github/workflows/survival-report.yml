@@ -132,7 +132,7 @@ jobs:
       # The shard's bytes: audits, the .err of every failure, the fragment.
       - name: upload shard ${{ matrix.shard }}
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: run-shard-${{ matrix.shard }}
           path: /tmp/run
@@ -248,7 +248,7 @@ jobs:
       # Whatever happened to the pushes, the bytes are not lost.
       - name: upload the report tree
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: survival-report
           path: |
