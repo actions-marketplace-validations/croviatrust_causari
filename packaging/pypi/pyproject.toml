@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "causari"
+version = "0.2.0"
+description = "AI-written code has no author. It has causes. Causari measures how many lines from AI-tagged commits are still alive in any git repo and records the prompt, model and files behind every agent edit."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Crovia Trust", email = "info@croviatrust.com" }]
+requires-python = ">=3.9"
+dependencies = []
+keywords = ["ai", "provenance", "git", "agents", "mcp", "audit", "survival"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Rust",
+  "Topic :: Software Development :: Version Control :: Git",
+  "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://causari.dev"
+Method = "https://causari.dev/method"
+Source = "https://github.com/croviatrust/causari"
+Issues = "https://github.com/croviatrust/causari/issues"
+Changelog = "https://github.com/croviatrust/causari/blob/main/CHANGELOG.md"
+
+[project.scripts]
+causari = "causari_shim:main_causari"
+re = "causari_shim:main_re"
+
+[tool.setuptools]
+packages = ["causari_shim"]

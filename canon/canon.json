@@ -61,6 +61,14 @@
       {
         "path": "plugin/.claude-plugin/plugin.json",
         "pattern": "\"version\": \"([0-9]+\\.[0-9]+\\.[0-9]+)\""
+      },
+      {
+        "path": "packaging/npm/package.json",
+        "pattern": "^  \"version\": \"([0-9]+\\.[0-9]+\\.[0-9]+)\""
+      },
+      {
+        "path": "packaging/pypi/pyproject.toml",
+        "pattern": "^version = \"([0-9]+\\.[0-9]+\\.[0-9]+)\""
       }
     ]
   },
@@ -79,7 +87,10 @@
       "site/llms.txt",
       "site/README.md",
       "docs/survival-report.md",
-      "site/verify/index.html"
+      "site/verify/index.html",
+      "packaging/README.md",
+      "packaging/npm/README.md",
+      "packaging/pypi/README.md"
     ],
     "html": [
       "site/index.html",
@@ -114,6 +125,14 @@
       [
         "scripts/install.ps1",
         "site/install.ps1"
+      ],
+      [
+        "LICENSE",
+        "packaging/npm/LICENSE"
+      ],
+      [
+        "LICENSE",
+        "packaging/pypi/LICENSE"
       ]
     ],
     "generated": {
@@ -229,12 +248,13 @@
       "Aider",
       "Codex CLI",
       "Cursor",
+      "Windsurf",
       "Cline"
     ]
   },
   "release": {
     "asset_pattern": "causari-${TAG}-${TARGET}.tar.gz",
-    "rule": "release.yml, scripts/install.sh, scripts/install.ps1 and action.yml agree on the archive name.",
+    "rule": "release.yml, scripts/install.sh, scripts/install.ps1, action.yml and the registry launchers in packaging/ agree on the archive name.",
     "must_mention": {
       ".github/workflows/release.yml": [
         "causari-${TAG}-${{ matrix.target }}",
@@ -251,6 +271,14 @@
       ],
       "action.yml": [
         "causari-$VERSION-$TARGET.tar.gz",
+        "SHA256SUMS.txt"
+      ],
+      "packaging/npm/lib/shim.js": [
+        "`causari-v${ver}-${tgt}.${ext}`",
+        "SHA256SUMS.txt"
+      ],
+      "packaging/pypi/causari_shim/__init__.py": [
+        "f\"causari-v{version}-{tgt}.{ext}\"",
         "SHA256SUMS.txt"
       ]
     }

@@ -99,6 +99,7 @@ gitignored), with a snapshot of the tree before and after each one.
 ```bash
 re init                       # create .causari/ (added to .gitignore)
 re hook claude-code           # record every Claude Code prompt and edit, exactly
+re hook cursor                # same for Cursor, via its hooks.json (prompt, edit, model)
 re proxy                      # local LLM proxy: prompts, models, tokens, cost
 re watch                      # attribute file changes to captured completions
 
@@ -122,7 +123,8 @@ is kept current; if a cell is wrong, open an issue.
 | **Claude Code** | yes, via lifecycle hooks | not yet (edits travel as `tool_use`, which the proxy does not join to files yet) | `re hook claude-code` |
 | **Aider** | heuristic join, measured | yes | `OPENAI_API_BASE` / `ANTHROPIC_API_BASE` → `re proxy` + `re watch` |
 | **Codex CLI**, OpenAI Agents SDK | not yet (Responses API output not parsed) | yes | `OPENAI_BASE_URL` → `re proxy` |
-| **Cursor**, **Windsurf**, **Copilot** | only what the agent self-reports via MCP | no | `re mcp` |
+| **Cursor** | yes, via native hooks | model yes (the hook names it); tokens and cost no (Cursor's model calls do not pass through `re proxy`) | `re hook cursor` |
+| **Windsurf**, **Copilot** | only what the agent self-reports via MCP | no | `re mcp` |
 | **Cline / Roo**, custom scripts, curl | heuristic join when the completion carries the code as text | yes | base URL → `re proxy` + `re watch` |
 
 Two evidence classes, and every output says which one it is:
@@ -273,6 +275,23 @@ Claude Desktop, Cursor, Windsurf and Cline. The server is listed in the
 - MCP Registry name: mcp-name: io.github.croviatrust/causari
 - One-click for Cursor: [Add causari to Cursor](https://cursor.com/en/install-mcp?name=causari&config=eyJjb21tYW5kIjoicmUiLCJhcmdzIjpbIm1jcCJdfQ%3D%3D)
   (registers `re mcp`; the binary must be on `PATH`)
+
+### In Cursor
+
+`re hook cursor` merges seven command hooks into the project's
+`.cursor/hooks.json` (commit it: teammates and Cursor cloud agents run it
+from the repository root); `--user` merges `~/.cursor/hooks.json` instead
+for one machine, `--dry-run` prints the result. Hooks other people wrote in
+the same file are kept. Each hook runs `re hook-event cursor:<event>`, so
+`re` must be on `PATH` for the Cursor process (the same caveat as the Claude
+Code hooks); without it, or in a project without `re init`, every hook
+answers with a neutral JSON object and nothing is recorded. What lands in
+the ledger: the prompt with its attachments and model
+(`beforeSubmitPrompt`), a snapshot before each shell or write tool
+(`preToolUse`), one event per written file (`afterFileEdit`) and per
+command that changed the tree (`afterShellExecution`), the agent's answer
+next to its prompt (`afterAgentResponse`), and the experience briefing as
+context at `sessionStart`.
 
 ### As a Claude Code plugin
 

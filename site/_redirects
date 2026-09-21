@@ -33,7 +33,7 @@
 /seal           /verify/                                                             301
 /mcp            /#install                                                            301
 /quickstart     /#install                                                            301
-/features       /#ledger                                                             301
+/features       /#record                                                             301
 /manifesto      https://github.com/croviatrust/causari/blob/main/MANIFESTO.md        302
 /roadmap        https://github.com/croviatrust/causari/blob/main/ROADMAP.md          302
 

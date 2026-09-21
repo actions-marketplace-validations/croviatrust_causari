@@ -271,6 +271,9 @@
   const $ = (id) => document.getElementById(id);
   const text = $("vf-text"), run = $("vf-run"), file = $("vf-file"), clear = $("vf-clear"), drop = $("vf-drop"), fname = $("vf-filename");
   const verdict = $("vf-verdict"), states = $("vf-states"), auditTbl = $("vf-audit"), means = $("vf-means"), stepsEl = $("vf-steps");
+  // The result panel explains what will appear until something does.
+  const result = $("vf-result");
+  const showResult = (on) => { if (result) result.classList.toggle("has-result", on); };
   const pct = (x) => (typeof x === "number" ? (x * 100).toFixed(1) + " %" : "n/a");
 
   ed25519Supported().then((ok) => { if (!ok) $("vf-unsupported").hidden = false; });
@@ -286,6 +289,7 @@
     verdict.textContent = "—"; verdict.removeAttribute("data-valid");
     states.replaceChildren(); stepsEl.replaceChildren(); means.textContent = "";
     auditTbl.hidden = true; auditTbl.tBodies[0].replaceChildren();
+    showResult(false);
   }
   function renderSteps(steps) {
     for (const s of steps) {
@@ -309,6 +313,7 @@
   }
   async function verifyNow() {
     reset();
+    showResult(true);
     verdict.textContent = "verifying…";
     const steps = [];
     const r = await verifyDocument(text.value, steps);

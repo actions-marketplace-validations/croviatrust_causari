@@ -299,6 +299,43 @@ def fetch(url: str, follow: bool = True) -> tuple[int, dict, bytes]:
         return 0, {"error": str(e)}, b""
 
 
+def live_word_present(word: str, text: str) -> bool:
+    # Words are matched on word boundaries so a class name such as
+    # "screen-more proof-grid" does not read as the retired command "re proof".
+    # Non-word tokens (emoji, file names, quoted attributes) are matched raw.
+    if re.fullmatch(r"[\w ]+", word):
+        return re.search(rf"\b{re.escape(word)}\b", text) is not None
+    return word in text
+
+
+def local_path_for(url_path: str) -> Path:
+    p = url_path.lstrip("/")
+    if p == "" or p.endswith("/"):
+        p += "index.html"
+    elif "." not in Path(p).name:
+        p += ".html"
+    return ROOT / "site" / p
+
+
+def check_live_words_offline(canon: dict, r: Report) -> None:
+    # The same words the weekly live audit refuses, checked against the files
+    # that will be deployed, so the pre-push gate fails before the site does.
+    live = canon["live"]
+    for url_path, marker in live["pages"].items():
+        f = local_path_for(url_path)
+        if not f.exists():
+            continue
+        text = f.read_text(encoding="utf-8", errors="replace")
+        if marker not in text:
+            r.add("wording", "high", str(f.relative_to(ROOT)), f"live marker {marker!r} absent")
+            continue
+        bad = [w for w in live["forbidden_live_words"] if live_word_present(w, text)]
+        if bad:
+            r.add("wording", "high", str(f.relative_to(ROOT)), f"forbidden live wording: {bad}")
+        else:
+            r.add("wording", "info", str(f.relative_to(ROOT)), "live marker present, no forbidden live wording")
+
+
 def check_live(canon: dict, r: Report) -> None:
     live = canon["live"]
     base = live["base"].rstrip("/")
@@ -311,7 +348,7 @@ def check_live(canon: dict, r: Report) -> None:
         if marker not in text:
             r.add("live", "high", path, f"200 but marker {marker!r} absent; stale deploy?")
         else:
-            bad = [w for w in live["forbidden_live_words"] if w in text]
+            bad = [w for w in live["forbidden_live_words"] if live_word_present(w, text)]
             if bad:
                 r.add("live", "high", path, f"forbidden wording live: {bad}")
             else:
@@ -341,7 +378,7 @@ def main() -> int:
 
     canon = json.loads(read("canon/canon.json"))
     r = Report()
-    for check in (check_versions, check_forbidden, check_required, check_files, check_html, check_assets, check_matrix, check_release):
+    for check in (check_versions, check_forbidden, check_live_words_offline, check_required, check_files, check_html, check_assets, check_matrix, check_release):
         try:
             check(canon, r)
         except Exception as e:  # noqa: BLE001

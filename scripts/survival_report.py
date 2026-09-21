@@ -582,15 +582,15 @@ def page_head(title: str, desc: str, url: str, image: str, jsonld: dict[str, Any
 <header class="nav" role="banner">
   <div class="container nav-inner">
     <a href="/" class="brand" aria-label="causari home">
-      <img src="/assets/mark.svg" alt="" width="26" height="26" class="mark-light" />
-      <img src="/assets/mark-white.svg" alt="" width="26" height="26" class="mark-dark" />
+      <img src="/assets/mark.svg" alt="" width="34" height="34" class="mark-light" />
+      <img src="/assets/mark-white.svg" alt="" width="34" height="34" class="mark-dark" />
       <span class="brand-name" translate="no">causari</span>
     </a>
     <nav class="nav-links" aria-label="Primary">
-      <a href="/#audit" class="hide-sm">audit</a>
       <a href="/{REPORTS_REL}/" aria-current="page">reports</a>
       <a href="/method">method</a>
-      <a href="{REPO_URL}" rel="noopener">source</a>
+      <a href="/verify/">verify</a>
+      <a href="{REPO_URL}" rel="noopener" class="hide-sm">source</a>
       <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark" title="Toggle light and dark">◐</button>
     </nav>
   </div>
@@ -600,12 +600,11 @@ def page_head(title: str, desc: str, url: str, image: str, jsonld: dict[str, Any
 """
 
 
-def page_foot(extra: str = "") -> str:
+def page_foot() -> str:
     return f"""</main>
 
 <footer class="footer">
   <div class="container">
-    {extra}
     <div class="foot-bottom">
       <p>© <span id="year">2026</span> <a href="https://croviatrust.com" rel="noopener">Crovia</a> · <em>causari</em> is a trademark of Crovia Trust. Report text and data <a href="{LICENSE_URL}" rel="license noopener">{LICENSE}</a>.</p>
       <p class="muted">Every number reproducible: <code translate="no">re audit &lt;owner/repo&gt; --json</code> · <a href="/method">method</a> · <a href="/{REPORTS_REL}/feed.xml">feed</a> · <a href="/">causari.dev</a></p>
@@ -620,11 +619,13 @@ def page_foot(extra: str = "") -> str:
 
 
 def positioning_html() -> str:
-    return f"""<div class="rp-positioning">
+    """The positioning statement as a proof card: title, the paragraphs, one command."""
+    return f"""<div class="proof rp-positioning">
       <h3>What this report is, and is not</h3>
       <p>{esc(POSITIONING['is'])}</p>
       <p>{esc(POSITIONING['is_not'])}</p>
       <p>{esc(POSITIONING['context']).replace('arXiv 2601.16809', '<a href="https://arxiv.org/abs/2601.16809" rel="noopener">arXiv 2601.16809</a>')}</p>
+<pre translate="no"><code translate="no">re audit &lt;owner/repo&gt; --json   <span class="dim"># the exact bytes behind any row</span></code></pre>
     </div>"""
 
 
@@ -657,7 +658,6 @@ def repo_rows(rows: list[dict[str, Any]], full: bool) -> str:
         else:
             floor = r["coverage"]["sample_floor"]
             cells.append(f'<td><span class="lb-none" title="Fewer than {floor} AI-tagged commits: one commit can dominate, so no ratio is aggregated">n &lt; {floor}</span></td>')
-        cells.append(f'<td><code translate="no" class="lb-repro">{esc(t)}</code></td>')
         out.append("<tr>" + "".join(cells) + "</tr>")
     return "\n".join(out)
 
@@ -711,32 +711,32 @@ def render_report(f: dict[str, Any]) -> str:
     not_agg = ""
     if f["not_aggregated"]:
         not_agg = f"""
+    <div class="rp-section">
     <h3 id="not-aggregated">Measured but not aggregated</h3>
-    <p class="muted small">Fewer than {m['sample_floor']} AI-tagged commits: the counts are published, the ratio is not, and the repository is left out of the aggregate above.</p>
-    <div class="lb-scroll">
-      <div class="tbl-scroll">
+    <p class="muted">Fewer than {m['sample_floor']} AI-tagged commits: the counts are published, the ratio is not, and the repository is left out of the aggregate above.</p>
+    <div class="tbl-scroll">
       <table class="lb-table">
-        <thead><tr><th>Repository</th><th>Commits</th><th>AI-tagged</th><th>Lines introduced</th><th>Still at HEAD</th><th>Ratio</th><th>Reproduce</th></tr></thead>
+        <thead><tr><th>Repository</th><th>Commits</th><th>AI-tagged</th><th>Lines introduced</th><th>Still at HEAD</th><th>Ratio</th></tr></thead>
         <tbody>
 {repo_rows(f['not_aggregated'], full=False)}
         </tbody>
       </table>
-      </div>
+    </div>
     </div>"""
     agents = ""
     if f["by_agent"]:
         agents = f"""
+    <div class="rp-section">
     <h3 id="by-agent">By agent, across the aggregated repositories</h3>
-    <p class="muted small">Alphabetical. A commit is attributed to the agent its metadata names; one agent per commit.</p>
-    <div class="lb-scroll">
-      <div class="tbl-scroll">
+    <p class="muted">Alphabetical. A commit is attributed to the agent its metadata names; one agent per commit.</p>
+    <div class="tbl-scroll">
       <table class="lb-table">
         <thead><tr><th>Agent</th><th>Repositories</th><th>Commits</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th></tr></thead>
         <tbody>
 {agent_rows(f['by_agent'])}
         </tbody>
       </table>
-      </div>
+    </div>
     </div>"""
     excluded_items = [
         f"<li><strong>Shallow clones</strong> (history truncated; method {esc(m['version'])} refuses them): {esc(', '.join(ex['shallow'])) if ex['shallow'] else 'none'}.</li>",
@@ -758,29 +758,30 @@ def render_report(f: dict[str, Any]) -> str:
       <p class="lede">{esc(headline(f))} <strong>These are counts, not grades.</strong> There is no rank, no colour and no verdict on this page; rows are alphabetical. Every number links to the audit bytes behind it and the <a href="/method">method and its limits</a> are public.</p>
       <p class="rp-meta">{doi_html(f)} · <a href="report.json">report.json</a> · <a href="report.md">report.md</a> · <a href="card.png">card</a> · <a href="/{REPORTS_REL}/feed.xml">Atom feed</a> · <a href="/{REPORTS_REL}/">all reports</a></p>
     </div>
-{strip}
     <img class="rp-card" src="card.png" alt="Survival Report #{f['number']} card" width="1200" height="630" loading="lazy" />
-
+{strip}
+    <div class="rp-section">
     <h3 id="repositories">Repositories</h3>
-    <p class="muted small">Alphabetical. VERIFIED commits only; PROBABLE counts are shown but never summed. <em>Capped</em>: no commit weighs more than the cap. <em>Median per commit</em>: the middle commit's own ratio. <em>Largest commit</em>: share of introduced lines from the single largest commit.</p>
-    <div class="lb-scroll">
-      <div class="tbl-scroll">
+    <p class="muted">Alphabetical. VERIFIED commits only; PROBABLE counts are shown but never summed. <em>Capped</em>: no commit weighs more than the cap. <em>Median per commit</em>: the middle commit's own ratio. <em>Largest commit</em>: share of introduced lines from the single largest commit. Every number links to the audit bytes of this run; <code translate="no">{esc(m['command'])}</code> reproduces a row.</p>
+    <div class="tbl-scroll wide">
       <table class="lb-table" id="repos">
-        <thead><tr><th>Repository</th><th>Commits</th><th>AI-tagged</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Capped</th><th>Median per commit</th><th>Largest commit</th><th>Reproduce</th></tr></thead>
+        <thead><tr><th>Repository</th><th>Commits</th><th>AI-tagged</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Capped</th><th>Median per commit</th><th>Largest commit</th></tr></thead>
         <tbody>
 {repo_rows(f['repositories'], full=True)}
         </tbody>
       </table>
-      </div>
+    </div>
     </div>
 {not_agg}
 {agents}
+    <div class="rp-section">
     <h3 id="excluded">Excluded from this report</h3>
     <ul class="rp-list">
       {''.join(excluded_items)}
     </ul>
+    </div>
 
-    <div class="lb-limits" id="method">
+    <div class="proof rp-section" id="method">
       <h3>Method</h3>
       <ul>
         <li><strong>Method {esc(m['version'])}</strong>, {esc(f['tool']['name'])} {esc(f['tool']['version'])}. Detection from commit metadata only; no model, no guess from the diff. Full text and known artefacts at <a href="/method">causari.dev/method</a>.</li>
@@ -794,10 +795,12 @@ def render_report(f: dict[str, Any]) -> str:
     </div>
 
     <p class="rp-cite">Cite as: <code translate="no">{esc(cite(f))}</code></p>
+
+    {positioning_html()}
   </div>
 </section>
 """
-    return page_head(title, desc, url, img, jsonld) + body + page_foot(positioning_html())
+    return page_head(title, desc, url, img, jsonld) + body + page_foot()
 
 
 def render_index(archive: list[dict[str, Any]]) -> str:
@@ -813,15 +816,16 @@ def render_index(archive: list[dict[str, Any]]) -> str:
         f'<tr><td><a href="/{REPORTS_REL}/{esc(a["id"])}/">Survival Report #{a["number"]}</a></td><td>{esc(a["date"])}</td>'
         f'<td>{a["aggregate"]["repositories"]}</td><td>{fmt_int(a["aggregate"]["ai_tagged_commits"])}</td>'
         f'<td>{fmt_int(a["aggregate"]["introduced"])}</td><td>{fmt_int(a["aggregate"]["surviving"])}</td>'
-        f'<td>{fmt_pct(a["aggregate"]["survival_rate"])}</td><td>{esc(a["method"]["version"])}</td>'
-        f'<td>{("<a href=\"https://doi.org/" + esc(a["doi"]) + "\" rel=\"noopener\">" + esc(a["doi"]) + "</a>") if a.get("doi") else "<span class=\"muted\">pending</span>"}</td></tr>'
+        f'<td>{fmt_pct(a["aggregate"]["survival_rate"])}</td><td class="txt">{esc(a["method"]["version"])}</td>'
+        f'<td class="txt">{("<a href=\"https://doi.org/" + esc(a["doi"]) + "\" rel=\"noopener\">" + esc(a["doi"]) + "</a>") if a.get("doi") else "<span class=\"muted\">pending</span>"}</td></tr>'
         for a in archive
     )
     latest_block = ""
     if latest:
         latest_block = f"""
-    <p class="rp-meta">Latest: <a href="/{REPORTS_REL}/{esc(latest['id'])}/">Survival Report #{latest['number']}</a> · {esc(latest['date'])} — {esc(headline(latest))}</p>
-    <a href="/{REPORTS_REL}/{esc(latest['id'])}/"><img class="rp-card" src="/{REPORTS_REL}/{esc(latest['id'])}/card.png" alt="Survival Report #{latest['number']} card" width="1200" height="630" /></a>"""
+    <a href="/{REPORTS_REL}/{esc(latest['id'])}/"><img class="rp-card" src="/{REPORTS_REL}/{esc(latest['id'])}/card.png" alt="Survival Report #{latest['number']} card" width="1200" height="630" /></a>
+    <p class="rp-latest">Latest: <a href="/{REPORTS_REL}/{esc(latest['id'])}/">Survival Report #{latest['number']}</a> · {esc(latest['date'])} — {esc(headline(latest))}</p>
+    <p><a class="btn btn-primary" href="/{REPORTS_REL}/{esc(latest['id'])}/">Read Survival Report #{latest['number']}</a></p>"""
     body = f"""
 <section class="section">
   <div class="container">
@@ -832,23 +836,25 @@ def render_index(archive: list[dict[str, Any]]) -> str:
       <p class="rp-meta"><a href="/{REPORTS_REL}/feed.xml">Atom feed</a> · <a href="/{REPORTS_REL}/latest.json">latest.json</a> · <a href="{REPO_URL}/blob/main/docs/survival-report.md" rel="noopener">how it is made</a> · <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener">opt out</a> (<code translate="no">.github/survival-optout.txt</code>)</p>
     </div>
 {latest_block}
+    <div class="rp-section">
     <h3 id="archive">All reports</h3>
-    <div class="lb-scroll">
-      <div class="tbl-scroll">
+    <div class="tbl-scroll wide">
       <table class="lb-table" id="archive-table">
-        <thead><tr><th>Report</th><th>Date</th><th>Repositories</th><th>AI-tagged commits</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Method</th><th>DOI</th></tr></thead>
+        <thead><tr><th>Report</th><th>Date</th><th>Repositories</th><th>AI-tagged commits</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th class="txt">Method</th><th class="txt">DOI</th></tr></thead>
         <tbody>
 {rows}
         </tbody>
       </table>
-      </div>
     </div>
-    <p class="muted small">The report replaced the weekly measurements table in September 2026. Repositories are added by pull request to <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a>; maintainers opt out with one line in <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
+    <p class="muted">The report replaced the weekly measurements table in September 2026. Repositories are added by pull request to <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a>; maintainers opt out with one line in <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
+    </div>
+
+    {positioning_html()}
   </div>
 </section>
 """
     image = f"{SITE_URL}/{REPORTS_REL}/{latest['id']}/card.png" if latest else f"{SITE_URL}/assets/og.png"
-    return page_head(title, desc, url, image, jsonld) + body + page_foot(positioning_html())
+    return page_head(title, desc, url, image, jsonld) + body + page_foot()
 
 
 def render_feed(archive: list[dict[str, Any]]) -> str:
