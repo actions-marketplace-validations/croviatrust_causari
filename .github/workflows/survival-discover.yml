@@ -1,0 +1,103 @@
+name: survival-discover
+
+# Weekly, the day before the report: fill .github/survival-repos.txt with the public repositories
+# where AI writes code, found through the GitHub commit search API by the
+# same signals `re audit` classifies as VERIFIED (scripts/survival_discover.py,
+# method page "How repositories are selected"). The hand-picked seeds stay;
+# the discovered part of the list is rewritten, alphabetical, with the
+# counts behind the selection in .github/survival-discovery.json. The next
+# weekly survival-report run measures the new list.
+#
+# The list change is committed to main like a report: plain commit, never a
+# force-push, non-fatal when branch protection rejects the bot (the files are
+# uploaded as an artifact instead).
+on:
+  schedule:
+    - cron: "23 4 * * 0" # every Sunday, 04:23 UTC; the report runs Monday 05:17
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Repositories in the list, seeds included"
+        type: number
+        default: 100
+      dry_run:
+        description: "Print the list; write and commit nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# Never race the weekly report on the push to main.
+concurrency:
+  group: survival-report
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      # See survival-report.yml: REPORT_PUSH_TOKEN lets the commit pass the
+      # branch protection; without it the run still discovers and uploads.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          token: ${{ secrets.REPORT_PUSH_TOKEN || github.token }}
+
+      - name: unit tests
+        run: python3 scripts/tests/test_survival_discover.py
+
+      # A few hundred search requests at 30 per minute: on the order of half
+      # an hour. Rate limits are honoured from the response headers.
+      - name: discover repositories
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          LIMIT="${{ inputs.limit || 100 }}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python3 scripts/survival_discover.py --limit "$LIMIT" --dry-run | tee /tmp/discover.txt
+            exit 0
+          fi
+          python3 scripts/survival_discover.py --limit "$LIMIT" | tee /tmp/discover.txt
+          {
+            echo "## survival-discover · $(date -u +%Y-%m-%d)"
+            echo
+            echo '```'
+            cat /tmp/discover.txt
+            echo '```'
+            echo
+            echo "listed: $(grep -Ev '^\s*(#|$)' .github/survival-repos.txt | wc -l) repositories"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: commit the list to main
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          git config user.name "causari-report[bot]"
+          git config user.email "noreply@causari.dev"
+          git add .github/survival-repos.txt .github/survival-discovery.json
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          N="$(grep -Ev '^\s*(#|$)' .github/survival-repos.txt | wc -l)"
+          git commit -s -m "survival-repos: $N repositories discovered $(date -u +%Y-%m-%d) via GitHub commit search"
+          git pull --rebase origin main
+          if ! git push origin HEAD:main; then
+            echo "::error title=List not pushed::branch protection rejected the push. Add the secret REPORT_PUSH_TOKEN (admin PAT, Contents: read and write) or apply the artifact by hand."
+            echo "PUSH_FAILED=1" >> "$GITHUB_ENV"
+          fi
+
+      # Whatever happened to the push, the selection is not lost.
+      - name: upload the list and the discovery record
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: survival-discovery
+          path: |
+            .github/survival-repos.txt
+            .github/survival-discovery.json
+          if-no-files-found: ignore
+
+      - name: fail if the push was rejected
+        if: ${{ env.PUSH_FAILED == '1' }}
+        run: exit 1
