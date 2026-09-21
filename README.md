@@ -69,6 +69,14 @@ under method v1. One bulk commit can dominate a line-weighted ratio; ratios
 under 5 AI-tagged commits are flagged. All of this is written out at
 [causari.dev/method](https://causari.dev/method), with how to contest a number.
 
+The weekly [Survival Report](https://causari.dev/reports/survival/) runs
+`re audit` on about 100 open-source repositories: a hand-picked list plus the
+public repositories where GitHub commit search finds the most commits carrying
+the same AI authorship metadata, selected once a month by
+[`scripts/survival_discover.py`](scripts/survival_discover.py) under a rule
+stated on the [method page](https://causari.dev/method#selection); rows stay
+alphabetical, and one line in `.github/survival-optout.txt` removes a repository.
+
 ## In CI: a count on every pull request
 
 ```yaml

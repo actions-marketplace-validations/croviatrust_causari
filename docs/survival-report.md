@@ -33,10 +33,19 @@ There is no rank, no colour, no verdict; rows are alphabetical.
 
 It is not a sample of "all AI code". Inline completions (Copilot, Cursor
 Tab, Windsurf) leave no trace in git and are invisible. Untagged agent
-commits are UNKNOWN and never counted. The repositories were added by pull
-request to [`.github/survival-repos.txt`](../.github/survival-repos.txt),
-not drawn at random. The intervals describe the sampled repositories only,
-not a population.
+commits are UNKNOWN and never counted. The repositories in
+[`.github/survival-repos.txt`](../.github/survival-repos.txt) were selected,
+not drawn at random: a hand-picked part added by pull request, and a part
+filled once a month by [`scripts/survival_discover.py`](../scripts/survival_discover.py)
+with the public repositories where GitHub commit search finds the most
+commits carrying the same AI authorship metadata (at least 5, forks,
+archived repositories and opt-outs dropped, up to 100 in total; the rule
+is on the [method page](https://causari.dev/method#selection) and the
+counts behind each selection in
+[`.github/survival-discovery.json`](../.github/survival-discovery.json)).
+That order chooses the sample and nothing else; the list and every report
+page are alphabetical. The intervals describe the sampled repositories
+only, not a population.
 
 ## Prior measurement work
 
@@ -92,10 +101,21 @@ generator: `/survival` → `/reports/survival/`, `/survival-data.json` →
 [`.github/workflows/survival-report.yml`](../.github/workflows/survival-report.yml),
 Mondays 05:17 UTC or on demand:
 
-1. Install the latest release (`causari` and `re`), checksum-verified.
-2. For every repository in `.github/survival-repos.txt` not in
-   `.github/survival-optout.txt`: full `git clone` (method v2 refuses shallow
-   clones), `re audit <clone> --json`, keep the bytes.
+1. Ten `audit` jobs run in parallel (`strategy.matrix.shard: 0…9`,
+   `fail-fast: false`). Each installs the latest release (`causari` and
+   `re`), checksum-verified, and takes every repository of
+   `.github/survival-repos.txt` whose index in the list is `shard mod 10`,
+   skipping `.github/survival-optout.txt`: full `git clone` (method v2
+   refuses shallow clones; 1800 s), `re audit <clone> --json` (3600 s), keep
+   the bytes. A repository that fails is recorded in the shard's `failed`
+   list, never fatal. The shard uploads `/tmp/run` (audits, the `.err` of
+   each failure, `run-shard-<k>.json`) as the artifact `run-shard-<k>`.
+2. The `report` job (`needs: audit`, `if: always()`) downloads every shard
+   into `/tmp/run` and runs `python3 scripts/survival_report.py merge-shards
+   --run /tmp/run`: one `run.json` with the same schema (`generated_at`,
+   `tool`, `tool_version`, `method`, `command`, `repos`, `failed`,
+   `opted_out`); a repository no shard reported (a shard that hit its
+   timeout) is recorded as failed.
 3. `python3 scripts/survival_report.py build --run /tmp/run`: report number =
    existing report directories + 1; writes the report, the archive, the feed,
    `latest.json`, the redirect and sitemap blocks. `scripts/audit_surfaces.py
@@ -120,6 +140,21 @@ python3 scripts/survival_report.py build --run /tmp/run
 python3 scripts/zenodo_deposit.py --dry-run site/reports/survival/2026/01
 python3 -m pytest scripts/tests -q
 ```
+
+## How the list is filled
+
+[`.github/workflows/survival-discover.yml`](../.github/workflows/survival-discover.yml),
+the 1st of every month, 04:23 UTC, or on demand, runs
+`python3 scripts/survival_discover.py` with the workflow token and commits
+`.github/survival-repos.txt` and `.github/survival-discovery.json` to `main`
+as `causari-report[bot]` (same push rules and fallback as the report). The
+script samples the most recent public commits per VERIFIED signal from
+`GET /search/commits`, counts them repository-wide with `repo:`-scoped
+queries, keeps repositories with at least 5, drops forks, archived
+repositories and opt-outs, keeps the hand-picked seeds above the
+`# discovered …` line and fills the list to 100. `--dry-run` prints without
+writing; the tests in `scripts/tests/test_survival_discover.py` run
+against a fake GitHub.
 
 ## Zenodo
 
