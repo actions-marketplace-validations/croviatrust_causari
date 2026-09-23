@@ -159,7 +159,8 @@ re seal verify audit.seal.json  <span class="dim"># or drop the file on causari.
   Repositories with at least 5 such commits (the sample floor) and at least 100 stars are kept;
   forks, archived repositories and every line of <code translate="no">.github/survival-optout.txt</code>
   are dropped; the remaining ones are ordered by stars, then by that count, then by name, and the list
-  is filled to 100 with the hand-picked repositories kept. Stars first, because a raw commit count
+  is filled up to 100 with the hand-picked repositories kept; when fewer clear the floor, the list is
+  shorter, not padded. Stars first, because a raw commit count
   selects contribution-graph painters and mirrors of large projects, which say nothing about how AI code
   fares in software people use. That order exists only to choose the sample: the list file and every
   report page stay alphabetical. The counts behind each selection are published in

@@ -155,7 +155,8 @@ queries, keeps repositories with at least 5 and at least 100 stars
 (`--min-stars`; a raw commit count selects contribution-graph painters and
 mirrors), drops forks, archived repositories and opt-outs, orders by stars
 then commits, keeps the hand-picked seeds above the `# discovered …` line
-and fills the list to 100. `--dry-run` prints without
+and fills the list up to 100 (shorter when fewer clear the floors, never
+padded). `--dry-run` prints without
 writing; the tests in `scripts/tests/test_survival_discover.py` run
 against a fake GitHub.
 
