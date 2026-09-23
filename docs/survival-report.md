@@ -102,14 +102,18 @@ generator: `/survival` → `/reports/survival/`, `/survival-data.json` →
 [`.github/workflows/survival-report.yml`](../.github/workflows/survival-report.yml),
 Mondays 05:17 UTC or on demand:
 
-1. Ten `audit` jobs run in parallel (`strategy.matrix.shard: 0…9`,
+1. Twenty `audit` jobs run in parallel (`strategy.matrix.shard: 0…19`,
    `fail-fast: false`). Each installs the latest release (`causari` and
    `re`), checksum-verified, and takes every repository of
-   `.github/survival-repos.txt` whose index in the list is `shard mod 10`,
+   `.github/survival-repos.txt` whose index in the list is `shard mod 20`,
    skipping `.github/survival-optout.txt`: full `git clone` (method v2
-   refuses shallow clones; 1800 s), `re audit <clone> --json` (3600 s), keep
-   the bytes. A repository that fails is recorded in the shard's `failed`
-   list, never fatal. The shard uploads `/tmp/run` (audits, the `.err` of
+   refuses shallow clones; `CLONE_TIMEOUT_S`, 1800 s), a commit graph
+   (`git commit-graph write --reachable --changed-paths`, faster blame,
+   same results), `re audit <clone> --json` (`AUDIT_TIMEOUT_S`, 10800 s: a
+   full `-w -M -C` blame of ~20,000 files over ~20,000 commits takes about
+   two hours on a 4-core runner), keep the bytes. A repository that fails
+   is recorded in the shard's `failed` list, never fatal; a timeout is
+   logged as such and written to the repository's `.err`. The shard uploads `/tmp/run` (audits, the `.err` of
    each failure, `run-shard-<k>.json`) as the artifact `run-shard-<k>`.
 2. The `report` job (`needs: audit`, `if: always()`) downloads every shard
    into `/tmp/run` and runs `python3 scripts/survival_report.py merge-shards

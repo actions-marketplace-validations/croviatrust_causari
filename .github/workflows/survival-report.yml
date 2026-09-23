@@ -9,7 +9,7 @@ name: survival-report
 # Maintainers opt out with one line in .github/survival-optout.txt.
 #
 # Method v2 refuses shallow clones, so every repository is cloned in full
-# before it is measured. The list (~100 repositories, filled monthly by
+# before it is measured. The list (up to 100 repositories, filled weekly by
 # survival-discover.yml) is audited by a matrix of SHARDS jobs: shard k
 # takes every repository whose index in the list is k mod SHARDS, uploads
 # its results as an artifact, and the report job merges the shards, builds
@@ -37,22 +37,29 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SHARDS: 10
+  SHARDS: 20
+  # Per repository: the clone and the audit each get their own ceiling. A
+  # full blame (-w -M -C) of a repository with ~20,000 files and ~20,000
+  # commits takes about two hours on a 4-core runner; report #2 lost
+  # airbyte, flutter, spark, fern and dotnet-inspect to a 60-minute ceiling.
+  CLONE_TIMEOUT_S: 1800
+  AUDIT_TIMEOUT_S: 10800
 
 jobs:
-  # One job per shard. A repository that fails to clone or to audit is
-  # recorded in the shard's `failed` list and never fails the job; a shard
-  # that hits its own timeout leaves its remaining repositories unreported,
-  # and the merge records those as failed too.
+  # One job per shard (up to five repositories each at a 100-repository
+  # list). A repository that fails to clone or to audit is recorded in the
+  # shard's `failed` list and never fails the job; a shard that hits its own
+  # timeout leaves its remaining repositories unreported, and the merge
+  # records those as failed too.
   audit:
     if: ${{ !inputs.deposit_only }}
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 350
     strategy:
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 20
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -105,13 +112,23 @@ jobs:
             echo "::group::auditing $repo"
             CLONE="/tmp/clones/$slug"
             rm -rf "$CLONE"
-            if timeout 1800 git clone --quiet --single-branch "https://github.com/$repo" "$CLONE" \
+            # The commit graph makes blame's history walks cheaper; it
+            # changes no result. The audit's own exit code is kept so a
+            # timeout (124) is told apart from a measurement failure.
+            rc=0
+            if timeout "$CLONE_TIMEOUT_S" git clone --quiet --single-branch "https://github.com/$repo" "$CLONE" \
                && (cd "$CLONE" && git fetch --quiet origin '+refs/notes/ai:refs/notes/ai' 2>/dev/null || true) \
-               && timeout 3600 re audit "$CLONE" --json > "$RUN/$slug.json" 2>"$RUN/$slug.err"; then
+               && (cd "$CLONE" && git commit-graph write --reachable --changed-paths 2>/dev/null || true) \
+               && { timeout "$AUDIT_TIMEOUT_S" re audit "$CLONE" --json > "$RUN/$slug.json" 2>"$RUN/$slug.err" || rc=$?; [ "$rc" -eq 0 ]; }; then
               jq -r '"\(.total_commits) commits · verified \(.verified.commits) commits, \(.verified.introduced) introduced, \(.verified.surviving) surviving · shallow=\(.coverage.shallow) small_sample=\(.coverage.small_sample)"' "$RUN/$slug.json"
               rm -f "$RUN/$slug.err"
             else
-              echo "audit failed for $repo (skipped):"
+              if [ "$rc" -eq 124 ]; then
+                echo "audit failed for $repo (skipped): timed out after ${AUDIT_TIMEOUT_S}s"
+                echo "timed out after ${AUDIT_TIMEOUT_S}s" >> "$RUN/$slug.err"
+              else
+                echo "audit failed for $repo (skipped):"
+              fi
               tail -n 3 "$RUN/$slug.err" 2>/dev/null || true
               rm -f "$RUN/$slug.json"
               FAILED+=("$repo")
