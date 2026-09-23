@@ -72,7 +72,7 @@ under 5 AI-tagged commits are flagged. All of this is written out at
 The questions people ask, answered with the command and the limit: [causari.dev/faq](https://causari.dev/faq); how this differs from `git blame`, vendor dashboards and churn reports: [causari.dev/compare](https://causari.dev/compare).
 
 The weekly [Survival Report](https://causari.dev/reports/survival/) runs
-`re audit` on about 100 open-source repositories: a hand-picked list plus the
+`re audit` on up to 100 open-source repositories: a hand-picked list plus the
 most-starred public repositories (at least 100 stars) where GitHub commit search
 finds at least five commits carrying the same AI authorship metadata, selected
 every week, the day before the report, by
