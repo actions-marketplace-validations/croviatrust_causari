@@ -165,7 +165,7 @@ def read_repo_list(root: Path) -> list[str]:
 SELECTION_BY_PR = "the repositories were added by pull request, not drawn at random."
 SELECTION_SERIES = (
     "the repositories were selected, not drawn at random: a hand-picked list and the public repositories in which "
-    "GitHub commit search finds the most commits carrying the same AI authorship metadata; each report states its own selection."
+    "GitHub commit search finds at least five commits carrying the same AI authorship metadata, most-starred first; each report states its own selection."
 )
 
 
@@ -181,10 +181,12 @@ def selection_sentence(root: Path) -> str:
     seeds = sum(1 for r in rows if r.get("seed"))
     found = len(rows) - seeds
     floor = (d.get("selection") or {}).get("floor", 5)
+    min_stars = (d.get("selection") or {}).get("min_stars")
+    stars = f" and at least {min_stars} stars, most-starred first" if min_stars else ""
     date = str(d.get("discovered_at") or "")[:10]
     return (
         f"the repositories were selected, not drawn at random: {seeds} hand-picked and {found} found by GitHub commit search "
-        f"as public repositories with at least {floor} commits carrying the same AI authorship metadata"
+        f"as public repositories with at least {floor} commits carrying the same AI authorship metadata{stars}"
         f"{' (discovered ' + date + ')' if date else ''}; the selection rule and the counts behind it are public."
     )
 
@@ -913,7 +915,7 @@ def render_index(archive: list[dict[str, Any]]) -> str:
         </tbody>
       </table>
     </div>
-    <p class="muted">The report replaced the weekly measurements table in September 2026. Repositories enter <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a> by pull request or through the weekly discovery, which lists the public repositories where GitHub commit search finds the most commits carrying AI authorship metadata (<a href="/method#selection">how repositories are selected</a>); maintainers opt out with one line in <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
+    <p class="muted">The report replaced the weekly measurements table in September 2026. Repositories enter <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a> by pull request or through the weekly discovery, which lists the most-starred public repositories where GitHub commit search finds at least five commits carrying AI authorship metadata (<a href="/method#selection">how repositories are selected</a>); maintainers opt out with one line in <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
     <p><a href="/{REPOS_REL}/">Every repository has a page and a badge</a>: its counts across reports, the exact bytes behind each number, and a README badge that follows the latest report.</p>
     </div>
 

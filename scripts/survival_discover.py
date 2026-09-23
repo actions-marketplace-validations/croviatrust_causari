@@ -24,10 +24,14 @@ Selection rule
        ``total_count``: the number of matching commits in that repository,
        not just in the sample. A repository's count is the sum over its
        signals (a commit carrying two signals counts twice).
-    3. Floor. Keep repositories with at least ``--floor`` matching commits
-       (the method's sample floor, 5). Drop forks, archived repositories
-       and every line of ``.github/survival-optout.txt``.
-    4. Order by matching commits, then ``stargazers_count``, then name;
+    3. Floors. Keep repositories with at least ``--floor`` matching commits
+       (the method's sample floor, 5) and at least ``--min-stars`` stars
+       (100): the first floor says AI writes there, the second says people
+       use it. Without the second the list fills with contribution-graph
+       painters, kernel mirrors and one-person experiments, which a count
+       of trailers cannot tell from a project. Drop forks, archived
+       repositories and every line of ``.github/survival-optout.txt``.
+    4. Order by ``stargazers_count``, then matching commits, then name;
        keep the hand-picked seeds already in the list; fill up to
        ``--limit`` repositories.
 
@@ -41,7 +45,7 @@ Outputs
 
 Usage::
 
-    GITHUB_TOKEN=… python3 scripts/survival_discover.py [--limit 100] [--floor 5] [--pages 10] [--dry-run]
+    GITHUB_TOKEN=… python3 scripts/survival_discover.py [--limit 100] [--floor 5] [--min-stars 100] [--pages 10] [--dry-run]
 
 Standard library only. Search endpoints allow 30 requests per minute with a
 token (10 without); the script paces itself and sleeps on 403/429 as the
@@ -73,6 +77,7 @@ SCHEMA = "causari.survival_discovery.v1"
 USER_AGENT = "causari-survival-discover/1.0 (+https://causari.dev/method)"
 MARKER = "# discovered "
 FLOOR = 5
+MIN_STARS = 100
 LIMIT = 100
 PAGES = 10
 PER_PAGE = 100
@@ -343,17 +348,17 @@ def complete_details(client: Client, rows: list[dict[str, Any]]) -> list[str]:
 
 
 def rank_key(r: dict[str, Any]) -> tuple[int, int, str]:
-    return (-int(r["commits"]), -int(r.get("stars") or 0), r["repo"].lower())
+    return (-int(r.get("stars") or 0), -int(r["commits"]), r["repo"].lower())
 
 
 def select(rows: list[dict[str, Any]], seeds: list[str], optout: set[str], floor: int, limit: int,
-           unavailable: list[str]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+           unavailable: list[str], min_stars: int = MIN_STARS) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Apply floor, exclusions and the limit. Returns the discovered
     repositories in selection order (seeds excluded) and an account of what
     was dropped."""
     seed_keys = {s.lower() for s in seeds}
     gone = {u.lower() for u in unavailable}
-    dropped: dict[str, Any] = {"below_floor": 0, "fork": [], "archived": [], "opted_out": [],
+    dropped: dict[str, Any] = {"below_floor": 0, "below_stars": [], "fork": [], "archived": [], "opted_out": [],
                                "unavailable": sorted(unavailable, key=str.lower), "over_limit": []}
     eligible: list[dict[str, Any]] = []
     for r in rows:
@@ -361,6 +366,9 @@ def select(rows: list[dict[str, Any]], seeds: list[str], optout: set[str], floor
             dropped["below_floor"] += 1
             continue
         if r["repo"].lower() in gone or (r.get("renamed_from") or "").lower() in gone:
+            continue
+        if int(r.get("stars") or 0) < min_stars:
+            dropped["below_stars"].append(r["repo"])
             continue
         if r.get("fork"):
             dropped["fork"].append(r["repo"])
@@ -386,7 +394,7 @@ def select(rows: list[dict[str, Any]], seeds: list[str], optout: set[str], floor
     room = max(0, limit - len(seed_keys))
     discovered = [r for r in ranked if r["repo"].lower() not in seed_keys]
     dropped["over_limit"] = [r["repo"] for r in discovered[room:]]
-    for k in ("fork", "archived", "opted_out"):
+    for k in ("below_stars", "fork", "archived", "opted_out"):
         dropped[k].sort(key=str.lower)
     return discovered[:room], dropped
 
@@ -407,11 +415,11 @@ def split_list(text: str) -> tuple[list[str], list[str], list[str]]:
     return head, seeds, previous
 
 
-def render_list(head: list[str], discovered: list[str], date: str, floor: int) -> str:
+def render_list(head: list[str], discovered: list[str], date: str, floor: int, min_stars: int = MIN_STARS) -> str:
     names = sorted(discovered, key=str.lower)
     out = list(head)
-    out.append(f"{MARKER}{date} by scripts/survival_discover.py: {len(names)} repositories, "
-               f"≥{floor} AI-attributed commits found via GitHub commit search")
+    out.append(f"{MARKER}{date} by scripts/survival_discover.py: {len(names)} repositories, the most-starred public "
+               f"repositories with ≥{floor} AI-attributed commits found via GitHub commit search and ≥{min_stars} stars")
     out.append("# Alphabetical. Counts per signal and the selection rule: .github/survival-discovery.json")
     out.extend(names)
     return "\n".join(out) + "\n"
@@ -420,6 +428,7 @@ def render_list(head: list[str], discovered: list[str], date: str, floor: int) -
 # ----------------------------------------------------------------------------- run
 
 def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT, pages: int = PAGES, per_page: int = PER_PAGE,
+             min_stars: int = MIN_STARS,
              candidate_min: int = CANDIDATE_MIN, verify_max: int = VERIFY_MAX, verify: bool = True,
              signals: dict[str, str] | None = None, now: str | None = None) -> dict[str, Any]:
     signals = signals or SIGNALS
@@ -458,7 +467,7 @@ def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT,
 
     # 3. + 4. floor, exclusions, order, limit
     unavailable = complete_details(client, rows)
-    discovered, dropped = select(rows, seeds, optout, floor, limit, unavailable)
+    discovered, dropped = select(rows, seeds, optout, floor, limit, unavailable, min_stars)
     dropped["below_floor"] += len(cands) - len(rows)
     dropped["not_candidates"] = len(repos) - len(cands)
     dropped["unverified"] = sorted(unverified, key=str.lower)
@@ -488,10 +497,10 @@ def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT,
         "selection": {
             "rule": "sample the most recent matching commits per signal; a repository sampled at least `candidate_min` times is a "
                     "candidate (at most `verify_max`); its count is the sum over its signals of the repository-wide total_count "
-                    "(a commit carrying two signals counts twice); keep repositories with at least `floor` commits; drop forks, "
-                    "archived repositories and .github/survival-optout.txt; order by commits, then stargazers_count, then name; "
-                    "keep the hand-picked seeds; fill up to `limit`. Rows below are alphabetical.",
-            "floor": floor, "limit": limit, "pages": pages, "per_page": per_page, "candidate_min": candidate_min,
+                    "(a commit carrying two signals counts twice); keep repositories with at least `floor` commits and at least "
+                    "`min_stars` stars; drop forks, archived repositories and .github/survival-optout.txt; order by stargazers_count, "
+                    "then commits, then name; keep the hand-picked seeds; fill up to `limit`. Rows below are alphabetical.",
+            "floor": floor, "min_stars": min_stars, "limit": limit, "pages": pages, "per_page": per_page, "candidate_min": candidate_min,
             "verify_max": verify_max, "verified": bool(verify), "sort": "author-date desc (most recent first)",
             "qualifiers": f"{QUALIFIERS} author-date:<={today}",
         },
@@ -506,7 +515,7 @@ def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT,
         "repositories_sampled": len(repos),
         "dropped": dropped,
     }
-    result["_list_text"] = render_list(head, [r["repo"] for r in discovered], today, floor)
+    result["_list_text"] = render_list(head, [r["repo"] for r in discovered], today, floor, min_stars)
     return result
 
 
@@ -521,7 +530,8 @@ def summary(result: dict[str, Any]) -> str:
     d = result["dropped"]
     return (f"survival_discover: {result['repositories_sampled']} repositories sampled, {result['candidates']} counted · "
             f"{n_disc} discovered + {len(result['seeds'])} seeds = {n_disc + len(result['seeds'])} listed "
-            f"(limit {result['selection']['limit']}) · dropped: {d['below_floor']} below floor, {len(d['fork'])} forks, "
+            f"(limit {result['selection']['limit']}) · dropped: {d['below_floor']} below floor, {len(d['below_stars'])} below "
+            f"{result['selection']['min_stars']} stars, {len(d['fork'])} forks, "
             f"{len(d['archived'])} archived, {len(d['opted_out'])} opted out, {len(d['unavailable'])} unavailable, "
             f"{len(d['over_limit'])} over the limit · {result['requests']} requests"
             + (f" · incomplete: {', '.join(result['incomplete_signals'])}" if result["incomplete_signals"] else ""))
@@ -532,6 +542,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--root", default=str(ROOT), help="repository root (default: the checkout this script lives in)")
     ap.add_argument("--limit", type=int, default=LIMIT, help=f"repositories in the list, seeds included (default {LIMIT})")
     ap.add_argument("--floor", type=int, default=FLOOR, help=f"minimum matching commits per repository (default {FLOOR}, the sample floor)")
+    ap.add_argument("--min-stars", type=int, default=MIN_STARS, help=f"minimum stargazers_count (default {MIN_STARS})")
     ap.add_argument("--pages", type=int, default=PAGES, help=f"sample pages per signal (default {PAGES}; the API stops at 1,000 results)")
     ap.add_argument("--per-page", type=int, default=PER_PAGE, help=f"results per page, max 100 (default {PER_PAGE})")
     ap.add_argument("--candidate-min", type=int, default=CANDIDATE_MIN, help=f"sampled commits that make a repository a candidate (default {CANDIDATE_MIN})")
@@ -547,6 +558,7 @@ def main(argv: list[str] | None = None) -> int:
     client = Client(lambda url: urllib_fetch(url, token), pace_s=args.pace if token else 7.0)
     root = Path(args.root)
     result = discover(client, root, floor=args.floor, limit=args.limit, pages=args.pages, per_page=min(100, max(1, args.per_page)),
+                      min_stars=args.min_stars,
                       candidate_min=args.candidate_min, verify_max=args.verify_max, verify=not args.no_verify)
     if args.dry_run:
         sys.stdout.write(result["_list_text"])
