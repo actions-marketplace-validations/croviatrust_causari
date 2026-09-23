@@ -90,7 +90,7 @@ jobs:
       # Whatever happened to the push, the selection is not lost.
       - name: upload the list and the discovery record
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: survival-discovery
           path: |
