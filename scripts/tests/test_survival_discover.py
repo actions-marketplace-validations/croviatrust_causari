@@ -128,6 +128,7 @@ def run(gh: FakeGitHub, s: Scratch, **kw) -> dict:
     client = sd.Client(gh.fetch, sleep=gh.sleep, log=lambda _s: None)
     kw.setdefault("signals", SIGNALS)
     kw.setdefault("now", NOW)
+    kw.setdefault("min_stars", 0)  # the star floor has its own test; the others exercise counting
     result = sd.discover(client, s.root, **kw)
     sd.write_outputs(result, s.root)
     return s.json()
@@ -165,9 +166,9 @@ class SelectionTests(unittest.TestCase):
             # the list: header verbatim, seeds first, marker, discovered alphabetical
             text = s.list_text()
             self.assertTrue(text.startswith(HEADER))
-            self.assertIn("# discovered 2026-10-01 by scripts/survival_discover.py: 3 repositories, "
-                          "≥5 AI-attributed commits found via GitHub commit search\n", text)
-            tail = text.split("commit search\n", 1)[1].splitlines()
+            self.assertIn("# discovered 2026-10-01 by scripts/survival_discover.py: 3 repositories, the most-starred public "
+                          "repositories with ≥5 AI-attributed commits found via GitHub commit search and ≥0 stars\n", text)
+            tail = text.split("≥0 stars\n", 1)[1].splitlines()
             self.assertEqual([l for l in tail if not l.startswith("#")], ["Big/Repo", "Mid/one", "mid/two"])
             # rows in the JSON are alphabetical too, with stars and discovered_at
             self.assertEqual([r["repo"] for r in j["repositories"]], sorted((r["repo"] for r in j["repositories"]), key=str.lower))
@@ -195,14 +196,14 @@ class SelectionTests(unittest.TestCase):
         finally:
             s.close()
 
-    def test_limit_uses_commits_then_stars_and_keeps_seeds(self) -> None:
+    def test_limit_uses_stars_then_commits_and_keeps_seeds(self) -> None:
         samples = {SIGNALS[CLAUDE]: commits("a/eight", 8) + commits("b/six-popular", 6) + commits("c/six-quiet", 6) + commits("d/five", 5)}
         details = {"a/eight": {"stars": 1}, "b/six-popular": {"stars": 500}, "c/six-quiet": {"stars": 2}, "d/five": {"stars": 9000}}
         s = Scratch()
         try:
             j = run(FakeGitHub(samples, details), s, limit=4)  # 2 seeds + 2 discovered
-            self.assertEqual(sorted(discovered(j)), ["a/eight", "b/six-popular"])
-            self.assertEqual(j["dropped"]["over_limit"], ["c/six-quiet", "d/five"])
+            self.assertEqual(sorted(discovered(j)), ["b/six-popular", "d/five"])
+            self.assertEqual(j["dropped"]["over_limit"], ["c/six-quiet", "a/eight"])  # 2 stars, then 1
             self.assertEqual(j["seeds"], ["Aider-AI/aider", "croviatrust/causari"])
             self.assertIn("Aider-AI/aider\n", s.list_text())
         finally:
@@ -228,6 +229,20 @@ class SelectionTests(unittest.TestCase):
             seed = next(r for r in j["repositories"] if r["repo"] == "Aider-AI/aider")
             self.assertTrue(seed["seed"])
             self.assertEqual(seed["commits"], 20)
+        finally:
+            s.close()
+
+    def test_star_floor_drops_painters_and_mirrors_and_says_so(self) -> None:
+        # 912 sampled commits: inside the 1000-result window the search API serves
+        samples = {SIGNALS[CLAUDE]: commits("bot/graph-painter", 600) + commits("org/mirror", 300) + commits("real/project", 12)}
+        details = {"bot/graph-painter": {"stars": 43}, "org/mirror": {"stars": 0}, "real/project": {"stars": 2400}}
+        s = Scratch()
+        try:
+            j = run(FakeGitHub(samples, details), s, min_stars=100)
+            self.assertEqual(discovered(j), ["real/project"])
+            self.assertEqual(j["dropped"]["below_stars"], ["bot/graph-painter", "org/mirror"])
+            self.assertEqual(j["selection"]["min_stars"], 100)
+            self.assertIn("≥100 stars", s.list_text())
         finally:
             s.close()
 
@@ -330,7 +345,7 @@ class ListFileTests(unittest.TestCase):
             out = io.StringIO()
             try:
                 with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-                    rc = sd.main(["--root", str(s.root), "--dry-run", "--pages", "1"])
+                    rc = sd.main(["--root", str(s.root), "--dry-run", "--pages", "1", "--min-stars", "0"])
             finally:
                 sd.urllib_fetch, sd.time.sleep, sd.SIGNALS = saved
             self.assertEqual(rc, 0)

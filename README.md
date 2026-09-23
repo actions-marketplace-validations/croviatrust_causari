@@ -73,8 +73,9 @@ The questions people ask, answered with the command and the limit: [causari.dev/
 
 The weekly [Survival Report](https://causari.dev/reports/survival/) runs
 `re audit` on about 100 open-source repositories: a hand-picked list plus the
-public repositories where GitHub commit search finds the most commits carrying
-the same AI authorship metadata, selected every week, the day before the report, by
+most-starred public repositories (at least 100 stars) where GitHub commit search
+finds at least five commits carrying the same AI authorship metadata, selected
+every week, the day before the report, by
 [`scripts/survival_discover.py`](scripts/survival_discover.py) under a rule
 stated on the [method page](https://causari.dev/method#selection); rows stay
 alphabetical, and one line in `.github/survival-optout.txt` removes a repository.

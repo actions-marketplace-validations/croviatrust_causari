@@ -36,10 +36,11 @@ Tab, Windsurf) leave no trace in git and are invisible. Untagged agent
 commits are UNKNOWN and never counted. The repositories in
 [`.github/survival-repos.txt`](../.github/survival-repos.txt) were selected,
 not drawn at random: a hand-picked part added by pull request, and a part
-filled once a month by [`scripts/survival_discover.py`](../scripts/survival_discover.py)
-with the public repositories where GitHub commit search finds the most
-commits carrying the same AI authorship metadata (at least 5, forks,
-archived repositories and opt-outs dropped, up to 100 in total; the rule
+filled every week by [`scripts/survival_discover.py`](../scripts/survival_discover.py)
+with the most-starred public repositories where GitHub commit search finds
+at least five commits carrying the same AI authorship metadata (at least
+100 stars; forks, archived repositories and opt-outs dropped; stars first,
+then commits; up to 100 in total; the rule
 is on the [method page](https://causari.dev/method#selection) and the
 counts behind each selection in
 [`.github/survival-discovery.json`](../.github/survival-discovery.json)).
@@ -150,9 +151,11 @@ every Sunday, 04:23 UTC (the day before the report), or on demand, runs
 as `causari-report[bot]` (same push rules and fallback as the report). The
 script samples the most recent public commits per VERIFIED signal from
 `GET /search/commits`, counts them repository-wide with `repo:`-scoped
-queries, keeps repositories with at least 5, drops forks, archived
-repositories and opt-outs, keeps the hand-picked seeds above the
-`# discovered …` line and fills the list to 100. `--dry-run` prints without
+queries, keeps repositories with at least 5 and at least 100 stars
+(`--min-stars`; a raw commit count selects contribution-graph painters and
+mirrors), drops forks, archived repositories and opt-outs, orders by stars
+then commits, keeps the hand-picked seeds above the `# discovered …` line
+and fills the list to 100. `--dry-run` prints without
 writing; the tests in `scripts/tests/test_survival_discover.py` run
 against a fake GitHub.
 
