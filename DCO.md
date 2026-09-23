@@ -70,3 +70,11 @@ maintainers relicense contributions, including under proprietary terms.
 That is the wrong shape for a project whose point is that anyone can verify
 what it says. Contributions made under the CLA keep the terms they were
 made under; everything from this date on is DCO and Apache 2.0, full stop.
+
+## Automated commits
+
+Commits authored by dependency and report bots (`dependabot[bot]`,
+`renovate[bot]`, `github-actions[bot]`, `causari-report[bot]`) are not
+contributions under this certificate: a bot cannot certify origin, and the
+change is a version string or generated data. The `dco` check skips them; a
+maintainer reviews and merges them like any other change.

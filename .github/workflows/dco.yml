@@ -29,6 +29,13 @@ jobs:
             [ -n "$sha" ] || continue
             author_email="$(git show -s --format='%ae' "$sha")"
             author_name="$(git show -s --format='%an' "$sha")"
+            # Automated dependency updates are not contributions under the DCO:
+            # the bot cannot certify origin, and the change is a version string.
+            case "$author_name" in
+              dependabot\[bot\]|renovate\[bot\]|github-actions\[bot\]|causari-report\[bot\])
+                echo "commit ${sha:0:10} by $author_name: automated, not subject to the DCO"
+                continue ;;
+            esac
             if ! git show -s --format='%(trailers:key=Signed-off-by,valueonly)' "$sha" | grep -q .; then
               echo "::error::commit ${sha:0:10} has no Signed-off-by trailer ($author_name <$author_email>)"
               missing=1
