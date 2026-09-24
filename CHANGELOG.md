@@ -3,7 +3,15 @@
 Each section is the release note of the tag with the same number; the
 release workflow copies it verbatim. Counts, not adjectives.
 
-## Unreleased
+## 0.3.0 — 2026-09-24
+
+Method v3: `re audit` compares AI-tagged lines with the same repository's
+untagged lines of the same age, so every ratio now has a baseline from
+the same tree, the same reviewers and the same history. Cursor native
+hooks, secret redaction before every clear-text write, a threat model,
+and a Survival Report that corrects by revision and counts a renamed
+repository once. Every v2 figure is computed exactly as before; the
+audit JSON gains a `baseline` block and the report schema is unchanged.
 
 ### Record
 
