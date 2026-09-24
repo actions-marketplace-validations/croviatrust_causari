@@ -106,8 +106,10 @@ release workflow copies it verbatim. Counts, not adjectives.
   gains `baseline` (untagged figures, the by-age windows, the age-matched
   gap, the oldest surviving line); the page and `report.md` add the
   columns "Untagged, same age" and "Gap", a Baseline section with the age
-  windows pooled across repositories, the median gap across repositories
-  with its bootstrap interval, how many gaps fall on each side of zero,
+  windows summed across repositories as counts (no gap is computed on the
+  sums: it would be the gap of the largest repository), the median gap
+  across repositories with its bootstrap interval, how many gaps fall on
+  each side of zero,
   and the list of repositories where more than half of the commits
   predate the oldest line still at HEAD (cleared or rewritten; marked
   "· rewritten" in the table). Repository pages and `latest.json` carry

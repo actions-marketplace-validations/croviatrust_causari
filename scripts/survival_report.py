@@ -349,20 +349,10 @@ def aggregate_baseline(aggregated: list[dict[str, Any]], seed: int, sample_floor
             c = acc[cohort]
             c["survival_rate"] = (c["surviving"] / c["introduced"]) if c["introduced"] else None
         pooled_by_age.append(acc)
-    usable = [w for w in pooled_by_age
-              if w["tagged"]["commits"] >= sample_floor and w["untagged"]["commits"] >= sample_floor
-              and w["tagged"]["introduced"] and w["untagged"]["introduced"]]
-    pooled_age_matched = None
-    total_tagged = sum(w["tagged"]["introduced"] for w in pooled_by_age)
-    if usable and total_tagged:
-        t_intro = sum(w["tagged"]["introduced"] for w in usable)
-        t_surv = sum(w["tagged"]["surviving"] for w in usable)
-        u_weighted = sum(w["tagged"]["introduced"] * w["untagged"]["survival_rate"] for w in usable)
-        pooled_age_matched = {
-            "tagged_rate": t_surv / t_intro, "untagged_rate": u_weighted / t_intro,
-            "gap": t_surv / t_intro - u_weighted / t_intro, "buckets_used": len(usable),
-            "tagged_lines_covered": t_intro / total_tagged,
-        }
+    # No gap is computed across repositories: pooled windows mix one
+    # repository's rewrite with another's bulk commit, which is exactly what
+    # the within-repository gap avoids. The windows are published as counts;
+    # only the median of per-repository gaps crosses repositories.
     return {
         "repositories": len(with_baseline),
         "repositories_with_gap": len(with_gap),
@@ -373,11 +363,15 @@ def aggregate_baseline(aggregated: list[dict[str, Any]], seed: int, sample_floor
         "rewritten": sorted((r["repo"] for r in aggregated if rewritten(r)), key=str.lower),
         "rewritten_rule": f"more than {REWRITTEN_SHARE:.0%} of the repository's commits predate the oldest line still at HEAD",
         "pooled_by_age": pooled_by_age,
-        "pooled_age_matched": pooled_age_matched,
+        "pooled_by_age_note": (
+            "counts summed across the repositories with a baseline, one row per age window; one large repository "
+            "can dominate a window, so no gap is computed from these rows: the gap is computed inside each "
+            "repository and only its median crosses repositories"
+        ),
         "definition": (
             "gap = AI-tagged line-weighted survival minus untagged survival re-weighted to the age mix of the "
             "AI-tagged lines of the same repository, over age windows where both cohorts hold at least "
-            f"{sample_floor} commits; untagged = commits with no machine-readable AI signal (human-written, "
+            f"{sample_floor} commits, computed inside each repository; untagged = commits with no machine-readable AI signal (human-written, "
             "inline-completed and untagged-agent code alike); age = commit date to HEAD date. A negative gap "
             "means AI-tagged lines survive less than untagged lines of the same age in the same repository."
         ),
@@ -698,15 +692,11 @@ def baseline_md(f: dict[str, Any]) -> list[str]:
         if iv:
             lines.append(f"- 95 % bootstrap interval on that median: {fmt_gap(iv['low'])} to {fmt_gap(iv['high'])}")
         lines.append(f"- Gaps below zero: {b['gaps_negative']} · above zero: {b['gaps_positive']}")
-    pm = b.get("pooled_age_matched")
-    if pm:
-        lines.append(f"- Pooled over all baselines: AI-tagged {fmt_pct(pm['tagged_rate'])} vs untagged {fmt_pct(pm['untagged_rate'])} "
-                     f"of the same age ({fmt_gap(pm['gap'])}), over {pm['buckets_used']} windows holding {fmt_share(pm['tagged_lines_covered'])} of the AI-tagged lines")
     if b.get("rewritten"):
         lines.append(f"- Cleared or rewritten ({b['rewritten_rule']}): {', '.join(b['rewritten'])}. "
                      "Nothing from before that date survives in them, tagged or not; their rows measure the rewrite as much as the code.")
     if b.get("pooled_by_age"):
-        lines += ["", "| Line age | AI-tagged commits | AI-tagged lines | Still at HEAD | AI-tagged | Untagged commits | Untagged lines | Still at HEAD | Untagged |",
+        lines += ["", f"Age windows, {b['pooled_by_age_note']}.", "", "| Line age | AI-tagged commits | AI-tagged lines | Still at HEAD | AI-tagged | Untagged commits | Untagged lines | Still at HEAD | Untagged |",
                   "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
         for w in b["pooled_by_age"]:
             t, u = w["tagged"], w["untagged"]
@@ -1057,10 +1047,7 @@ def render_report(f: dict[str, Any]) -> str:
             f"<td>{fmt_int(w['untagged']['surviving'])}</td><td>{fmt_pct(w['untagged']['survival_rate'])}</td></tr>"
             for w in b.get("pooled_by_age") or [] if w["tagged"]["commits"] or w["untagged"]["commits"]
         )
-        pm = b.get("pooled_age_matched")
-        pooled_line = (f"Pooled over the {b['repositories']} baselines: AI-tagged {fmt_pct(pm['tagged_rate'])} against untagged "
-                       f"{fmt_pct(pm['untagged_rate'])} of the same age, {fmt_gap(pm['gap'])}, over {pm['buckets_used']} windows holding "
-                       f"{fmt_share(pm['tagged_lines_covered'])} of the AI-tagged lines." if pm else "")
+        pooled_line = f"Age windows below: {b['pooled_by_age_note']}."
         gap_line = ""
         if b.get("repositories_with_gap"):
             ivb = b.get("median_gap_interval_95")
