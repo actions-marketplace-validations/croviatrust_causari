@@ -347,19 +347,39 @@ def complete_details(client: Client, rows: list[dict[str, Any]]) -> list[str]:
     return unavailable
 
 
+def resolve_seeds(client: Client, seeds: list[str]) -> dict[str, str]:
+    """The hand-picked seeds through the same GET /repos: a seed listed under
+    a name GitHub now redirects (All-Hands-AI/OpenHands → OpenHands/OpenHands)
+    must not be discovered a second time under its new name. Returns
+    {seed as listed: canonical full_name} for the seeds whose name changed;
+    seeds that do not resolve are left as listed (the clone still follows
+    the redirect, or the audit fails and the report says so)."""
+    renamed: dict[str, str] = {}
+    for s in seeds:
+        status, data = client.get_json(repo_url(s))
+        if status != 200 or not isinstance(data, dict):
+            continue
+        full = data.get("full_name")
+        if isinstance(full, str) and full.lower() != s.lower():
+            renamed[s] = full
+    return renamed
+
+
 def rank_key(r: dict[str, Any]) -> tuple[int, int, str]:
     return (-int(r.get("stars") or 0), -int(r["commits"]), r["repo"].lower())
 
 
 def select(rows: list[dict[str, Any]], seeds: list[str], optout: set[str], floor: int, limit: int,
-           unavailable: list[str], min_stars: int = MIN_STARS) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+           unavailable: list[str], min_stars: int = MIN_STARS,
+           seed_names: dict[str, str] | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Apply floor, exclusions and the limit. Returns the discovered
     repositories in selection order (seeds excluded) and an account of what
-    was dropped."""
-    seed_keys = {s.lower() for s in seeds}
+    was dropped. `seed_names` maps a seed to its canonical name when GitHub
+    renamed it; both spellings count as the seed."""
+    seed_keys = {s.lower() for s in seeds} | {c.lower() for c in (seed_names or {}).values()}
     gone = {u.lower() for u in unavailable}
     dropped: dict[str, Any] = {"below_floor": 0, "below_stars": [], "fork": [], "archived": [], "opted_out": [],
-                               "unavailable": sorted(unavailable, key=str.lower), "over_limit": []}
+                               "unavailable": sorted(unavailable, key=str.lower), "over_limit": [], "seed_duplicates": []}
     eligible: list[dict[str, Any]] = []
     for r in rows:
         if r["commits"] < floor:
@@ -391,10 +411,12 @@ def select(rows: list[dict[str, Any]], seeds: list[str], optout: set[str], floor
         else:
             seen[k] = r
     ranked = sorted(seen.values(), key=rank_key)
-    room = max(0, limit - len(seed_keys))
+    room = max(0, limit - len(seeds))
     discovered = [r for r in ranked if r["repo"].lower() not in seed_keys]
+    dropped["seed_duplicates"] = [r["repo"] for r in ranked if r["repo"].lower() in seed_keys
+                                  and r["repo"].lower() not in {s.lower() for s in seeds}]
     dropped["over_limit"] = [r["repo"] for r in discovered[room:]]
-    for k in ("below_stars", "fork", "archived", "opted_out"):
+    for k in ("below_stars", "fork", "archived", "opted_out", "seed_duplicates"):
         dropped[k].sort(key=str.lower)
     return discovered[:room], dropped
 
@@ -467,7 +489,11 @@ def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT,
 
     # 3. + 4. floor, exclusions, order, limit
     unavailable = complete_details(client, rows)
-    discovered, dropped = select(rows, seeds, optout, floor, limit, unavailable, min_stars)
+    seed_names = resolve_seeds(client, seeds)
+    for old, new in seed_names.items():
+        client.log(f"survival_discover: seed {old} is now {new} on GitHub; both names count as the seed. "
+                   f"Update the hand-picked line to {new}.")
+    discovered, dropped = select(rows, seeds, optout, floor, limit, unavailable, min_stars, seed_names)
     dropped["below_floor"] += len(cands) - len(rows)
     dropped["not_candidates"] = len(repos) - len(cands)
     dropped["unverified"] = sorted(unverified, key=str.lower)
@@ -483,9 +509,14 @@ def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT,
 
     rows_out = [row(r, False) for r in discovered]
     for s in seeds:
-        r = repos.get(s.lower())
-        rows_out.append({**row(r, True), "repo": s} if r else
-                        {"repo": s, "seed": True, "commits": 0, "by_signal": {}, "sampled": 0, "counts": "not sampled", "stars": None, "discovered_at": None})
+        # A renamed seed's counts were sampled under its new name.
+        r = repos.get(s.lower()) or repos.get(seed_names.get(s, "").lower())
+        entry = ({**row(r, True), "repo": s} if r else
+                 {"repo": s, "seed": True, "commits": 0, "by_signal": {}, "sampled": 0, "counts": "not sampled", "stars": None, "discovered_at": None})
+        entry.pop("renamed_from", None)
+        if s in seed_names:
+            entry["now_named"] = seed_names[s]
+        rows_out.append(entry)
     rows_out.sort(key=lambda r: r["repo"].lower())
 
     result = {
@@ -499,7 +530,8 @@ def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT,
                     "candidate (at most `verify_max`); its count is the sum over its signals of the repository-wide total_count "
                     "(a commit carrying two signals counts twice); keep repositories with at least `floor` commits and at least "
                     "`min_stars` stars; drop forks, archived repositories and .github/survival-optout.txt; order by stargazers_count, "
-                    "then commits, then name; keep the hand-picked seeds; fill up to `limit`. Rows below are alphabetical.",
+                    "then commits, then name; keep the hand-picked seeds, under the name listed and under the name GitHub now "
+                    "gives them (a renamed seed is never discovered a second time); fill up to `limit`. Rows below are alphabetical.",
             "floor": floor, "min_stars": min_stars, "limit": limit, "pages": pages, "per_page": per_page, "candidate_min": candidate_min,
             "verify_max": verify_max, "verified": bool(verify), "sort": "author-date desc (most recent first)",
             "qualifiers": f"{QUALIFIERS} author-date:<={today}",
@@ -510,6 +542,7 @@ def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT,
         "requests": client.requests,
         "search_requests": client.search_requests,
         "seeds": list(seeds),
+        "seeds_renamed": dict(sorted(seed_names.items(), key=lambda kv: kv[0].lower())),
         "repositories": rows_out,
         "candidates": len(cands),
         "repositories_sampled": len(repos),
@@ -534,7 +567,8 @@ def summary(result: dict[str, Any]) -> str:
             f"{result['selection']['min_stars']} stars, {len(d['fork'])} forks, "
             f"{len(d['archived'])} archived, {len(d['opted_out'])} opted out, {len(d['unavailable'])} unavailable, "
             f"{len(d['over_limit'])} over the limit · {result['requests']} requests"
-            + (f" · incomplete: {', '.join(result['incomplete_signals'])}" if result["incomplete_signals"] else ""))
+            + (f" · incomplete: {', '.join(result['incomplete_signals'])}" if result["incomplete_signals"] else "")
+            + (f" · seeds renamed: {', '.join(f'{a} → {b}' for a, b in result['seeds_renamed'].items())}" if result.get("seeds_renamed") else ""))
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -50,6 +50,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import glob
+import hashlib
 import html
 import json
 import random
@@ -265,6 +266,55 @@ def stat_view(stat: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def audit_identity(fp: Path, audit: dict[str, Any]) -> tuple[str, str]:
+    """What makes two audits the same measurement: the commit they measured
+    (`repository.head`, written by `re audit` from 0.2.1 on) and, for older
+    outputs, the exact bytes. Two names for one repository — GitHub keeps the
+    old name working after a rename — produce the same bytes."""
+    repo = audit.get("repository")
+    head = repo.get("head") if isinstance(repo, dict) else None
+    return (str(head or ""), hashlib.sha256(fp.read_bytes()).hexdigest())
+
+
+def drop_duplicate_audits(rows: list[dict[str, Any]], listed: list[str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """One repository counts once, whatever it is called. Rows whose audits
+    measured the same commit, or are byte-identical, are one measurement: the
+    name present in `.github/survival-repos.txt` is kept (the list is where a
+    rename gets corrected); when both or neither are listed, the first name
+    in case-insensitive order. Every dropped name is recorded with the name
+    it was counted under, so the report says so rather than silently
+    shrinking."""
+    listed_keys = {name.lower() for name in listed}
+
+    def rank(r: dict[str, Any]) -> tuple[int, str]:
+        return (0 if r["repo"].lower() in listed_keys else 1, r["repo"].lower())
+
+    by_head: dict[str, list[dict[str, Any]]] = {}
+    by_bytes: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        head, digest = audit_identity(r["_source"], load_json(r["_source"], {}) or {})
+        r["_head"] = head
+        if head:
+            by_head.setdefault(head, []).append(r)
+        by_bytes.setdefault(digest, []).append(r)
+
+    dropped: dict[str, dict[str, Any]] = {}
+    for reason, groups in (("same commit at HEAD", by_head), ("byte-identical audit output", by_bytes)):
+        for group in groups.values():
+            if len(group) < 2:
+                continue
+            group = sorted(group, key=rank)
+            keep = group[0]
+            for r in group[1:]:
+                if r["repo"] in dropped or r is keep:
+                    continue
+                dropped[r["repo"]] = {"dropped": r["repo"], "kept": keep["repo"], "reason": reason}
+    kept_rows = [r for r in rows if r["repo"] not in dropped]
+    for r in kept_rows:
+        r.pop("_head", None)
+    return kept_rows, sorted(dropped.values(), key=lambda d: d["dropped"].lower())
+
+
 def collect(run_dir: Path, number: int, date: str, root: Path) -> dict[str, Any]:
     run = load_json(run_dir / "run.json", None)
     if not isinstance(run, dict):
@@ -316,6 +366,7 @@ def collect(run_dir: Path, number: int, date: str, root: Path) -> dict[str, Any]
             "_source": fp,
         })
     opted_out = len(opted)
+    rows, duplicates = drop_duplicate_audits(rows, read_repo_list(root))
 
     # Alphabetical, case-insensitive, and nothing else: never by rate.
     rows.sort(key=lambda r: r["repo"].lower())
@@ -395,6 +446,7 @@ def collect(run_dir: Path, number: int, date: str, root: Path) -> dict[str, Any]
             "shallow": sorted(shallow, key=str.lower),
             "not_method_v2": sorted(not_v2, key=str.lower),
             "failed": sorted((run.get("failed") or []), key=str.lower),
+            "duplicates": duplicates,
             "opted_out": opted_out,
             "optout_file": f"{REPO_URL}/blob/main/.github/survival-optout.txt",
         },
@@ -530,6 +582,8 @@ def report_md(f: dict[str, Any]) -> str:
     lines.append(f"- Audits that failed in this run: {', '.join(ex['failed']) or 'none'}")
     if ex["not_method_v2"]:
         lines.append(f"- Outputs not in method v2 format: {', '.join(ex['not_method_v2'])}")
+    for d in ex.get("duplicates") or []:
+        lines.append(f"- {d['dropped']} is the same repository as {d['kept']} ({d['reason']}); counted once, under {d['kept']}")
     lines.append(f"- Opted out by their maintainers ({ex['optout_file']}): {ex['opted_out']}")
     lines += ["", "## Method", "",
               f"Method {m['version']}, {f['tool']['name']} {f['tool']['version']}. Detection from commit metadata only; "
@@ -813,6 +867,11 @@ def render_report(f: dict[str, Any]) -> str:
     ]
     if ex["not_method_v2"]:
         excluded_items.append(f"<li><strong>Outputs not in method v2 format:</strong> {esc(', '.join(ex['not_method_v2']))}.</li>")
+    for d in ex.get("duplicates") or []:
+        excluded_items.append(
+            f"<li><strong>One repository, two names:</strong> <code translate=\"no\">{esc(d['dropped'])}</code> is "
+            f"<code translate=\"no\">{esc(d['kept'])}</code> ({esc(d['reason'])}); counted once, under the second name.</li>"
+        )
     excluded_items.append(
         f'<li><strong>Opted out</strong> by their maintainers: {ex["opted_out"]}. One line in '
         f'<a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a> '

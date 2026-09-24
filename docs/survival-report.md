@@ -72,6 +72,7 @@ for, so no editor has to remember it:
 | `coverage.small_sample` (fewer than 5 VERIFIED commits) → "measured but not aggregated" | `collect()` |
 | `coverage.shallow` → excluded with a note | `collect()` |
 | Opt-out list honoured (`.github/survival-optout.txt`, case-insensitive, `#` comments) | workflow skips them; generator drops them again |
+| One repository counts once, whatever it is called: audits that measured the same `repository.head` (written by `re audit` from 0.2.1) or are byte-identical are one measurement; the name in `.github/survival-repos.txt` is kept, the other is listed under `excluded.duplicates` with the name it was counted under | `drop_duplicate_audits()`; discovery resolves every seed through `GET /repos` so a renamed seed is never discovered a second time (`resolve_seeds()`) |
 | Bootstrap interval over repositories, 2,000 resamples, seed = report number, labelled as an interval over the sample | `bootstrap_rate()`, `bootstrap_median()` |
 | Method section states method version, tool version, blame flags, cap rule, sample floor; links `/method` | `render_report()` |
 | Report directories are append-only; a directory holding a different report is never overwritten | `write_report()` |

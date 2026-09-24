@@ -98,6 +98,19 @@ fn json_report_carries_compat_fields_and_method_v2_extras() {
     assert_eq!(v["coverage"]["sample_floor"], 5);
     assert_eq!(v["coverage"]["small_sample"], true);
     assert_eq!(v["method"], "v2");
+
+    // The report names what it measured: the commit at HEAD, and the origin
+    // label (a digest of the path here, since this repo has no remote).
+    let head = v["repository"]["head"].as_str().expect("repository.head");
+    assert_eq!(head.len(), 40);
+    assert!(head.chars().all(|c| c.is_ascii_hexdigit()));
+    let origin = v["repository"]["origin"]
+        .as_str()
+        .expect("repository.origin");
+    assert!(
+        origin.starts_with("sha256:"),
+        "origin without remote: {origin}"
+    );
 }
 
 #[test]
