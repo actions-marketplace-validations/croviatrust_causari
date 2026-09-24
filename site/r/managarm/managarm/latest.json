@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "managarm/managarm",
+ "repository_url": "https://github.com/managarm/managarm",
+ "url": "https://causari.dev/r/managarm/managarm/",
+ "badge": "https://causari.dev/r/managarm/managarm/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 595,
+  "introduced": 47375,
+  "surviving": 36929,
+  "survival_rate": 0.7795039577836411,
+  "capped_survival_rate": 0.7799796249855048,
+  "median_survival": 0.8980169971671388,
+  "largest_commit_share": 0.06245910290237467
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 6363,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit managarm/managarm --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/managarm__managarm.json",
+ "license": "CC-BY-4.0"
+}

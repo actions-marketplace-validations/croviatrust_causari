@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "BerriAI/litellm",
+ "repository_url": "https://github.com/BerriAI/litellm",
+ "url": "https://causari.dev/r/berriai/litellm/",
+ "badge": "https://causari.dev/r/berriai/litellm/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 4706,
+  "introduced": 1341172,
+  "surviving": 821281,
+  "survival_rate": 0.612360681553149,
+  "capped_survival_rate": 0.6682170356536367,
+  "median_survival": 0.6820107858243452,
+  "largest_commit_share": 0.05828186093953647
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 43225,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": true,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit BerriAI/litellm --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/BerriAI__litellm.json",
+ "license": "CC-BY-4.0"
+}

@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "fastrepl/anarlog",
+ "repository_url": "https://github.com/fastrepl/anarlog",
+ "url": "https://causari.dev/r/fastrepl/anarlog/",
+ "badge": "https://causari.dev/r/fastrepl/anarlog/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 1356,
+  "introduced": 706569,
+  "surviving": 434992,
+  "survival_rate": 0.6156398030482515,
+  "capped_survival_rate": 0.4140415812505678,
+  "median_survival": 0.06666666666666667,
+  "largest_commit_share": 0.17460432031408116
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 9534,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit fastrepl/anarlog --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/fastrepl__anarlog.json",
+ "license": "CC-BY-4.0"
+}

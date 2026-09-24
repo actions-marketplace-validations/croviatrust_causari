@@ -5,28 +5,28 @@
  "url": "https://causari.dev/r/anthropics/anthropic-sdk-python/",
  "badge": "https://causari.dev/r/anthropics/anthropic-sdk-python/badge.svg",
  "report": {
-  "number": 1,
-  "id": "2026/01",
-  "date": "2026-09-20",
-  "url": "https://causari.dev/reports/survival/2026/01/"
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
  },
  "method": "v2",
  "tool": {
   "name": "causari",
-  "version": "0.1.5"
+  "version": "0.2.0"
  },
  "verified": {
-  "commits": 38,
-  "introduced": 4852,
-  "surviving": 4043,
-  "survival_rate": 0.8332646331409728,
-  "capped_survival_rate": 0.8002067623688555,
-  "median_survival": 0.8373015873015873,
-  "largest_commit_share": 0.3268755152514427
+  "commits": 39,
+  "introduced": 4961,
+  "surviving": 4116,
+  "survival_rate": 0.8296714372102398,
+  "capped_survival_rate": 0.7974125685717156,
+  "median_survival": 0.8333333333333334,
+  "largest_commit_share": 0.3196936101592421
  },
  "interval_95": null,
  "probable_commits": 0,
- "total_commits": 1390,
+ "total_commits": 1408,
  "aggregated": true,
  "coverage": {
   "method": "v2",
@@ -40,8 +40,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 1,
+ "reports": 2,
  "reproduce": "re audit anthropics/anthropic-sdk-python --json",
- "bytes": "https://causari.dev/reports/survival/2026/01/repos/anthropics__anthropic-sdk-python.json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/anthropics__anthropic-sdk-python.json",
  "license": "CC-BY-4.0"
 }

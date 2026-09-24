@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "RooCodeInc/Roo-Code",
+ "repository_url": "https://github.com/RooCodeInc/Roo-Code",
+ "url": "https://causari.dev/r/roocodeinc/roo-code/",
+ "badge": "https://causari.dev/r/roocodeinc/roo-code/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 43,
+  "introduced": 88016,
+  "surviving": 39395,
+  "survival_rate": 0.4475890747136884,
+  "capped_survival_rate": 0.5696408459745831,
+  "median_survival": 0.6261187091590723,
+  "largest_commit_share": 0.6705939829121977
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 6210,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": true,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit RooCodeInc/Roo-Code --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/RooCodeInc__Roo-Code.json",
+ "license": "CC-BY-4.0"
+}

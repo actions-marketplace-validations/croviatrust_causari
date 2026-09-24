@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "microsoft/BCApps",
+ "repository_url": "https://github.com/microsoft/BCApps",
+ "url": "https://causari.dev/r/microsoft/bcapps/",
+ "badge": "https://causari.dev/r/microsoft/bcapps/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 617,
+  "introduced": 354085,
+  "surviving": 309899,
+  "survival_rate": 0.8752107544798565,
+  "capped_survival_rate": 0.8197958210446176,
+  "median_survival": 0.8681300987548304,
+  "largest_commit_share": 0.30467260685993475
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 4077,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit microsoft/BCApps --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/microsoft__BCApps.json",
+ "license": "CC-BY-4.0"
+}

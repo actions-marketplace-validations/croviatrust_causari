@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "xing-shuyin/pi-web-ui",
+ "repository_url": "https://github.com/xing-shuyin/pi-web-ui",
+ "url": "https://causari.dev/r/xing-shuyin/pi-web-ui/",
+ "badge": "https://causari.dev/r/xing-shuyin/pi-web-ui/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 30,
+  "introduced": 2298,
+  "surviving": 2025,
+  "survival_rate": 0.881201044386423,
+  "capped_survival_rate": 0.8894085493773698,
+  "median_survival": 0.9482614637109019,
+  "largest_commit_share": 0.09007832898172324
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 760,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit xing-shuyin/pi-web-ui --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/xing-shuyin__pi-web-ui.json",
+ "license": "CC-BY-4.0"
+}

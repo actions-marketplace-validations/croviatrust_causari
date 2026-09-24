@@ -1,0 +1,98 @@
+{
+  "by_agent": {
+    "claude-code": {
+      "cap_lines": 3032,
+      "capped_survival_rate": 0.4502401546694911,
+      "commits": 63,
+      "introduced": 41957,
+      "largest_commit_share": 0.1347570131324928,
+      "median_survival": 0.0,
+      "survival_rate": 0.4736277617560836,
+      "surviving": 19872
+    },
+    "cursor": {
+      "cap_lines": 4814,
+      "capped_survival_rate": 0.7908428618538385,
+      "commits": 33,
+      "introduced": 42960,
+      "largest_commit_share": 0.12383612662942271,
+      "median_survival": 0.8103616813294232,
+      "survival_rate": 0.7918761638733706,
+      "surviving": 34019
+    },
+    "github-copilot": {
+      "cap_lines": 76,
+      "capped_survival_rate": 0.26956521739130435,
+      "commits": 5,
+      "introduced": 115,
+      "largest_commit_share": 0.6608695652173913,
+      "median_survival": 0.0,
+      "survival_rate": 0.26956521739130435,
+      "surviving": 31
+    },
+    "jules": {
+      "cap_lines": 42,
+      "capped_survival_rate": 0.0,
+      "commits": 1,
+      "introduced": 42,
+      "largest_commit_share": 1.0,
+      "median_survival": 0.0,
+      "survival_rate": 0.0,
+      "surviving": 0
+    },
+    "openai-codex": {
+      "cap_lines": 373,
+      "capped_survival_rate": 0.7820738137082601,
+      "commits": 3,
+      "introduced": 569,
+      "largest_commit_share": 0.655536028119508,
+      "median_survival": 0.8,
+      "survival_rate": 0.7820738137082601,
+      "surviving": 445
+    },
+    "openhands": {
+      "cap_lines": 1247,
+      "capped_survival_rate": 0.2470428557438615,
+      "commits": 2527,
+      "introduced": 852021,
+      "largest_commit_share": 0.15813577364877157,
+      "median_survival": 0.0,
+      "survival_rate": 0.26726688661429704,
+      "surviving": 227717
+    }
+  },
+  "coverage": {
+    "blame_flags": [
+      "-w",
+      "-M",
+      "-C"
+    ],
+    "ignore_revs_file": false,
+    "method": "v2",
+    "sample_floor": 5,
+    "shallow": false,
+    "small_sample": false
+  },
+  "method": "v2",
+  "probable": {
+    "cap_lines": null,
+    "capped_survival_rate": null,
+    "commits": 0,
+    "introduced": 0,
+    "largest_commit_share": null,
+    "median_survival": null,
+    "survival_rate": null,
+    "surviving": 0
+  },
+  "total_commits": 8305,
+  "verified": {
+    "cap_lines": 1440,
+    "capped_survival_rate": 0.28159852435611293,
+    "commits": 2632,
+    "introduced": 937664,
+    "largest_commit_share": 0.1436921967783769,
+    "median_survival": 0.0,
+    "survival_rate": 0.3008369735854208,
+    "surviving": 282084
+  }
+}

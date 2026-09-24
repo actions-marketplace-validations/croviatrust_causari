@@ -1,0 +1,48 @@
+{
+  "by_agent": {
+    "openai-codex": {
+      "cap_lines": 10000,
+      "capped_survival_rate": 0.9976100378410675,
+      "commits": 2,
+      "introduced": 94176,
+      "largest_commit_share": 0.9995540265035678,
+      "median_survival": 0.7142857142857143,
+      "survival_rate": 0.9997451580020388,
+      "surviving": 94152
+    }
+  },
+  "coverage": {
+    "blame_flags": [
+      "-w",
+      "-M",
+      "-C"
+    ],
+    "ignore_revs_file": false,
+    "method": "v2",
+    "sample_floor": 5,
+    "shallow": false,
+    "small_sample": true
+  },
+  "method": "v2",
+  "probable": {
+    "cap_lines": null,
+    "capped_survival_rate": null,
+    "commits": 0,
+    "introduced": 0,
+    "largest_commit_share": null,
+    "median_survival": null,
+    "survival_rate": null,
+    "surviving": 0
+  },
+  "total_commits": 2230,
+  "verified": {
+    "cap_lines": 10000,
+    "capped_survival_rate": 0.9976100378410675,
+    "commits": 2,
+    "introduced": 94176,
+    "largest_commit_share": 0.9995540265035678,
+    "median_survival": 0.7142857142857143,
+    "survival_rate": 0.9997451580020388,
+    "surviving": 94152
+  }
+}

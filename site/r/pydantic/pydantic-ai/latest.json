@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "pydantic/pydantic-ai",
+ "repository_url": "https://github.com/pydantic/pydantic-ai",
+ "url": "https://causari.dev/r/pydantic/pydantic-ai/",
+ "badge": "https://causari.dev/r/pydantic/pydantic-ai/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 264,
+  "introduced": 618017,
+  "surviving": 541400,
+  "survival_rate": 0.8760276820864151,
+  "capped_survival_rate": 0.7698772530069088,
+  "median_survival": 0.7819013726487036,
+  "largest_commit_share": 0.7034450508642967
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 3115,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit pydantic/pydantic-ai --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/pydantic__pydantic-ai.json",
+ "license": "CC-BY-4.0"
+}

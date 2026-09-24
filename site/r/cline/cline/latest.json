@@ -5,28 +5,28 @@
  "url": "https://causari.dev/r/cline/cline/",
  "badge": "https://causari.dev/r/cline/cline/badge.svg",
  "report": {
-  "number": 1,
-  "id": "2026/01",
-  "date": "2026-09-20",
-  "url": "https://causari.dev/reports/survival/2026/01/"
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
  },
  "method": "v2",
  "tool": {
   "name": "causari",
-  "version": "0.1.5"
+  "version": "0.2.0"
  },
  "verified": {
-  "commits": 154,
-  "introduced": 95301,
-  "surviving": 63063,
-  "survival_rate": 0.6617244310133157,
-  "capped_survival_rate": 0.67879896551319,
-  "median_survival": 0.7204522096608428,
-  "largest_commit_share": 0.11900189924554831
+  "commits": 155,
+  "introduced": 95924,
+  "surviving": 63615,
+  "survival_rate": 0.6631812685042325,
+  "capped_survival_rate": 0.6799077212465641,
+  "median_survival": 0.7266187050359713,
+  "largest_commit_share": 0.1182290146365873
  },
  "interval_95": null,
  "probable_commits": 0,
- "total_commits": 7273,
+ "total_commits": 7311,
  "aggregated": true,
  "coverage": {
   "method": "v2",
@@ -40,8 +40,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 1,
+ "reports": 2,
  "reproduce": "re audit cline/cline --json",
- "bytes": "https://causari.dev/reports/survival/2026/01/repos/cline__cline.json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/cline__cline.json",
  "license": "CC-BY-4.0"
 }

@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "NVIDIA-NeMo/Switchyard",
+ "repository_url": "https://github.com/NVIDIA-NeMo/Switchyard",
+ "url": "https://causari.dev/r/nvidia-nemo/switchyard/",
+ "badge": "https://causari.dev/r/nvidia-nemo/switchyard/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 24,
+  "introduced": 14294,
+  "surviving": 9274,
+  "survival_rate": 0.6488036938575626,
+  "capped_survival_rate": 0.6562224515386771,
+  "median_survival": 0.8057718260147411,
+  "largest_commit_share": 0.22086190009794318
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 489,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit NVIDIA-NeMo/Switchyard --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/NVIDIA-NeMo__Switchyard.json",
+ "license": "CC-BY-4.0"
+}

@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "langchain-ai/langchain",
+ "repository_url": "https://github.com/langchain-ai/langchain",
+ "url": "https://causari.dev/r/langchain-ai/langchain/",
+ "badge": "https://causari.dev/r/langchain-ai/langchain/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 43,
+  "introduced": 7289,
+  "surviving": 5388,
+  "survival_rate": 0.7391960488407189,
+  "capped_survival_rate": 0.6984234571231189,
+  "median_survival": 0.8741935483870967,
+  "largest_commit_share": 0.2410481547537385
+ },
+ "interval_95": null,
+ "probable_commits": 3,
+ "total_commits": 16732,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit langchain-ai/langchain --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/langchain-ai__langchain.json",
+ "license": "CC-BY-4.0"
+}

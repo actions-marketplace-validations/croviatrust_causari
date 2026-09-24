@@ -49,7 +49,22 @@
 # survival-report: begin (managed by scripts/survival_report.py)
 /survival             /reports/survival/                 301
 /survival-data.json   /reports/survival/latest.json      301
-/report               /reports/survival/2026/01/   302
-/report/latest        /reports/survival/2026/01/   302
+/report               /reports/survival/2026/02/   302
+/report/latest        /reports/survival/2026/02/   302
 /r/Aider-AI/aider/    /r/aider-ai/aider/   301
+/r/All-Hands-AI/OpenHands/ /r/all-hands-ai/openhands/   301
+/r/BerriAI/litellm/   /r/berriai/litellm/   301
+/r/crewAIInc/crewAI/  /r/crewaiinc/crewai/   301
+/r/danny-avila/LibreChat/ /r/danny-avila/librechat/   301
+/r/GoogleCloudPlatform/scion/ /r/googlecloudplatform/scion/   301
+/r/microsoft/BCApps/  /r/microsoft/bcapps/   301
+/r/NovaSky-AI/SkyRL/  /r/novasky-ai/skyrl/   301
+/r/NVIDIA-NeMo/Switchyard/ /r/nvidia-nemo/switchyard/   301
+/r/OpenHands/extensions/ /r/openhands/extensions/   301
+/r/OpenHands/OpenHands/ /r/openhands/openhands/   301
+/r/OpenHands/software-agent-sdk/ /r/openhands/software-agent-sdk/   301
+/r/PrefectHQ/prefect/ /r/prefecthq/prefect/   301
+/r/QwenLM/qwen-code/  /r/qwenlm/qwen-code/   301
+/r/RooCodeInc/Roo-Code/ /r/roocodeinc/roo-code/   301
+/r/TracecatHQ/tracecat/ /r/tracecathq/tracecat/   301
 # survival-report: end

@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "lobehub/lobe-chat",
+ "repository_url": "https://github.com/lobehub/lobe-chat",
+ "url": "https://causari.dev/r/lobehub/lobe-chat/",
+ "badge": "https://causari.dev/r/lobehub/lobe-chat/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 1899,
+  "introduced": 2119123,
+  "surviving": 1826501,
+  "survival_rate": 0.8619136312521737,
+  "capped_survival_rate": 0.790263299864385,
+  "median_survival": 0.8162650602409639,
+  "largest_commit_share": 0.019507598190383474
+ },
+ "interval_95": null,
+ "probable_commits": 16,
+ "total_commits": 13763,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit lobehub/lobe-chat --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/lobehub__lobe-chat.json",
+ "license": "CC-BY-4.0"
+}

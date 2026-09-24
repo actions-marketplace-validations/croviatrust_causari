@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "TracecatHQ/tracecat",
+ "repository_url": "https://github.com/TracecatHQ/tracecat",
+ "url": "https://causari.dev/r/tracecathq/tracecat/",
+ "badge": "https://causari.dev/r/tracecathq/tracecat/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 520,
+  "introduced": 347883,
+  "surviving": 233664,
+  "survival_rate": 0.6716740973258251,
+  "capped_survival_rate": 0.6573241947145825,
+  "median_survival": 0.6455696202531646,
+  "largest_commit_share": 0.03716479391059638
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 5823,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit TracecatHQ/tracecat --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/TracecatHQ__tracecat.json",
+ "license": "CC-BY-4.0"
+}
