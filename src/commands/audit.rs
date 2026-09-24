@@ -101,17 +101,24 @@ fn resolve_target(target: Option<&str>) -> Result<(PathBuf, Option<TempClone>)> 
 
 /// The machine-readable report: every class and agent carries the sums, the
 /// line-weighted rate and the robust figures; `coverage` says how it was
-/// measured.
-fn report_json(report: &SurvivalReport) -> Result<serde_json::Value> {
+/// measured and `repository` names what was measured — the commit at HEAD
+/// and the origin label (credentials stripped, or a digest of the path when
+/// there is no remote). Two audits with the same `repository.head` measured
+/// the same tree, whatever name the repository goes by.
+fn report_json(dir: &Path, report: &SurvivalReport) -> Result<serde_json::Value> {
     let mut value = serde_json::to_value(report)?;
     value["method"] = serde_json::json!(METHOD_VERSION);
+    value["repository"] = serde_json::json!({
+        "head": crate::audit::head_commit(dir)?,
+        "origin": audit_seal::repo_label(dir),
+    });
     Ok(value)
 }
 
 /// The exact bytes `--json` prints: pretty JSON and one newline. An audit
 /// seal commits to these bytes, so they are produced in one place.
-fn audit_json_bytes(report: &SurvivalReport) -> Result<Vec<u8>> {
-    let mut bytes = serde_json::to_vec_pretty(&report_json(report)?)?;
+fn audit_json_bytes(dir: &Path, report: &SurvivalReport) -> Result<Vec<u8>> {
+    let mut bytes = serde_json::to_vec_pretty(&report_json(dir, report)?)?;
     bytes.push(b'\n');
     Ok(bytes)
 }
@@ -187,7 +194,7 @@ pub fn run(args: AuditArgs) -> Result<()> {
     })?;
 
     let audit_json = if args.json || args.seal {
-        Some(audit_json_bytes(&report)?)
+        Some(audit_json_bytes(&dir, &report)?)
     } else {
         None
     };
@@ -310,7 +317,7 @@ pub fn run(args: AuditArgs) -> Result<()> {
     }
 
     if args.save {
-        let mut snapshot = report_json(&report)?;
+        let mut snapshot = report_json(&dir, &report)?;
         snapshot["timestamp"] = serde_json::json!(chrono::Utc::now().to_rfc3339());
         let path = Path::new(".causari/survival-snapshots.jsonl");
         if let Some(parent) = path.parent() {

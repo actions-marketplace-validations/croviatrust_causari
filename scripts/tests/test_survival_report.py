@@ -492,6 +492,61 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(json.loads((Path(tmp) / "out" / "run.json").read_text())["repos"], ["a/b"])
 
 
+class DuplicateTests(unittest.TestCase):
+    """One repository under two names is one measurement. GitHub keeps an old
+    name working after a rename, so a list holding both names yields two
+    identical audits; the report must count them once and say so."""
+
+    def _build_with(self, extra: dict[str, str], listed: str) -> tuple[dict, str, Path]:
+        s = Scratch()
+        self.addCleanup(s.close)
+        for name, source in extra.items():
+            data = (s.run / f"{sr.repo_slug(source)}.json").read_bytes()
+            (s.run / f"{sr.repo_slug(name)}.json").write_bytes(data)
+        (s.root / ".github" / "survival-repos.txt").write_text(listed, encoding="utf-8")
+        f = s.build()
+        page = (s.site / "reports" / "survival" / "2026" / "01" / "index.html").read_text(encoding="utf-8")
+        return f, page, s.site / "reports" / "survival" / "2026" / "01"
+
+    def test_byte_identical_audits_count_once_under_the_listed_name(self) -> None:
+        f, page, out = self._build_with({"old-org/last": "zeta/last"}, "# list\nzeta/last\nAlpha/first\n")
+        repos = [r["repo"] for r in f["repositories"]]
+        self.assertEqual(repos, ["Alpha/first", "mid/one", "zeta/last"])
+        self.assertEqual(f["aggregate"]["repositories"], 3)
+        self.assertEqual(f["aggregate"]["introduced"], 1000 + 500 + 800)
+        self.assertEqual(f["excluded"]["duplicates"], [
+            {"dropped": "old-org/last", "kept": "zeta/last", "reason": "byte-identical audit output"}])
+        self.assertIn("One repository, two names", page)
+        self.assertIn("old-org/last", page)
+        self.assertFalse((out / "repos" / "old-org__last.json").exists())
+        self.assertTrue((out / "repos" / "zeta__last.json").exists())
+
+    def test_listed_name_wins_even_when_alphabetically_later(self) -> None:
+        f, _, _ = self._build_with({"aaa/last": "zeta/last"}, "zeta/last\n")
+        self.assertIn("zeta/last", [r["repo"] for r in f["repositories"]])
+        self.assertEqual(f["excluded"]["duplicates"][0]["dropped"], "aaa/last")
+
+    def test_same_head_counts_once_even_if_bytes_differ(self) -> None:
+        s = Scratch()
+        self.addCleanup(s.close)
+        a = {**audit(20, 1000, 600), "repository": {"head": "a" * 40, "origin": "https://github.com/zeta/last"}}
+        b = {**audit(20, 1000, 600), "repository": {"head": "a" * 40, "origin": "https://github.com/new/last"}}
+        (s.run / "zeta__last.json").write_text(json.dumps(a), encoding="utf-8")
+        (s.run / "new__last.json").write_text(json.dumps(b), encoding="utf-8")
+        f = s.build()
+        self.assertEqual(f["aggregate"]["repositories"], 3)
+        self.assertEqual(f["excluded"]["duplicates"], [
+            {"dropped": "zeta/last", "kept": "new/last", "reason": "same commit at HEAD"}])
+
+    def test_distinct_repositories_are_never_merged(self) -> None:
+        s = Scratch()
+        self.addCleanup(s.close)
+        f = s.build()
+        self.assertEqual(f["excluded"]["duplicates"], [])
+        self.assertNotIn("One repository, two names",
+                         (s.site / "reports" / "survival" / "2026" / "01" / "index.html").read_text(encoding="utf-8"))
+
+
 class ScaleTests(unittest.TestCase):
     """One hundred repositories, as the discovered list yields: every surface
     carries all of them, the copy says "100 repositories", nothing assumes a
@@ -585,7 +640,7 @@ class ShardTests(unittest.TestCase):
             # shard 0: a/one audited, d/four failed; shard 1: b/two audited, c/three has no audit and no failure
             # record (killed mid-run); shard 2 (e/five, Opt/Out) never uploaded at all
             (run / "a__one.json").write_text(json.dumps(audit(6, 100, 50)), encoding="utf-8")
-            (run / "b__two.json").write_text(json.dumps(audit(6, 100, 50)), encoding="utf-8")
+            (run / "b__two.json").write_text(json.dumps(audit(7, 120, 60)), encoding="utf-8")  # distinct bytes: a different repository
             (run / "run-shard-0.json").write_text(json.dumps(self.frag(0, ["a/one", "d/four"], failed=["d/four"], at="T05:17:00Z")), encoding="utf-8")
             (run / "run-shard-1.json").write_text(json.dumps(self.frag(1, ["b/two", "c/three"], opted=["Opt/Out"])), encoding="utf-8")
             import contextlib

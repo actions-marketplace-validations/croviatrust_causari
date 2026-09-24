@@ -174,10 +174,11 @@ class SelectionTests(unittest.TestCase):
             self.assertEqual([r["repo"] for r in j["repositories"]], sorted((r["repo"] for r in j["repositories"]), key=str.lower))
             self.assertEqual(by["mid/two"]["stars"], 50)
             self.assertEqual(by["mid/two"]["discovered_at"], NOW)
-            # one count request per (candidate, signal seen), one details request per kept repository
+            # one count request per (candidate, signal seen); one details request per kept
+            # repository and one per seed (renames are resolved for both)
             count_urls = [u for u in gh.urls if "q=repo%3A" in u]
             self.assertEqual(len(count_urls), 5)  # Big/Repo ×2, small ×1, Mid/one ×1, mid/two ×1
-            self.assertEqual(sum(1 for u in gh.urls if "/repos/" in u), 3)
+            self.assertEqual(sum(1 for u in gh.urls if "/repos/" in u), 3 + 2)
             self.assertEqual(j["selection"]["qualifiers"], "is:public merge:false author-date:<=2026-10-01")
         finally:
             s.close()
@@ -229,6 +230,30 @@ class SelectionTests(unittest.TestCase):
             seed = next(r for r in j["repositories"] if r["repo"] == "Aider-AI/aider")
             self.assertTrue(seed["seed"])
             self.assertEqual(seed["commits"], 20)
+        finally:
+            s.close()
+
+    def test_renamed_seed_is_not_discovered_twice(self) -> None:
+        # Survival Report #2 counted OpenHands twice: the seed under its old name,
+        # the discovery under the name GitHub redirects to. Same bytes, two rows.
+        samples = {SIGNALS[CLAUDE]: commits("OpenHands/OpenHands", 40) + commits("keep/me", 7)}
+        details = {"All-Hands-AI/OpenHands": {"full_name": "OpenHands/OpenHands", "stars": 90000},
+                   "OpenHands/OpenHands": {"stars": 90000}}
+        s = Scratch(HEADER + "All-Hands-AI/OpenHands\n")
+        try:
+            gh = FakeGitHub(samples, details)
+            j = run(gh, s)
+            self.assertEqual(discovered(j), ["keep/me"])
+            self.assertEqual(j["seeds_renamed"], {"All-Hands-AI/OpenHands": "OpenHands/OpenHands"})
+            self.assertEqual(j["dropped"]["seed_duplicates"], ["OpenHands/OpenHands"])
+            seed = next(r for r in j["repositories"] if r["repo"] == "All-Hands-AI/OpenHands")
+            self.assertTrue(seed["seed"])
+            self.assertEqual(seed["commits"], 40)  # counted under the new name, credited to the seed
+            self.assertEqual(seed["now_named"], "OpenHands/OpenHands")
+            self.assertNotIn("renamed_from", seed)
+            text = s.list_text()
+            self.assertEqual(text.count("OpenHands"), 1)
+            self.assertIn("seeds renamed: All-Hands-AI/OpenHands → OpenHands/OpenHands", sd.summary(j))
         finally:
             s.close()
 

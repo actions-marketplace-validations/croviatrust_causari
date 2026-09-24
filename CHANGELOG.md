@@ -28,6 +28,28 @@ release workflow copies it verbatim. Counts, not adjectives.
 - Integration matrix: Cursor is its own row (prompt and file exact, model
   yes, tokens and cost no); Windsurf and Copilot stay on MCP self-report.
 
+### Audit
+
+- `re audit --json` names what it measured: `repository.head` (the commit
+  at HEAD, 40 hex) and `repository.origin` (the origin URL with credentials
+  stripped, or `sha256:` of the path when there is no remote). Two audits
+  with the same `head` measured the same tree, whatever the repository is
+  called. Audit seals keep binding to the exact bytes, which now include
+  this object.
+
+### Survival Report
+
+- One repository counts once, whatever it is called. Report #2 counted
+  `All-Hands-AI/OpenHands` and `OpenHands/OpenHands` — one repository,
+  renamed on GitHub — as two rows with byte-identical audits. The
+  generator now drops audits that measured the same commit or are
+  byte-identical, keeps the name in `.github/survival-repos.txt`, and
+  lists the other under `excluded.duplicates` with the name it was
+  counted under. Discovery resolves every hand-picked seed through
+  `GET /repos/{owner}/{repo}` and treats the listed name and the name
+  GitHub now gives as one seed, so a renamed seed is never discovered a
+  second time; the seed line was corrected to `OpenHands/OpenHands`.
+
 ## 0.2.0 — 2026-09-20
 
 The first release after the 2026-09-20 review (`docs/review-2026-09-20/`).

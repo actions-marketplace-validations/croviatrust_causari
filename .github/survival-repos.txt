@@ -6,7 +6,7 @@
 Aider-AI/aider
 cline/cline
 continuedev/continue
-All-Hands-AI/OpenHands
+OpenHands/OpenHands
 openai/codex
 anthropics/anthropic-sdk-python
 anthropics/anthropic-sdk-typescript
@@ -55,7 +55,6 @@ microsoft/vscode
 NovaSky-AI/SkyRL
 NVIDIA-NeMo/Switchyard
 OpenHands/extensions
-OpenHands/OpenHands
 OpenHands/software-agent-sdk
 PrefectHQ/prefect
 ray-project/ray
