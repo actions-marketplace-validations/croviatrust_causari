@@ -63,6 +63,16 @@ release workflow copies it verbatim. Counts, not adjectives.
   assets, actors, and for each claim what is defended, what is not, and
   the assumption behind it.
 
+### Site
+
+- The weekly live audit fetches every data path (`latest.json`,
+  `report.json`, the audit bytes, the feed, `llms.txt`, `sitemap.xml`)
+  as a plain script — urllib's default User-Agent, no browser, no cookie —
+  and reports a 403 as critical. Today causari.dev answers those clients
+  with Cloudflare's Browser Integrity Check (error 1010) while named agents
+  and browsers get 200: "reproducible by anyone" is false for a script
+  until the path is exempted. The canon carries the rule and the paths.
+
 ### Audit
 
 - `re audit --json` names what it measured: `repository.head` (the commit

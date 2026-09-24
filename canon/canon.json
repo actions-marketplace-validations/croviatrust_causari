@@ -354,6 +354,18 @@
       "/seal": "/verify/",
       "/r/Aider-AI/aider/": "/r/aider-ai/aider/"
     },
+    "data": {
+      "rule": "Every data path must answer a plain script: no browser, no cookie, the default User-Agent of Python's urllib. A 403 here means a Cloudflare Browser Integrity Check or a bot rule is blocking the very clients the reproducibility claim invites.",
+      "paths": {
+        "/reports/survival/latest.json": "\"schema\": \"causari.survival_report.v1\"",
+        "/reports/survival/2026/01/report.json": "\"number\": 1",
+        "/reports/survival/2026/01/repos/openai__codex.json": "\"coverage\"",
+        "/reports/survival/feed.xml": "<feed",
+        "/r/index.html": "<!doctype html>",
+        "/sitemap.xml": "<urlset",
+        "/llms.txt": "causari"
+      }
+    },
     "headers": {
       "/": {
         "content-security-policy": "default-src 'self'",
