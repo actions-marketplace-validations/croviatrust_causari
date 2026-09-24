@@ -1,0 +1,78 @@
+{
+  "by_agent": {
+    "claude-code": {
+      "cap_lines": 1334,
+      "capped_survival_rate": 0.7457590473543851,
+      "commits": 228,
+      "introduced": 81530,
+      "largest_commit_share": 0.0673985036183,
+      "median_survival": 0.8246753246753247,
+      "survival_rate": 0.7777505212805103,
+      "surviving": 63410
+    },
+    "cursor": {
+      "cap_lines": 3969,
+      "capped_survival_rate": 0.9431341339892925,
+      "commits": 13,
+      "introduced": 6911,
+      "largest_commit_share": 0.574301837650123,
+      "median_survival": 0.9221052631578948,
+      "survival_rate": 0.9431341339892925,
+      "surviving": 6518
+    },
+    "devin": {
+      "cap_lines": 1136,
+      "capped_survival_rate": 0.7868561278863233,
+      "commits": 9,
+      "introduced": 2252,
+      "largest_commit_share": 0.5044404973357016,
+      "median_survival": 0.5132978723404256,
+      "survival_rate": 0.7868561278863233,
+      "surviving": 1772
+    },
+    "gemini": {
+      "cap_lines": 432,
+      "capped_survival_rate": 0.5761654063436249,
+      "commits": 106,
+      "introduced": 20528,
+      "largest_commit_share": 0.26977786438035856,
+      "median_survival": 0.595261721657157,
+      "survival_rate": 0.628653546375682,
+      "surviving": 12905
+    }
+  },
+  "coverage": {
+    "blame_flags": [
+      "-w",
+      "-M",
+      "-C"
+    ],
+    "ignore_revs_file": false,
+    "method": "v2",
+    "sample_floor": 5,
+    "shallow": false,
+    "small_sample": false
+  },
+  "method": "v2",
+  "probable": {
+    "cap_lines": 1578,
+    "capped_survival_rate": 0.6617892976588629,
+    "commits": 3,
+    "introduced": 2392,
+    "largest_commit_share": 0.6596989966555183,
+    "median_survival": 0.745398773006135,
+    "survival_rate": 0.6617892976588629,
+    "surviving": 1583
+  },
+  "total_commits": 1281,
+  "verified": {
+    "cap_lines": 1136,
+    "capped_survival_rate": 0.7195180033392953,
+    "commits": 356,
+    "introduced": 111221,
+    "largest_commit_share": 0.04979275496533928,
+    "median_survival": 0.7835820895522388,
+    "survival_rate": 0.7606926749444799,
+    "surviving": 84605
+  }
+}

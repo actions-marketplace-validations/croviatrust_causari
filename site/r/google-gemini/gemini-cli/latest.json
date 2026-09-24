@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "google-gemini/gemini-cli",
+ "repository_url": "https://github.com/google-gemini/gemini-cli",
+ "url": "https://causari.dev/r/google-gemini/gemini-cli/",
+ "badge": "https://causari.dev/r/google-gemini/gemini-cli/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 348,
+  "introduced": 71636,
+  "surviving": 45146,
+  "survival_rate": 0.6302138589535987,
+  "capped_survival_rate": 0.6179938940593788,
+  "median_survival": 0.6405727923627685,
+  "largest_commit_share": 0.042017979786699425
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 6429,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit google-gemini/gemini-cli --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/google-gemini__gemini-cli.json",
+ "license": "CC-BY-4.0"
+}

@@ -1,0 +1,78 @@
+{
+  "by_agent": {
+    "claude-code": {
+      "cap_lines": 2381,
+      "capped_survival_rate": 0.5109735842792524,
+      "commits": 34,
+      "introduced": 8383,
+      "largest_commit_share": 0.4961231062865323,
+      "median_survival": 0.3954326923076923,
+      "survival_rate": 0.4563998568531552,
+      "surviving": 3826
+    },
+    "cursor": {
+      "cap_lines": 117,
+      "capped_survival_rate": 0.44594594594594594,
+      "commits": 3,
+      "introduced": 222,
+      "largest_commit_share": 0.527027027027027,
+      "median_survival": 0.16666666666666666,
+      "survival_rate": 0.44594594594594594,
+      "surviving": 99
+    },
+    "github-copilot": {
+      "cap_lines": 10000,
+      "capped_survival_rate": 0.30688403736734404,
+      "commits": 12,
+      "introduced": 17389,
+      "largest_commit_share": 0.6375869802748865,
+      "median_survival": 0.4993911788581221,
+      "survival_rate": 0.31887975156708265,
+      "surviving": 5545
+    },
+    "jules": {
+      "cap_lines": 4,
+      "capped_survival_rate": 0.0,
+      "commits": 1,
+      "introduced": 4,
+      "largest_commit_share": 1.0,
+      "median_survival": 0.0,
+      "survival_rate": 0.0,
+      "surviving": 0
+    }
+  },
+  "coverage": {
+    "blame_flags": [
+      "-w",
+      "-M",
+      "-C"
+    ],
+    "ignore_revs_file": false,
+    "method": "v2",
+    "sample_floor": 5,
+    "shallow": false,
+    "small_sample": false
+  },
+  "method": "v2",
+  "probable": {
+    "cap_lines": null,
+    "capped_survival_rate": null,
+    "commits": 0,
+    "introduced": 0,
+    "largest_commit_share": null,
+    "median_survival": null,
+    "survival_rate": null,
+    "surviving": 0
+  },
+  "total_commits": 15705,
+  "verified": {
+    "cap_lines": 4159,
+    "capped_survival_rate": 0.3542521866812506,
+    "commits": 50,
+    "introduced": 25998,
+    "largest_commit_share": 0.4264558812216324,
+    "median_survival": 0.3954326923076923,
+    "survival_rate": 0.364258789137626,
+    "surviving": 9470
+  }
+}

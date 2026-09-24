@@ -1,0 +1,78 @@
+{
+  "by_agent": {
+    "claude-code": {
+      "cap_lines": 1334,
+      "capped_survival_rate": 0.7089983022071308,
+      "commits": 13,
+      "introduced": 5890,
+      "largest_commit_share": 0.2264855687606112,
+      "median_survival": 0.9006908462867013,
+      "survival_rate": 0.7089983022071308,
+      "surviving": 4176
+    },
+    "cursor": {
+      "cap_lines": 1256,
+      "capped_survival_rate": 0.7117834394904459,
+      "commits": 1,
+      "introduced": 1256,
+      "largest_commit_share": 1.0,
+      "median_survival": 0.7117834394904459,
+      "survival_rate": 0.7117834394904459,
+      "surviving": 894
+    },
+    "github-copilot": {
+      "cap_lines": 489,
+      "capped_survival_rate": 0.8004032258064516,
+      "commits": 2,
+      "introduced": 496,
+      "largest_commit_share": 0.9858870967741935,
+      "median_survival": 0.6875547765118317,
+      "survival_rate": 0.8004032258064516,
+      "surviving": 397
+    },
+    "openai-codex": {
+      "cap_lines": 1582,
+      "capped_survival_rate": 0.9309932189868368,
+      "commits": 18,
+      "introduced": 5014,
+      "largest_commit_share": 0.3155165536497806,
+      "median_survival": 1.0,
+      "survival_rate": 0.9309932189868368,
+      "surviving": 4668
+    }
+  },
+  "coverage": {
+    "blame_flags": [
+      "-w",
+      "-M",
+      "-C"
+    ],
+    "ignore_revs_file": false,
+    "method": "v2",
+    "sample_floor": 5,
+    "shallow": false,
+    "small_sample": false
+  },
+  "method": "v2",
+  "probable": {
+    "cap_lines": null,
+    "capped_survival_rate": null,
+    "commits": 0,
+    "introduced": 0,
+    "largest_commit_share": null,
+    "median_survival": null,
+    "survival_rate": null,
+    "surviving": 0
+  },
+  "total_commits": 2184,
+  "verified": {
+    "cap_lines": 1488,
+    "capped_survival_rate": 0.7993153956376373,
+    "commits": 34,
+    "introduced": 12656,
+    "largest_commit_share": 0.125,
+    "median_survival": 0.9509485612426789,
+    "survival_rate": 0.8008059418457648,
+    "surviving": 10135
+  }
+}

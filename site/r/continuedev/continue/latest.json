@@ -5,15 +5,15 @@
  "url": "https://causari.dev/r/continuedev/continue/",
  "badge": "https://causari.dev/r/continuedev/continue/badge.svg",
  "report": {
-  "number": 1,
-  "id": "2026/01",
-  "date": "2026-09-20",
-  "url": "https://causari.dev/reports/survival/2026/01/"
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
  },
  "method": "v2",
  "tool": {
   "name": "causari",
-  "version": "0.1.5"
+  "version": "0.2.0"
  },
  "verified": {
   "commits": 228,
@@ -40,8 +40,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 1,
+ "reports": 2,
  "reproduce": "re audit continuedev/continue --json",
- "bytes": "https://causari.dev/reports/survival/2026/01/repos/continuedev__continue.json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/continuedev__continue.json",
  "license": "CC-BY-4.0"
 }

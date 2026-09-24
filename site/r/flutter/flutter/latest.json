@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "flutter/flutter",
+ "repository_url": "https://github.com/flutter/flutter",
+ "url": "https://causari.dev/r/flutter/flutter/",
+ "badge": "https://causari.dev/r/flutter/flutter/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 149,
+  "introduced": 83109,
+  "surviving": 15790,
+  "survival_rate": 0.18999145700225006,
+  "capped_survival_rate": 0.6584883592687041,
+  "median_survival": 0.8703703703703703,
+  "largest_commit_share": 0.398849703401557
+ },
+ "interval_95": null,
+ "probable_commits": 1,
+ "total_commits": 89131,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit flutter/flutter --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/flutter__flutter.json",
+ "license": "CC-BY-4.0"
+}

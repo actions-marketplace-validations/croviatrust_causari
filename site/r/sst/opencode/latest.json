@@ -5,15 +5,15 @@
  "url": "https://causari.dev/r/sst/opencode/",
  "badge": "https://causari.dev/r/sst/opencode/badge.svg",
  "report": {
-  "number": 1,
-  "id": "2026/01",
-  "date": "2026-09-20",
-  "url": "https://causari.dev/reports/survival/2026/01/"
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
  },
  "method": "v2",
  "tool": {
   "name": "causari",
-  "version": "0.1.5"
+  "version": "0.2.0"
  },
  "verified": {
   "commits": 50,
@@ -26,7 +26,7 @@
  },
  "interval_95": null,
  "probable_commits": 0,
- "total_commits": 15680,
+ "total_commits": 15705,
  "aggregated": true,
  "coverage": {
   "method": "v2",
@@ -40,8 +40,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 1,
+ "reports": 2,
  "reproduce": "re audit sst/opencode --json",
- "bytes": "https://causari.dev/reports/survival/2026/01/repos/sst__opencode.json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/sst__opencode.json",
  "license": "CC-BY-4.0"
 }

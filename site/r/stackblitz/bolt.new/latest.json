@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "stackblitz/bolt.new",
+ "repository_url": "https://github.com/stackblitz/bolt.new",
+ "url": "https://causari.dev/r/stackblitz/bolt.new/",
+ "badge": "https://causari.dev/r/stackblitz/bolt.new/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 0,
+  "introduced": 0,
+  "surviving": 0,
+  "survival_rate": null,
+  "capped_survival_rate": null,
+  "median_survival": null,
+  "largest_commit_share": null
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 101,
+ "aggregated": false,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": true
+ },
+ "reports": 1,
+ "reproduce": "re audit stackblitz/bolt.new --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/stackblitz__bolt.new.json",
+ "license": "CC-BY-4.0"
+}

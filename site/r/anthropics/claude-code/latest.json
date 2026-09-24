@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "anthropics/claude-code",
+ "repository_url": "https://github.com/anthropics/claude-code",
+ "url": "https://causari.dev/r/anthropics/claude-code/",
+ "badge": "https://causari.dev/r/anthropics/claude-code/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 71,
+  "introduced": 31257,
+  "surviving": 29225,
+  "survival_rate": 0.9349905621140865,
+  "capped_survival_rate": 0.7456763825851921,
+  "median_survival": 0.4722222222222222,
+  "largest_commit_share": 0.7029145471414403
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 727,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit anthropics/claude-code --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/anthropics__claude-code.json",
+ "license": "CC-BY-4.0"
+}

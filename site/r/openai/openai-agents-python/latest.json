@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "openai/openai-agents-python",
+ "repository_url": "https://github.com/openai/openai-agents-python",
+ "url": "https://causari.dev/r/openai/openai-agents-python/",
+ "badge": "https://causari.dev/r/openai/openai-agents-python/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 2,
+  "introduced": 94176,
+  "surviving": 94152,
+  "survival_rate": 0.9997451580020388,
+  "capped_survival_rate": 0.9976100378410675,
+  "median_survival": 0.7142857142857143,
+  "largest_commit_share": 0.9995540265035678
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 2230,
+ "aggregated": false,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": true
+ },
+ "reports": 1,
+ "reproduce": "re audit openai/openai-agents-python --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/openai__openai-agents-python.json",
+ "license": "CC-BY-4.0"
+}

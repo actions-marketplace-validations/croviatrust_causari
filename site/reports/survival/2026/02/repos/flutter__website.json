@@ -1,0 +1,48 @@
+{
+  "by_agent": {
+    "gemini": {
+      "cap_lines": 496,
+      "capped_survival_rate": 0.8203409551797698,
+      "commits": 148,
+      "introduced": 49776,
+      "largest_commit_share": 0.6585503053680488,
+      "median_survival": 0.9480469708118715,
+      "survival_rate": 0.9515027322404371,
+      "surviving": 47362
+    }
+  },
+  "coverage": {
+    "blame_flags": [
+      "-w",
+      "-M",
+      "-C"
+    ],
+    "ignore_revs_file": false,
+    "method": "v2",
+    "sample_floor": 5,
+    "shallow": false,
+    "small_sample": false
+  },
+  "method": "v2",
+  "probable": {
+    "cap_lines": null,
+    "capped_survival_rate": null,
+    "commits": 0,
+    "introduced": 0,
+    "largest_commit_share": null,
+    "median_survival": null,
+    "survival_rate": null,
+    "surviving": 0
+  },
+  "total_commits": 8538,
+  "verified": {
+    "cap_lines": 496,
+    "capped_survival_rate": 0.8203409551797698,
+    "commits": 148,
+    "introduced": 49776,
+    "largest_commit_share": 0.6585503053680488,
+    "median_survival": 0.9480469708118715,
+    "survival_rate": 0.9515027322404371,
+    "surviving": 47362
+  }
+}

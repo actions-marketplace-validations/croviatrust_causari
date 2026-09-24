@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "cozystack/cozystack",
+ "repository_url": "https://github.com/cozystack/cozystack",
+ "url": "https://causari.dev/r/cozystack/cozystack/",
+ "badge": "https://causari.dev/r/cozystack/cozystack/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 2122,
+  "introduced": 498651,
+  "surviving": 380634,
+  "survival_rate": 0.7633274574802817,
+  "capped_survival_rate": 0.7686655143755038,
+  "median_survival": 0.8463855421686747,
+  "largest_commit_share": 0.0725116363949937
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 4828,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit cozystack/cozystack --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/cozystack__cozystack.json",
+ "license": "CC-BY-4.0"
+}

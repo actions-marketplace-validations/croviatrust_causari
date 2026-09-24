@@ -1,0 +1,47 @@
+{
+ "schema": "causari.repo_survival.v1",
+ "repo": "crewAIInc/crewAI",
+ "repository_url": "https://github.com/crewAIInc/crewAI",
+ "url": "https://causari.dev/r/crewaiinc/crewai/",
+ "badge": "https://causari.dev/r/crewaiinc/crewai/badge.svg",
+ "report": {
+  "number": 2,
+  "id": "2026/02",
+  "date": "2026-09-23",
+  "url": "https://causari.dev/reports/survival/2026/02/"
+ },
+ "method": "v2",
+ "tool": {
+  "name": "causari",
+  "version": "0.2.0"
+ },
+ "verified": {
+  "commits": 192,
+  "introduced": 3342690,
+  "surviving": 148599,
+  "survival_rate": 0.04445491505344498,
+  "capped_survival_rate": 0.7572049617310123,
+  "median_survival": 0.899993055073269,
+  "largest_commit_share": 0.9681744343627438
+ },
+ "interval_95": null,
+ "probable_commits": 0,
+ "total_commits": 2811,
+ "aggregated": true,
+ "coverage": {
+  "method": "v2",
+  "blame_flags": [
+   "-w",
+   "-M",
+   "-C"
+  ],
+  "ignore_revs_file": false,
+  "shallow": false,
+  "sample_floor": 5,
+  "small_sample": false
+ },
+ "reports": 1,
+ "reproduce": "re audit crewAIInc/crewAI --json",
+ "bytes": "https://causari.dev/reports/survival/2026/02/repos/crewAIInc__crewAI.json",
+ "license": "CC-BY-4.0"
+}
