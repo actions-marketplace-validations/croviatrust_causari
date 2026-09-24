@@ -31,10 +31,30 @@ fail() { printf 'FAIL %s\n' "$*" >&2; exit 1; }
 
 export XDG_CACHE_HOME="$WORK/cache"
 unset CAUSARI_BINARY CAUSARI_VERSION CAUSARI_DOWNLOAD_BASE
+
+# The commit that bumps package.json to the next version is pushed before
+# its tag exists, so on that commit the release named by package.json is not
+# published yet. Run the same launcher against the newest published release
+# through CAUSARI_VERSION and say so; every other check is unchanged.
+RELEASES="https://github.com/croviatrust/causari/releases"
+if ! curl -fsSLI --retry 3 "$RELEASES/download/v$VER/SHA256SUMS.txt" >/dev/null 2>&1; then
+  latest="$(curl -fsSL --retry 3 -o /dev/null -w '%{url_effective}' "$RELEASES/latest")"
+  latest="${latest##*/v}"
+  case "$latest" in
+    [0-9]*.[0-9]*.[0-9]*) ;;
+    *) fail "release v$VER is not published and the latest release could not be resolved ($latest)" ;;
+  esac
+  echo "note: release v$VER is not published yet; testing the launcher against v$latest via CAUSARI_VERSION"
+  export CAUSARI_VERSION="$latest"
+  VER="$latest"
+  ASSET="causari-v${VER}-${TARGET}.tar.gz"
+fi
 BIN="$XDG_CACHE_HOME/causari/$VER/$TARGET/re"
 
 # 1. first run downloads, verifies, runs ----------------------------------
-out="$(node "$PKG/bin/re.js" --version 2>"$WORK/err1")"
+if ! out="$(node "$PKG/bin/re.js" --version 2>"$WORK/err1")"; then
+  fail "first run failed: $(cat "$WORK/err1")"
+fi
 grep -q "first run: downloading causari v$VER" "$WORK/err1" || fail "no download message: $(cat "$WORK/err1")"
 grep -q "sha256 verified" "$WORK/err1" || fail "no verification message: $(cat "$WORK/err1")"
 # The release binary reports its own name, `causari`, under both file names.
