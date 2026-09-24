@@ -10,7 +10,7 @@ as siblings.
 ## What it is
 
 Counts of surviving lines from AI-tagged commits in N open-source
-repositories, under method v2. For each repository the report states how
+repositories, under the current method (v3; v2 until report #2). For each repository the report states how
 many lines were introduced by commits that carry machine-readable AI
 authorship metadata (`Co-Authored-By` trailers naming an agent, bot author
 identities, aider markers, `Assisted-by:`, git-ai notes) and how many of
@@ -89,7 +89,8 @@ site/reports/survival/
   zenodo.json                Concept DOI and one record per report (written by the deposit)
   <YYYY>/<NN>/
     index.html               the report page
-    report.json              counts, intervals, coverage, DOI (schema causari.survival_report.v1)
+    report.json              counts, intervals, coverage, DOI (schema causari.survival_report.v1);
+                             from method v3 each row and the aggregate carry a `baseline` block
     report.r<K>.json, .md    revision K as it was published, unchanged, when a later revision exists
     report.md                plain-text version, also the Zenodo description
     card.svg, card.png       Open Graph card, identity style

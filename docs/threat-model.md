@@ -37,7 +37,10 @@ twice under two names: audits that measured the same commit or are
 byte-identical count once (`excluded.duplicates`). Shallow clones: refused
 by method v2. Large bulk commits dominating a ratio: the per-commit cap and
 the capped ratio, both published. Small samples: measured but not
-aggregated below the sample floor.
+aggregated below the sample floor. A repository cleared or rewritten, so
+that no old line survives whoever wrote it: method v3 names the oldest
+surviving line and counts the commits behind it, and puts the untagged
+lines of the same age next to the AI-tagged ones.
 
 **Not defended, by design.** A repository author who wants a higher or
 lower number can tag or untag commits: the audit reads metadata, it does

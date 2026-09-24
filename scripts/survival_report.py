@@ -266,6 +266,124 @@ def stat_view(stat: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def cohort_view(stat: dict[str, Any]) -> dict[str, Any]:
+    """One cohort of one age window: the three counts and the rate."""
+    return {
+        "commits": int(stat.get("commits") or 0),
+        "introduced": int(stat.get("introduced") or 0),
+        "surviving": int(stat.get("surviving") or 0),
+        "survival_rate": stat.get("survival_rate"),
+    }
+
+
+def baseline_view(audit: dict[str, Any]) -> dict[str, Any] | None:
+    """The method v3 `baseline` block of one audit, or None for an audit
+    that predates it (method v2 rows keep building, without a baseline)."""
+    b = audit.get("baseline")
+    if not isinstance(b, dict) or not isinstance(b.get("untagged"), dict):
+        return None
+    m = b.get("age_matched")
+    o = b.get("oldest_surviving")
+    total = int(audit.get("total_commits") or 0)
+    return {
+        "untagged": stat_view(b["untagged"]),
+        "by_age": [
+            {"from_days": int(w.get("from_days") or 0), "to_days": w.get("to_days"),
+             "tagged": cohort_view(w.get("tagged") or {}), "untagged": cohort_view(w.get("untagged") or {})}
+            for w in (b.get("by_age") or []) if isinstance(w, dict)
+        ],
+        "age_matched": None if not isinstance(m, dict) else {
+            "tagged_rate": m.get("tagged_rate"), "untagged_rate": m.get("untagged_rate"), "gap": m.get("gap"),
+            "buckets_used": int(m.get("buckets_used") or 0), "tagged_lines_covered": m.get("tagged_lines_covered"),
+        },
+        "oldest_surviving": None if not isinstance(o, dict) else {
+            "date": o.get("date"), "age_days": int(o.get("age_days") or 0),
+            "commits_before": int(o.get("commits_before") or 0), "introduced_before": int(o.get("introduced_before") or 0),
+            "tagged_commits_before": int(o.get("tagged_commits_before") or 0),
+            "tagged_introduced_before": int(o.get("tagged_introduced_before") or 0),
+            # share of every commit of the repository that predates the
+            # oldest line still at HEAD; above one half the repository was
+            # cleared or rewritten and the page says so
+            "commits_before_share": (int(o.get("commits_before") or 0) / total) if total else None,
+        },
+    }
+
+
+REWRITTEN_SHARE = 0.5
+
+
+def rewritten(row: dict[str, Any]) -> bool:
+    """More than half of a repository's commits predate the oldest line
+    still at HEAD: nothing from before that date survives, tagged or not."""
+    o = ((row.get("baseline") or {}).get("oldest_surviving")) or {}
+    share = o.get("commits_before_share")
+    return share is not None and share > REWRITTEN_SHARE
+
+
+def window_label(w: dict[str, Any]) -> str:
+    return f"{w['from_days']}–{w['to_days']} d" if w.get("to_days") is not None else f"{w['from_days']}+ d"
+
+
+def aggregate_baseline(aggregated: list[dict[str, Any]], seed: int, sample_floor: int) -> dict[str, Any]:
+    """What the baselines of the aggregated repositories say together: the
+    median age-matched gap with its bootstrap interval, how many gaps fall on
+    each side of zero, and the age windows pooled across repositories with
+    the same direct standardisation `re audit` applies inside one."""
+    with_gap = [r for r in aggregated if ((r.get("baseline") or {}).get("age_matched") or {}).get("gap") is not None]
+    gaps = [r["baseline"]["age_matched"]["gap"] for r in with_gap]
+    with_baseline = [r for r in aggregated if r.get("baseline")]
+    pooled: dict[tuple[int, Any], dict[str, Any]] = {}
+    for r in with_baseline:
+        for w in r["baseline"]["by_age"]:
+            key = (w["from_days"], w["to_days"])
+            acc = pooled.setdefault(key, {"from_days": w["from_days"], "to_days": w["to_days"],
+                                          "tagged": {"commits": 0, "introduced": 0, "surviving": 0},
+                                          "untagged": {"commits": 0, "introduced": 0, "surviving": 0}})
+            for cohort in ("tagged", "untagged"):
+                for k in ("commits", "introduced", "surviving"):
+                    acc[cohort][k] += w[cohort][k]
+    pooled_by_age = []
+    for key in sorted(pooled, key=lambda k: k[0]):
+        acc = pooled[key]
+        for cohort in ("tagged", "untagged"):
+            c = acc[cohort]
+            c["survival_rate"] = (c["surviving"] / c["introduced"]) if c["introduced"] else None
+        pooled_by_age.append(acc)
+    usable = [w for w in pooled_by_age
+              if w["tagged"]["commits"] >= sample_floor and w["untagged"]["commits"] >= sample_floor
+              and w["tagged"]["introduced"] and w["untagged"]["introduced"]]
+    pooled_age_matched = None
+    total_tagged = sum(w["tagged"]["introduced"] for w in pooled_by_age)
+    if usable and total_tagged:
+        t_intro = sum(w["tagged"]["introduced"] for w in usable)
+        t_surv = sum(w["tagged"]["surviving"] for w in usable)
+        u_weighted = sum(w["tagged"]["introduced"] * w["untagged"]["survival_rate"] for w in usable)
+        pooled_age_matched = {
+            "tagged_rate": t_surv / t_intro, "untagged_rate": u_weighted / t_intro,
+            "gap": t_surv / t_intro - u_weighted / t_intro, "buckets_used": len(usable),
+            "tagged_lines_covered": t_intro / total_tagged,
+        }
+    return {
+        "repositories": len(with_baseline),
+        "repositories_with_gap": len(with_gap),
+        "median_gap": median(gaps),
+        "median_gap_interval_95": bootstrap_median(gaps, seed=seed),
+        "gaps_negative": sum(1 for g in gaps if g < 0),
+        "gaps_positive": sum(1 for g in gaps if g > 0),
+        "rewritten": sorted((r["repo"] for r in aggregated if rewritten(r)), key=str.lower),
+        "rewritten_rule": f"more than {REWRITTEN_SHARE:.0%} of the repository's commits predate the oldest line still at HEAD",
+        "pooled_by_age": pooled_by_age,
+        "pooled_age_matched": pooled_age_matched,
+        "definition": (
+            "gap = AI-tagged line-weighted survival minus untagged survival re-weighted to the age mix of the "
+            "AI-tagged lines of the same repository, over age windows where both cohorts hold at least "
+            f"{sample_floor} commits; untagged = commits with no machine-readable AI signal (human-written, "
+            "inline-completed and untagged-agent code alike); age = commit date to HEAD date. A negative gap "
+            "means AI-tagged lines survive less than untagged lines of the same age in the same repository."
+        ),
+    }
+
+
 def audit_identity(fp: Path, audit: dict[str, Any]) -> tuple[str, str]:
     """What makes two audits the same measurement: the commit they measured
     (`repository.head`, written by `re audit` from 0.2.1 on) and, for older
@@ -355,6 +473,7 @@ def collect(run_dir: Path, number: int, date: str, root: Path) -> dict[str, Any]
             "verified": v,
             "probable": p,
             "by_agent": {k: stat_view(s) for k, s in sorted((audit.get("by_agent") or {}).items())},
+            "baseline": baseline_view(audit),
             "coverage": {
                 "method": cov.get("method"),
                 "blame_flags": list(cov.get("blame_flags") or []),
@@ -440,6 +559,7 @@ def collect(run_dir: Path, number: int, date: str, root: Path) -> dict[str, Any]
             "median_capped_survival_rate": median(capped),
             "median_capped_survival_rate_interval_95": bootstrap_median(capped, seed=number),
             "interval_method": {"kind": "bootstrap over repositories", "resamples": RESAMPLES, "seed": number, "note": interval_note},
+            "baseline": aggregate_baseline(aggregated, seed=number, sample_floor=sample_floor),
         },
         "by_agent": by_agent_out,
         "repositories": [{k: v for k, v in r.items() if not k.startswith("_")} for r in aggregated],
@@ -514,8 +634,9 @@ POSITIONING = {
         "This report counts lines. For each repository it states how many lines were introduced by commits "
         "that carry machine-readable AI authorship metadata (trailers such as Co-Authored-By naming an agent, "
         "bot author identities, aider markers, git-ai notes), and how many of those lines git blame still "
-        "attributes to those commits at HEAD, under method v2 (blame with -w -M -C, a per-commit weight cap, "
-        "a sample floor, full clones only). Every row is reproducible with one command."
+        "attributes to those commits at HEAD, under the method version stated on the page (blame with -w -M -C, "
+        "a per-commit weight cap, a sample floor, full clones only; from method v3 the untagged lines of the same "
+        "repository, at the same age, stand next to the AI-tagged ones). Every row is reproducible with one command."
     ),
     "is_not": (
         "It is not a quality judgement: deleted lines include removed features and rewritten prototypes; "
@@ -543,6 +664,57 @@ def report_selection(f: dict[str, Any]) -> str:
     """The selection sentence of one report: stored in report.json from the
     run that discovered the list; earlier reports carry the hand-picked one."""
     return (f.get("method") or {}).get("selection") or SELECTION_BY_PR
+
+
+def fmt_gap(x: float | None) -> str:
+    return "—" if x is None else f"{x * 100:+.1f} pts"
+
+
+def row_gap(row: dict[str, Any]) -> dict[str, Any] | None:
+    return ((row.get("baseline") or {}).get("age_matched")) or None
+
+
+def row_untagged_rate(row: dict[str, Any]) -> str:
+    """The untagged rate re-weighted to the AI-tagged age mix, or the rule that withheld it."""
+    m = row_gap(row)
+    if m and m.get("untagged_rate") is not None:
+        return fmt_pct(m["untagged_rate"])
+    if row.get("baseline"):
+        return "no shared window"
+    return "—"
+
+
+def baseline_md(f: dict[str, Any]) -> list[str]:
+    """The baseline section of report.md; empty for reports built before method v3."""
+    b = (f.get("aggregate") or {}).get("baseline")
+    if not b or not b.get("repositories"):
+        return []
+    lines = ["", "## Baseline: the same repositories' untagged lines, at the same age", "",
+             b["definition"], ""]
+    if b.get("repositories_with_gap"):
+        lines.append(f"- Repositories with an age-matched gap: {b['repositories_with_gap']} of {b['repositories']} with a baseline")
+        lines.append(f"- Median gap across them: {fmt_gap(b['median_gap'])}")
+        iv = b.get("median_gap_interval_95")
+        if iv:
+            lines.append(f"- 95 % bootstrap interval on that median: {fmt_gap(iv['low'])} to {fmt_gap(iv['high'])}")
+        lines.append(f"- Gaps below zero: {b['gaps_negative']} · above zero: {b['gaps_positive']}")
+    pm = b.get("pooled_age_matched")
+    if pm:
+        lines.append(f"- Pooled over all baselines: AI-tagged {fmt_pct(pm['tagged_rate'])} vs untagged {fmt_pct(pm['untagged_rate'])} "
+                     f"of the same age ({fmt_gap(pm['gap'])}), over {pm['buckets_used']} windows holding {fmt_share(pm['tagged_lines_covered'])} of the AI-tagged lines")
+    if b.get("rewritten"):
+        lines.append(f"- Cleared or rewritten ({b['rewritten_rule']}): {', '.join(b['rewritten'])}. "
+                     "Nothing from before that date survives in them, tagged or not; their rows measure the rewrite as much as the code.")
+    if b.get("pooled_by_age"):
+        lines += ["", "| Line age | AI-tagged commits | AI-tagged lines | Still at HEAD | AI-tagged | Untagged commits | Untagged lines | Still at HEAD | Untagged |",
+                  "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
+        for w in b["pooled_by_age"]:
+            t, u = w["tagged"], w["untagged"]
+            if not (t["commits"] or u["commits"]):
+                continue
+            lines.append(f"| {window_label(w)} | {fmt_int(t['commits'])} | {fmt_int(t['introduced'])} | {fmt_int(t['surviving'])} | {fmt_pct(t['survival_rate'])} | "
+                         f"{fmt_int(u['commits'])} | {fmt_int(u['introduced'])} | {fmt_int(u['surviving'])} | {fmt_pct(u['survival_rate'])} |")
+    return lines
 
 
 def report_md(f: dict[str, Any]) -> str:
@@ -585,15 +757,21 @@ def report_md(f: dict[str, Any]) -> str:
         lines.append("")
         lines.append(a["interval_method"]["note"])
         lines.append("")
-    lines += ["## Repositories (alphabetical)", "",
-              "| Repository | Commits | AI-tagged | Introduced | Still at HEAD | Line-weighted | Capped | Median per commit | Largest commit | Reproduce |",
-              "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
+    lines += baseline_md(f)
+    has_baseline = any(r.get("baseline") for r in f["repositories"])
+    extra_head = " Untagged, same age | Gap |" if has_baseline else ""
+    extra_sep = "---:|---:|" if has_baseline else ""
+    lines += ["", "## Repositories (alphabetical)", "",
+              f"| Repository | Commits | AI-tagged | Introduced | Still at HEAD | Line-weighted | Capped | Median per commit | Largest commit |{extra_head} Reproduce |",
+              f"|---|---:|---:|---:|---:|---:|---:|---:|---:|{extra_sep}---|"]
     for r in f["repositories"]:
         v = r["verified"]
+        extra = f" {row_untagged_rate(r)} | {fmt_gap((row_gap(r) or {}).get('gap'))} |" if has_baseline else ""
+        mark = " · rewritten" if rewritten(r) else ""
         lines.append(
-            f"| {r['repo']} | {fmt_int(r['total_commits'])} | {fmt_int(v['commits'])} | {fmt_int(v['introduced'])} | "
+            f"| {r['repo']}{mark} | {fmt_int(r['total_commits'])} | {fmt_int(v['commits'])} | {fmt_int(v['introduced'])} | "
             f"{fmt_int(v['surviving'])} | {fmt_pct(v['survival_rate'])} | {fmt_pct(v['capped_survival_rate'])} | "
-            f"{fmt_pct(v['median_survival'])} | {fmt_share(v['largest_commit_share'])} | `{r['reproduce']}` |"
+            f"{fmt_pct(v['median_survival'])} | {fmt_share(v['largest_commit_share'])} |{extra} `{r['reproduce']}` |"
         )
     if f["by_agent"]:
         lines += ["", "## By agent, across aggregated repositories (alphabetical)", "",
@@ -608,10 +786,10 @@ def report_md(f: dict[str, Any]) -> str:
             lines.append(f"| {r['repo']} | {fmt_int(r['total_commits'])} | {fmt_int(v['commits'])} | {fmt_int(v['introduced'])} | {fmt_int(v['surviving'])} | `{r['reproduce']}` |")
     ex = f["excluded"]
     lines += ["", "## Excluded from this report", ""]
-    lines.append(f"- Shallow clones (history truncated; method v2 refuses them): {', '.join(ex['shallow']) or 'none'}")
+    lines.append(f"- Shallow clones (history truncated; method {m['version']} refuses them): {', '.join(ex['shallow']) or 'none'}")
     lines.append(f"- Audits that failed in this run: {', '.join(ex['failed']) or 'none'}")
     if ex["not_method_v2"]:
-        lines.append(f"- Outputs not in method v2 format: {', '.join(ex['not_method_v2'])}")
+        lines.append(f"- Outputs without a coverage block (method v1): {', '.join(ex['not_method_v2'])}")
     for d in ex.get("duplicates") or []:
         lines.append(f"- {d['dropped']} is the same repository as {d['kept']} ({d['reason']}); counted once, under {d['kept']}")
     lines.append(f"- Opted out by their maintainers ({ex['optout_file']}): {ex['opted_out']}")
@@ -619,7 +797,9 @@ def report_md(f: dict[str, Any]) -> str:
               f"Method {m['version']}, {f['tool']['name']} {f['tool']['version']}. Detection from commit metadata only; "
               f"survival from `git blame {' '.join(m['blame_flags'])}` at HEAD. Per-commit cap: {m['cap_rule']}. "
               f"Sample floor: {m['sample_floor']} VERIFIED commits. {m['evidence_class']}. Full clones only. "
-              f"Details, limits and how to contest a number: {m['url']}.",
+              + ("Baseline (method v3): the untagged lines of the same repository, by age; the gap is defined in the Baseline section. "
+                 if (a.get('baseline') or {}).get('repositories') else "")
+              + f"Details, limits and how to contest a number: {m['url']}.",
               "", "## What this report is, and is not", "", POSITIONING["is"], "", is_not_text(report_selection(f)), "", POSITIONING["context"],
               "", "## Cite", "", cite(f), ""]
     return "\n".join(lines)
@@ -786,7 +966,7 @@ def num_cell(value: str, href: str, title: str) -> str:
     return f'<td><a class="rp-num" href="{esc(href)}" title="{esc(title)}">{value}</a></td>'
 
 
-def repo_rows(rows: list[dict[str, Any]], full: bool) -> str:
+def repo_rows(rows: list[dict[str, Any]], full: bool, baseline: bool = False) -> str:
     out = []
     for r in rows:
         v = r["verified"]
@@ -794,8 +974,10 @@ def repo_rows(rows: list[dict[str, Any]], full: bool) -> str:
         href = r["audit_file"]
         t = r["reproduce"]
         probable = f' <span class="muted">(+{fmt_int(p["commits"])} probable)</span>' if p["commits"] else ""
+        mark = (' <span class="muted" title="More than half of the commits predate the oldest line still at HEAD: '
+                'nothing from before that date survives, tagged or not">· rewritten</span>' if rewritten(r) else "")
         cells = [
-            f'<td><a href="{esc(repo_path(r["repo"]))}" title="{esc(r["repo"])}: page, history and badge">{esc(r["repo"])}</a></td>',
+            f'<td><a href="{esc(repo_path(r["repo"]))}" title="{esc(r["repo"])}: page, history and badge">{esc(r["repo"])}</a>{mark}</td>',
             num_cell(fmt_int(r["total_commits"]), href, t),
             num_cell(fmt_int(v["commits"]), href, t).replace("</a></td>", f"</a>{probable}</td>"),
             num_cell(fmt_int(v["introduced"]), href, t),
@@ -808,6 +990,14 @@ def repo_rows(rows: list[dict[str, Any]], full: bool) -> str:
                 num_cell(fmt_pct(v["median_survival"]), href, t),
                 num_cell(fmt_share(v["largest_commit_share"]), href, t),
             ]
+            if baseline:
+                m = row_gap(r)
+                if m and m.get("gap") is not None:
+                    cells += [num_cell(fmt_pct(m["untagged_rate"]), href, t), num_cell(fmt_gap(m["gap"]), href, t)]
+                elif r.get("baseline"):
+                    cells += ['<td colspan="2"><span class="lb-none" title="No age window holds at least the sample floor of both AI-tagged and untagged commits">no shared window</span></td>']
+                else:
+                    cells += ['<td colspan="2"><span class="lb-none" title="Measured before method v3: no baseline in this audit">—</span></td>']
         else:
             floor = r["coverage"]["sample_floor"]
             cells.append(f'<td><span class="lb-none" title="Fewer than {floor} AI-tagged commits: one commit can dominate, so no ratio is aggregated">n &lt; {floor}</span></td>')
@@ -851,6 +1041,53 @@ def render_report(f: dict[str, Any]) -> str:
     }
     if f.get("doi"):
         jsonld["identifier"] = {"@type": "PropertyValue", "propertyID": "DOI", "value": f["doi"]}
+    b = a.get("baseline") or {}
+    has_baseline = bool(b.get("repositories"))
+    base_stat = ""
+    if has_baseline and b.get("repositories_with_gap"):
+        ivb = b.get("median_gap_interval_95")
+        base_stat = f"""
+      <a class="rp-stat" href="report.json#baseline"><span class="n">{fmt_gap(b['median_gap'])}</span><span class="l">median age-matched gap to the same repository's untagged lines{' · ' + fmt_gap(ivb['low']) + ' – ' + fmt_gap(ivb['high']) if ivb else ''}</span></a>"""
+    baseline_section = ""
+    if has_baseline:
+        pooled_rows = "\n".join(
+            f"<tr><td>{esc(window_label(w))}</td><td>{fmt_int(w['tagged']['commits'])}</td><td>{fmt_int(w['tagged']['introduced'])}</td>"
+            f"<td>{fmt_int(w['tagged']['surviving'])}</td><td>{fmt_pct(w['tagged']['survival_rate'])}</td>"
+            f"<td>{fmt_int(w['untagged']['commits'])}</td><td>{fmt_int(w['untagged']['introduced'])}</td>"
+            f"<td>{fmt_int(w['untagged']['surviving'])}</td><td>{fmt_pct(w['untagged']['survival_rate'])}</td></tr>"
+            for w in b.get("pooled_by_age") or [] if w["tagged"]["commits"] or w["untagged"]["commits"]
+        )
+        pm = b.get("pooled_age_matched")
+        pooled_line = (f"Pooled over the {b['repositories']} baselines: AI-tagged {fmt_pct(pm['tagged_rate'])} against untagged "
+                       f"{fmt_pct(pm['untagged_rate'])} of the same age, {fmt_gap(pm['gap'])}, over {pm['buckets_used']} windows holding "
+                       f"{fmt_share(pm['tagged_lines_covered'])} of the AI-tagged lines." if pm else "")
+        gap_line = ""
+        if b.get("repositories_with_gap"):
+            ivb = b.get("median_gap_interval_95")
+            gap_line = (f"{b['repositories_with_gap']} of the {b['repositories']} repositories with a baseline have an age-matched gap; "
+                        f"the median is {fmt_gap(b['median_gap'])}"
+                        + (f" (95 % bootstrap interval {fmt_gap(ivb['low'])} to {fmt_gap(ivb['high'])})" if ivb else "")
+                        + f"; {b['gaps_negative']} gaps fall below zero and {b['gaps_positive']} above. ")
+        rewritten_line = ""
+        if b.get("rewritten"):
+            rewritten_line = (f"<p class=\"muted\"><strong>Cleared or rewritten</strong> ({esc(b['rewritten_rule'])}): "
+                              f"{esc(', '.join(b['rewritten']))}. Nothing from before that date survives in them, tagged or not; "
+                              "their rows measure the rewrite as much as the code, and the gap is the figure to read.</p>")
+        baseline_section = f"""
+    <div class="rp-section" id="baseline">
+    <h3>Baseline: the same repositories' untagged lines, at the same age</h3>
+    <p class="muted">{esc(b['definition'])}</p>
+    <p>{esc(gap_line)}{esc(pooled_line)}</p>
+    {rewritten_line}
+    <div class="tbl-scroll wide">
+      <table class="lb-table" id="by-age">
+        <thead><tr><th>Line age</th><th>AI-tagged commits</th><th>Lines introduced</th><th>Still at HEAD</th><th>AI-tagged</th><th>Untagged commits</th><th>Lines introduced</th><th>Still at HEAD</th><th>Untagged</th></tr></thead>
+        <tbody>
+{pooled_rows}
+        </tbody>
+      </table>
+    </div>
+    </div>"""
     iv = a["survival_rate_interval_95"]
     iv2 = a["median_capped_survival_rate_interval_95"]
     strip = ""
@@ -862,7 +1099,7 @@ def render_report(f: dict[str, Any]) -> str:
       <a class="rp-stat" href="report.json"><span class="n">{fmt_int(a['introduced'])}</span><span class="l">lines introduced by them</span></a>
       <a class="rp-stat" href="report.json"><span class="n">{fmt_int(a['surviving'])}</span><span class="l">still attributed to them at HEAD</span></a>
       <a class="rp-stat" href="report.json"><span class="n">{fmt_pct(a['survival_rate'])}</span><span class="l">line-weighted{' · 95 % interval ' + fmt_pct(iv['low']) + ' – ' + fmt_pct(iv['high']) if iv else ''}</span></a>
-      <a class="rp-stat" href="report.json"><span class="n">{fmt_pct(a['median_capped_survival_rate'])}</span><span class="l">median of capped per-repository ratios{' · ' + fmt_pct(iv2['low']) + ' – ' + fmt_pct(iv2['high']) if iv2 else ''}</span></a>
+      <a class="rp-stat" href="report.json"><span class="n">{fmt_pct(a['median_capped_survival_rate'])}</span><span class="l">median of capped per-repository ratios{' · ' + fmt_pct(iv2['low']) + ' – ' + fmt_pct(iv2['high']) if iv2 else ''}</span></a>{base_stat}
     </div>"""
     not_agg = ""
     if f["not_aggregated"]:
@@ -899,7 +1136,7 @@ def render_report(f: dict[str, Any]) -> str:
         f"<li><strong>Audits that failed</strong> in this run: {esc(', '.join(ex['failed'])) if ex['failed'] else 'none'}.</li>",
     ]
     if ex["not_method_v2"]:
-        excluded_items.append(f"<li><strong>Outputs not in method v2 format:</strong> {esc(', '.join(ex['not_method_v2']))}.</li>")
+        excluded_items.append(f"<li><strong>Outputs without a coverage block (method v1):</strong> {esc(', '.join(ex['not_method_v2']))}.</li>")
     for d in ex.get("duplicates") or []:
         excluded_items.append(
             f"<li><strong>One repository, two names:</strong> <code translate=\"no\">{esc(d['dropped'])}</code> is "
@@ -938,16 +1175,17 @@ def render_report(f: dict[str, Any]) -> str:
 {strip}
     <div class="rp-section">
     <h3 id="repositories">Repositories</h3>
-    <p class="muted">Alphabetical. VERIFIED commits only; PROBABLE counts are shown but never summed. <em>Capped</em>: no commit weighs more than the cap. <em>Median per commit</em>: the middle commit's own ratio. <em>Largest commit</em>: share of introduced lines from the single largest commit. Every number links to the audit bytes of this run; <code translate="no">{esc(m['command'])}</code> reproduces a row. Each repository name links to <a href="/{REPOS_REL}/">its own page</a>: history across reports and a badge.</p>
+    <p class="muted">Alphabetical. VERIFIED commits only; PROBABLE counts are shown but never summed. <em>Capped</em>: no commit weighs more than the cap. <em>Median per commit</em>: the middle commit's own ratio. <em>Largest commit</em>: share of introduced lines from the single largest commit.{' <em>Untagged, same age</em>: the survival of the repository&#39;s own untagged lines, re-weighted to the age mix of its AI-tagged lines; <em>Gap</em>: the AI-tagged ratio minus that, in points (definition in the <a href="#baseline">Baseline</a> section).' if has_baseline else ''} Every number links to the audit bytes of this run; <code translate="no">{esc(m['command'])}</code> reproduces a row. Each repository name links to <a href="/{REPOS_REL}/">its own page</a>: history across reports and a badge.</p>
     <div class="tbl-scroll wide">
       <table class="lb-table" id="repos">
-        <thead><tr><th>Repository</th><th>Commits</th><th>AI-tagged</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Capped</th><th>Median per commit</th><th>Largest commit</th></tr></thead>
+        <thead><tr><th>Repository</th><th>Commits</th><th>AI-tagged</th><th>Lines introduced</th><th>Still at HEAD</th><th>Line-weighted</th><th>Capped</th><th>Median per commit</th><th>Largest commit</th>{'<th>Untagged, same age</th><th>Gap</th>' if has_baseline else ''}</tr></thead>
         <tbody>
-{repo_rows(f['repositories'], full=True)}
+{repo_rows(f['repositories'], full=True, baseline=has_baseline)}
         </tbody>
       </table>
     </div>
     </div>
+{baseline_section}
 {not_agg}
 {agents}
     <div class="rp-section">
@@ -965,7 +1203,7 @@ def render_report(f: dict[str, Any]) -> str:
         <li><strong>Cap rule</strong>: {esc(m['cap_rule'])}. The capped ratio is what one bulk commit cannot dominate.</li>
         <li><strong>Sample floor</strong>: {m['sample_floor']} VERIFIED commits. Below it a repository is measured but not aggregated.</li>
         <li><strong>Intervals</strong>: {esc(a['interval_method']['note'])}</li>
-        <li><strong>Full clones only</strong>: method {esc(m['version'])} refuses shallow clones; the workflow clones each repository completely before measuring.</li>
+        <li><strong>Full clones only</strong>: method {esc(m['version'])} refuses shallow clones; the workflow clones each repository completely before measuring.</li>{'<li><strong>Baseline</strong> (method v3): every UNKNOWN commit of a repository, human-written, inline-completed or untagged-agent code alike, forms its untagged cohort; the by-age table and the age-matched gap put it next to the AI-tagged one. The untagged cohort includes AI code that carried no tag.</li>' if has_baseline else ''}
         <li><strong>Reproduce or contest</strong>: <code translate="no">{esc(m['command'])}</code> gives the exact bytes behind a row; the bytes of this run are under <code translate="no">repos/</code> next to this page. Open an issue with your JSON if it differs.</li>
       </ul>
     </div>
@@ -1191,6 +1429,7 @@ def repo_latest(e: dict[str, Any]) -> dict[str, Any]:
             "median_survival": v["median_survival"], "largest_commit_share": v["largest_commit_share"],
         },
         "interval_95": v.get("survival_rate_interval_95"),
+        "baseline": row.get("baseline"),
         "probable_commits": row["probable"]["commits"],
         "total_commits": row["total_commits"],
         "aggregated": bool(row.get("aggregated")),
@@ -1257,6 +1496,45 @@ def render_repo_page(e: dict[str, Any]) -> str:
       </table>
     </div>
     </div>"""
+    baseline = ""
+    bl = row.get("baseline")
+    if bl:
+        u = bl["untagged"]
+        am = bl.get("age_matched")
+        o = bl.get("oldest_surviving")
+        if am and am.get("gap") is not None:
+            gap_text = (f"Age-matched: AI-tagged lines {fmt_pct(am['tagged_rate'])} against untagged lines of the same age "
+                        f"{fmt_pct(am['untagged_rate'])}, a gap of {fmt_gap(am['gap'])}, over {am['buckets_used']} age window"
+                        f"{'s' if am['buckets_used'] != 1 else ''} holding {fmt_share(am['tagged_lines_covered'])} of the AI-tagged lines.")
+        else:
+            gap_text = f"No age window holds at least {cov['sample_floor']} commits of both kinds, so there is no age-matched figure."
+        rewrite_text = ""
+        if o and o.get("commits_before"):
+            rewrite_text = (f" The oldest line still at HEAD dates {esc(o['date'])}; {fmt_int(o['commits_before'])} commits "
+                            f"({fmt_int(o['tagged_commits_before'])} AI-tagged, {fmt_int(o['introduced_before'])} lines) are older, "
+                            "and nothing from before that date survives, tagged or not"
+                            + (": more than half of this repository's commits, so it was cleared or rewritten and every ratio on this page measures that as much as the code." if rewritten(row) else "."))
+        age_rows = "\n".join(
+            f"<tr><td>{esc(window_label(w))}</td>"
+            + (f"<td>{fmt_pct(w['tagged']['survival_rate'])}</td><td>{fmt_int(w['tagged']['commits'])}</td>" if w["tagged"]["commits"] else "<td>—</td><td>0</td>")
+            + (f"<td>{fmt_pct(w['untagged']['survival_rate'])}</td><td>{fmt_int(w['untagged']['commits'])}</td>" if w["untagged"]["commits"] else "<td>—</td><td>0</td>")
+            + "</tr>"
+            for w in bl["by_age"] if w["tagged"]["commits"] or w["untagged"]["commits"]
+        )
+        baseline = f"""
+    <div class="rp-section" id="baseline">
+    <h3>Baseline: this repository's untagged lines</h3>
+    <p class="muted">Commits with no machine-readable AI signal, human-written, inline-completed or untagged-agent code alike: {fmt_int(u['commits'])} commits, {fmt_int(u['introduced'])} lines introduced, {fmt_int(u['surviving'])} still at HEAD ({fmt_pct(u['survival_rate'])} line-weighted, {fmt_pct(u['median_survival'])} median per commit). Age is the time from a commit to HEAD. Method v3; definition at <a href="/method#v3">causari.dev/method</a>.</p>
+    <p>{esc(gap_text)}{rewrite_text}</p>
+    <div class="tbl-scroll">
+      <table class="lb-table" id="by-age">
+        <thead><tr><th>Line age</th><th>AI-tagged</th><th>commits</th><th>Untagged</th><th>commits</th></tr></thead>
+        <tbody>
+{age_rows}
+        </tbody>
+      </table>
+    </div>
+    </div>"""
     history_rows = []
     points: list[tuple[str, float | None]] = []
     for h in e["history"]:
@@ -1293,6 +1571,7 @@ def render_repo_page(e: dict[str, Any]) -> str:
       <p class="rp-meta"><a href="{esc(row['url'])}" rel="noopener">GitHub</a> · <a href="{esc(e['path'])}latest.json">latest.json</a> · <a href="{esc(e['path'])}badge.svg">badge.svg</a> · <a href="/{REPORTS_REL}/{esc(f['id'])}/">Survival Report #{f['number']}</a> · <a href="/{REPOS_REL}/">all repositories</a> · <a href="/{REPORTS_REL}/feed.xml">Atom feed</a></p>
     </div>
 {strip}
+{baseline}
 {agents}
     <div class="rp-section">
     <h3 id="history">History across reports</h3>

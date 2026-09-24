@@ -52,6 +52,70 @@ def audit(commits: int, introduced: int, surviving: int, agent: str = "claude-co
     }
 
 
+def window(from_days: int, to_days: int | None, tagged: tuple[int, int, int], untagged: tuple[int, int, int]) -> dict:
+    def cohort(c: int, i: int, s: int) -> dict:
+        return {"commits": c, "introduced": i, "surviving": s, "survival_rate": (s / i) if i else None}
+    return {"from_days": from_days, "to_days": to_days, "tagged": cohort(*tagged), "untagged": cohort(*untagged)}
+
+
+def audit_v3(commits: int, introduced: int, surviving: int, *, agent: str = "claude-code",
+             by_age: list[dict], gap: dict | None, oldest: dict | None, total_commits: int | None = None) -> dict:
+    """A method v3 audit: the v2 figures plus a `baseline` block as `re audit` writes it."""
+    a = audit(commits, introduced, surviving, agent=agent)
+    a["method"] = "v3"
+    a["coverage"]["method"] = "v3"
+    if total_commits is not None:
+        a["total_commits"] = total_commits
+    u_intro = sum(w["untagged"]["introduced"] for w in by_age)
+    u_surv = sum(w["untagged"]["surviving"] for w in by_age)
+    u_commits = sum(w["untagged"]["commits"] for w in by_age)
+    a["baseline"] = {
+        "untagged": stat(u_commits, u_intro, u_surv),
+        "by_age": by_age,
+        "age_matched": gap,
+        "oldest_surviving": oldest,
+    }
+    return a
+
+
+# Two comparable windows: tagged 90 % and 40 %, untagged 80 % and 60 %, equal
+# tagged line weights, so the age-matched untagged rate is 70 % and the gap
+# is 65 - 70 = -5 points; `re audit` computed these from the same inputs.
+V3_BY_AGE = [
+    window(0, 30, (5, 500, 450), (5, 500, 400)),
+    window(30, 90, (0, 0, 0), (0, 0, 0)),
+    window(90, 180, (5, 500, 200), (5, 500, 300)),
+    window(180, 365, (0, 0, 0), (0, 0, 0)),
+    window(365, 730, (1, 1000, 0), (0, 0, 0)),
+    window(730, None, (0, 0, 0), (0, 0, 0)),
+]
+V3_GAP = {"tagged_rate": 0.65, "untagged_rate": 0.70, "gap": -0.05, "buckets_used": 2, "tagged_lines_covered": 0.5}
+V3_OLDEST = {"date": "2026-05-01", "age_days": 120, "commits_before": 1, "introduced_before": 1000,
+             "tagged_commits_before": 1, "tagged_introduced_before": 1000}
+# A cleared repository: 12 of its 22 commits predate the oldest surviving line.
+CLEARED_BY_AGE = [
+    window(0, 30, (0, 0, 0), (0, 0, 0)),
+    window(30, 90, (5, 100, 90), (5, 400, 300)),
+    window(90, 180, (0, 0, 0), (0, 0, 0)),
+    window(180, 365, (6, 600, 0), (6, 600, 0)),
+    window(365, 730, (0, 0, 0), (0, 0, 0)),
+    window(730, None, (0, 0, 0), (0, 0, 0)),
+]
+CLEARED_GAP = {"tagged_rate": 90 / 700, "untagged_rate": 75 / 700, "gap": 15 / 700, "buckets_used": 2, "tagged_lines_covered": 1.0}
+CLEARED_OLDEST = {"date": "2026-07-27", "age_days": 60, "commits_before": 12, "introduced_before": 1200,
+                  "tagged_commits_before": 6, "tagged_introduced_before": 600}
+
+V3_REPOS = {
+    "zeta/last": audit(20, 1000, 600),
+    "base/line": audit_v3(11, 2000, 650, by_age=V3_BY_AGE, gap=V3_GAP, oldest=V3_OLDEST, total_commits=22),
+    "base/cleared": audit_v3(11, 700, 90, agent="openhands", by_age=CLEARED_BY_AGE, gap=CLEARED_GAP,
+                             oldest=CLEARED_OLDEST, total_commits=22),
+    "base/lonely": audit_v3(5, 300, 200, by_age=[window(0, 30, (5, 300, 200), (2, 50, 50))], gap=None,
+                            oldest={"date": "2026-09-01", "age_days": 3, "commits_before": 0, "introduced_before": 0,
+                                    "tagged_commits_before": 0, "tagged_introduced_before": 0}, total_commits=7),
+}
+
+
 REPOS = {
     "zeta/last": audit(20, 1000, 600),
     "Alpha/first": audit(10, 500, 400, agent="cursor"),
@@ -65,7 +129,7 @@ REPOS = {
 class Scratch:
     """A run directory, an empty site and a repo root with an opt-out file."""
 
-    def __init__(self) -> None:
+    def __init__(self, repos: dict | None = None) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         base = Path(self.tmp.name)
         self.run = base / "run"
@@ -74,7 +138,7 @@ class Scratch:
         self.run.mkdir()
         self.site.mkdir()
         (self.root / ".github").mkdir(parents=True)
-        for repo, a in REPOS.items():
+        for repo, a in (repos or REPOS).items():
             (self.run / f"{sr.repo_slug(repo)}.json").write_text(json.dumps(a), encoding="utf-8")
         (self.run / "run.json").write_text(json.dumps({
             "generated_at": "2026-09-21T05:17:00Z", "tool": "causari", "tool_version": "0.1.5", "method": "v2",
@@ -250,6 +314,119 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(before, after)
         redirects = (self.s.site / "_redirects").read_text(encoding="utf-8")
         self.assertEqual(redirects.count(sr.REDIRECT_BEGIN), 1)
+
+
+class BaselineTests(unittest.TestCase):
+    """Method v3 rows carry a baseline; v2 rows in the same report do not."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.s = Scratch(V3_REPOS)
+        cls.f = cls.s.build()
+        cls.dir = cls.s.site / "reports" / "survival" / "2026" / "01"
+        cls.page = (cls.dir / "index.html").read_text(encoding="utf-8")
+        cls.md = (cls.dir / "report.md").read_text(encoding="utf-8")
+        cls.repo_page = (cls.s.site / "r" / "base" / "line" / "index.html").read_text(encoding="utf-8")
+        cls.v2_page = (cls.s.site / "r" / "zeta" / "last" / "index.html").read_text(encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.s.close()
+
+    def row(self, repo: str) -> dict:
+        return next(r for r in self.f["repositories"] + self.f["not_aggregated"] if r["repo"] == repo)
+
+    def test_rows_carry_the_baseline_or_none(self) -> None:
+        b = self.row("base/line")["baseline"]
+        self.assertEqual(b["untagged"]["commits"], 10)
+        self.assertEqual(b["untagged"]["introduced"], 1000)
+        self.assertEqual(len(b["by_age"]), 6)
+        self.assertAlmostEqual(b["age_matched"]["gap"], -0.05)
+        self.assertEqual(b["oldest_surviving"]["commits_before"], 1)
+        self.assertAlmostEqual(b["oldest_surviving"]["commits_before_share"], 1 / 22)
+        self.assertIsNone(self.row("zeta/last")["baseline"])
+        self.assertIsNone(self.row("base/lonely")["baseline"]["age_matched"])
+
+    def test_aggregate_baseline(self) -> None:
+        b = self.f["aggregate"]["baseline"]
+        self.assertEqual(b["repositories"], 3)
+        self.assertEqual(b["repositories_with_gap"], 2)
+        self.assertAlmostEqual(b["median_gap"], (-0.05 + 15 / 700) / 2)
+        self.assertEqual((b["gaps_negative"], b["gaps_positive"]), (1, 1))
+        self.assertEqual(b["rewritten"], ["base/cleared"])
+        self.assertIn("more than 50%", b["rewritten_rule"])
+        # pooled 0-30 d window: base/line (5, 500, 450) + base/lonely (5, 300, 200) tagged;
+        # untagged (5, 500, 400) + (2, 50, 50)
+        w0 = b["pooled_by_age"][0]
+        self.assertEqual((w0["from_days"], w0["to_days"]), (0, 30))
+        self.assertEqual(w0["tagged"], {"commits": 10, "introduced": 800, "surviving": 650, "survival_rate": 650 / 800})
+        self.assertEqual(w0["untagged"]["commits"], 7)
+        self.assertEqual(w0["untagged"]["introduced"], 550)
+        pm = b["pooled_age_matched"]
+        # windows with >= 5 commits of both kinds pooled: 0-30, 30-90, 90-180, 180-365
+        self.assertEqual(pm["buckets_used"], 4)
+        tagged_intro = 800 + 100 + 500 + 600
+        self.assertAlmostEqual(pm["tagged_rate"], (650 + 90 + 200 + 0) / tagged_intro)
+        expected_untagged = (800 * (450 / 550) + 100 * 0.75 + 500 * 0.6 + 600 * 0.0) / tagged_intro
+        self.assertAlmostEqual(pm["untagged_rate"], expected_untagged)
+        self.assertAlmostEqual(pm["gap"], pm["tagged_rate"] - pm["untagged_rate"])
+        self.assertAlmostEqual(pm["tagged_lines_covered"], tagged_intro / (tagged_intro + 1000))
+        self.assertIn("negative gap", b["definition"])
+        iv = b["median_gap_interval_95"]
+        self.assertAlmostEqual(iv["low"], -0.05)
+        self.assertAlmostEqual(iv["high"], 15 / 700)
+
+    def test_report_page_shows_gap_column_and_baseline_section(self) -> None:
+        header = re.search(r'<table class="lb-table" id="repos">.*?</thead>', self.page, re.S).group(0)
+        self.assertIn("<th>Untagged, same age</th><th>Gap</th>", header)
+        self.assertIn(">-5.0 pts<", self.page)
+        self.assertIn(">70.0 %<", self.page)
+        self.assertIn("no shared window", self.page)  # base/lonely
+        self.assertIn("Measured before method v3", self.page)  # zeta/last
+        self.assertIn("· rewritten", self.page)
+        self.assertIn('id="baseline"', self.page)
+        self.assertIn("Cleared or rewritten", self.page)
+        self.assertIn("base/cleared", self.page)
+        self.assertIn("median age-matched gap", self.page)
+        self.assertIn("-1.4 pts", self.page)
+        self.assertIn('id="by-age"', self.page)
+        self.assertIn("0–30 d", self.page)
+        # still no rank, no colour, no verdict
+        for token in ("color:", "background:", "🟢", "🟡", "🔴"):
+            self.assertNotIn(token, self.page)
+        text = visible_text(self.page)
+        for word in FORBIDDEN:
+            for m in re.finditer(re.escape(word), text):
+                before = text[max(0, m.start() - 1):m.start()]
+                self.assertIn(before, ('"', "'", "\u201c", "\u2018", "`", "\u00ab"), f"forbidden word {word!r} bare")
+
+    def test_report_md_has_baseline(self) -> None:
+        self.assertIn("## Baseline: the same repositories' untagged lines, at the same age", self.md)
+        self.assertIn("- Median gap across them: -1.4 pts", self.md)
+        self.assertIn("- Gaps below zero: 1 · above zero: 1", self.md)
+        self.assertIn("Cleared or rewritten", self.md)
+        self.assertIn("| base/cleared · rewritten |", self.md)
+        self.assertIn("| Untagged, same age | Gap |", self.md.replace("|  Untagged", "| Untagged"))
+        self.assertIn("| 70.0 % | -5.0 pts |", self.md)
+        self.assertIn("| — | — |", self.md)  # zeta/last, no baseline
+
+    def test_repo_page_and_latest_json(self) -> None:
+        self.assertIn("Baseline: this repository", self.repo_page)
+        self.assertIn("a gap of -5.0 pts", self.repo_page)
+        self.assertIn("The oldest line still at HEAD dates 2026-05-01; 1 commits", self.repo_page)
+        self.assertIn('href="/method#v3"', self.repo_page)
+        self.assertNotIn("Baseline: this repository", self.v2_page)
+        latest = json.loads((self.s.site / "r" / "base" / "line" / "latest.json").read_text(encoding="utf-8"))
+        self.assertAlmostEqual(latest["baseline"]["age_matched"]["gap"], -0.05)
+        v2 = json.loads((self.s.site / "r" / "zeta" / "last" / "latest.json").read_text(encoding="utf-8"))
+        self.assertIsNone(v2["baseline"])
+        cleared = (self.s.site / "r" / "base" / "cleared" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("cleared or rewritten", cleared)
+
+    def test_rebuild_from_report_json_keeps_the_baseline(self) -> None:
+        sr.rebuild(self.s.site)
+        page = (self.dir / "index.html").read_text(encoding="utf-8")
+        self.assertEqual(page, self.page)
 
 
 class RepoPageTests(unittest.TestCase):

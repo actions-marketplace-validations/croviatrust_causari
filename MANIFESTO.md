@@ -51,12 +51,12 @@ Causari is part of the Crovia family, one grammar in three tenses:
 
 | | proves | that |
 |---|---|---|
-| **TACET** | silence | a model did not disclose what it was trained on |
+| **TACET** | silence | a model's public card carried no training-data disclosure in the observed hours |
 | **PNX** | non-exfiltration | an agent's egress never carried the protected bytes |
 | **Causari** | cause and survival | why a line of code exists, and whether it is still here |
 
-Same rules everywhere: reproducible numbers, no verdicts, offline
-verification, limits stated first.
+Same rules everywhere: reproducible numbers, no verdicts, verification
+without our servers, limits stated first.
 
 ## The mark
 

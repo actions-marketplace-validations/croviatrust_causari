@@ -75,6 +75,24 @@ release workflow copies it verbatim. Counts, not adjectives.
 
 ### Audit
 
+- Method v3: the same repository's untagged lines are the baseline. Every
+  UNKNOWN commit (no machine-readable AI signal: human-written,
+  inline-completed and untagged-agent code alike) enters a `baseline`
+  block: `untagged` (the same figures as `verified`), `by_age` (six
+  windows of line age, 0–30 to 730+ days from a commit's committer date to
+  HEAD's, AI-tagged and untagged side by side), `age_matched` (AI-tagged
+  survival against untagged survival re-weighted to the AI-tagged age mix,
+  over windows where both cohorts hold at least 5 commits, with the share
+  of AI-tagged lines covered) and `oldest_surviving` (the oldest commit
+  still owning a line at HEAD and the commits, lines and AI-tagged commits
+  older than it: a cleared or rewritten repository shows there). Costs
+  nothing extra: numstat already walked every commit and blame already
+  named every line's owner. Terminal and `--summary` print a Baseline
+  section; every v2 figure is computed exactly as before. Measured before
+  release on OpenHands (30.1 % AI-tagged vs 36.1 % untagged of the same
+  age; 6,584 commits older than the oldest surviving line of 2026-04-24),
+  gemini-cli (62.4 % vs 67.1 %) and pydantic-ai (87.6 % vs 82.2 %, one
+  commit holding 70 % of the AI-tagged lines).
 - `re audit --json` names what it measured: `repository.head` (the commit
   at HEAD, 40 hex) and `repository.origin` (the origin URL with credentials
   stripped, or `sha256:` of the path when there is no remote). Two audits
@@ -84,6 +102,18 @@ release workflow copies it verbatim. Counts, not adjectives.
 
 ### Survival Report
 
+- The report carries the method v3 baseline. Every row measured with v3
+  gains `baseline` (untagged figures, the by-age windows, the age-matched
+  gap, the oldest surviving line); the page and `report.md` add the
+  columns "Untagged, same age" and "Gap", a Baseline section with the age
+  windows pooled across repositories, the median gap across repositories
+  with its bootstrap interval, how many gaps fall on each side of zero,
+  and the list of repositories where more than half of the commits
+  predate the oldest line still at HEAD (cleared or rewritten; marked
+  "· rewritten" in the table). Repository pages and `latest.json` carry
+  the same block. Rows measured before v3 keep building without it, and
+  reports #1 and #2 render as before. Additive: the schema stays
+  `causari.survival_report.v1`.
 - One repository counts once, whatever it is called. Report #2 counted
   `All-Hands-AI/OpenHands` and `OpenHands/OpenHands` — one repository,
   renamed on GitHub — as two rows with byte-identical audits. The
