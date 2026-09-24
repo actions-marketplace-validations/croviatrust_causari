@@ -353,10 +353,11 @@ Phases and exit criteria: [`ROADMAP.md`](ROADMAP.md).
 ## Family
 
 Causari is part of [Crovia](https://croviatrust.com), one grammar in three
-tenses: **TACET** proves a model's silence about its training data, **PNX**
-proves an agent's egress carried no protected bytes, **Causari** records why a
-line of code exists and measures whether it is still there. Same rules everywhere:
-reproducible numbers, no verdicts, offline verification, limits stated first.
+tenses: **TACET** proves that a model's public card carried no training-data
+disclosure in the hours it was observed, **PNX** proves an agent's egress
+carried no protected bytes, **Causari** records why a line of code exists and
+measures whether it is still there. Same rules everywhere: reproducible
+numbers, no verdicts, verification without our servers, limits stated first.
 
 Role in the Crovia canon — Sibling product: proof of cause for AI-written code
 (audit + local ledger); Seal issuer for agent completions and audit results.
