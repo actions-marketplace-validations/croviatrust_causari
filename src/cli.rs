@@ -54,7 +54,7 @@ Options:
     name = "causari",
     bin_name = "re",
     version,
-    about = "AI-written code has no author. It has causes. Causari proves them.",
+    about = "AI-written code has no author. It has causes. Causari records them.",
     long_about = "Causari measures how many lines from AI-tagged commits are still alive in a \
                   git repository (`re audit`, any repo, no setup), and records the prompt, \
                   model and files behind every agent edit into a local, append-only ledger \

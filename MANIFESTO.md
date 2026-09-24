@@ -1,6 +1,6 @@
 # ∵ causari
 
-**AI-written code has no author. It has causes. Causari proves them.**
+**AI-written code has no author. It has causes. Causari records them.**
 
 Every number about AI in code today is a self-report: a vendor's percentage,
 a dashboard's churn rate, a survey's estimate. Nobody can re-run it, nobody

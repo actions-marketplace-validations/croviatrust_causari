@@ -1,6 +1,6 @@
 <h1 align="center">∵ causari</h1>
 
-<p align="center"><strong>AI-written code has no author. It has causes. Causari proves them.</strong></p>
+<p align="center"><strong>AI-written code has no author. It has causes. Causari records them.</strong></p>
 <p align="center"><em>How many lines from AI-tagged commits are still alive in your repo? One command, any git repo, no setup. A count, not a grade.</em></p>
 
 <p align="center">
@@ -39,7 +39,7 @@ $ re audit
 ───────────────────────────────────────────────────
   36 commits analyzed (git metadata only, no setup required)
 
-Verified AI-authored: 3 commits, 1773 introduced, 1773 survived (100.0%)
+Verified AI-tagged:   3 commits, 1773 introduced, 1773 survived (100.0%)
 Probable AI-assisted: none detected
 By agent (verified only)
   cursor                 1773 lines,   1773 survived (100.0%)
@@ -348,8 +348,8 @@ Phases and exit criteria: [`ROADMAP.md`](ROADMAP.md).
 
 Causari is part of [Crovia](https://croviatrust.com), one grammar in three
 tenses: **TACET** proves a model's silence about its training data, **PNX**
-proves an agent's egress carried no protected bytes, **Causari** proves why a
-line of code exists and whether it is still there. Same rules everywhere:
+proves an agent's egress carried no protected bytes, **Causari** records why a
+line of code exists and measures whether it is still there. Same rules everywhere:
 reproducible numbers, no verdicts, offline verification, limits stated first.
 
 Role in the Crovia canon — Sibling product: proof of cause for AI-written code

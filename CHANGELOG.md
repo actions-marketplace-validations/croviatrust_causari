@@ -28,6 +28,20 @@ release workflow copies it verbatim. Counts, not adjectives.
 - Integration matrix: Cursor is its own row (prompt and file exact, model
   yes, tokens and cost no); Windsurf and Copilot stay on MCP self-report.
 
+### Words
+
+- The one-liner is "AI-written code has no author. It has causes. Causari
+  records them." — `records`, not `proves`: the ledger records prompts,
+  reads and writes as the runtime reports them; a seal proves that a record
+  or an audit was not altered, not that it is true. Same line in the
+  canon, README, MANIFESTO, home page, OG card, `llms.txt`, `re --help`
+  and the npm/PyPI READMEs.
+- `re audit` prints "Verified AI-tagged" where it said "Verified
+  AI-authored": the class is what the commit metadata says, not who typed
+  the code. The JSON keys (`verified`, `probable`) are unchanged.
+- README, Family: Causari "records why a line of code exists and measures
+  whether it is still there"; it does not prove why.
+
 ### Audit
 
 - `re audit --json` names what it measured: `repository.head` (the commit

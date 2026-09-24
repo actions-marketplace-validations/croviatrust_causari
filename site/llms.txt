@@ -1,6 +1,6 @@
 # Causari
 
-> AI-written code has no author. It has causes. Causari proves them.
+> AI-written code has no author. It has causes. Causari records them.
 > Causari measures how many lines from AI-tagged commits are still alive in
 > any git repository (counts, not grades), and records the causal provenance
 > (prompt, model, reads, writes) behind every change an AI agent makes.

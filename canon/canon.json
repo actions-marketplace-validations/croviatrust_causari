@@ -6,7 +6,7 @@
     "wordmark": "causari",
     "binary": "causari",
     "alias": "re",
-    "one_liner": "AI-written code has no author. It has causes. Causari proves them.",
+    "one_liner": "AI-written code has no author. It has causes. Causari records them.",
     "sub_line": "How many lines from AI-tagged commits are still alive in your repo? One command, any git repo, no setup. A count, not a grade.",
     "domain": "causari.dev",
     "repo": "https://github.com/croviatrust/causari",

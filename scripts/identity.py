@@ -151,7 +151,7 @@ def write_pngs() -> None:
     draw_discs(d, 72 * S, 96 * S, 1.3 * S, PAPER)
     d.text((252 * S, 118 * S), "causari", font=font(72 * S), fill=PAPER)
     d.text((72 * S, 300 * S), "AI-written code has no author.", font=font(44 * S), fill=PAPER)
-    d.text((72 * S, 360 * S), "It has causes. Causari proves them.", font=font(44 * S), fill=PAPER)
+    d.text((72 * S, 360 * S), "It has causes. Causari records them.", font=font(44 * S), fill=PAPER)
     d.text((72 * S, 470 * S), "re audit  ·  counts, not grades  ·  verifiable offline", font=font(26 * S), fill=MIST)
     d.text((72 * S, 540 * S), "causari.dev", font=font(26 * S), fill=MIST)
     img = img.resize((1200, 630), Image.LANCZOS)

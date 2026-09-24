@@ -1,6 +1,6 @@
 # ∵ causari
 
-**AI-written code has no author. It has causes. Causari proves them.**
+**AI-written code has no author. It has causes. Causari records them.**
 
 `re audit` reads plain git history, finds the commits that carry
 machine-readable AI authorship (`Co-Authored-By` trailers, bot authors, agent
