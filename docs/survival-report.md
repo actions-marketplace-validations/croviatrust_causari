@@ -126,7 +126,14 @@ Mondays 05:17 UTC or on demand:
    `latest.json`, the redirect and sitemap blocks. `scripts/audit_surfaces.py
    --gate` runs on the result.
 4. Commit `site/reports/survival/**` to `main`: plain commit, never a
-   force-push. A concurrency group keeps two runs from racing.
+   force-push. A concurrency group keeps two runs from racing. `main` is
+   protected (required check `lint`), so the checkout uses the secret
+   `REPORT_PUSH_TOKEN` (a fine-grained token of an administrator, Contents
+   read and write) and falls back to `github.token`, which cannot pass the
+   protection: the report is then uploaded as the artifact `survival-report`
+   and applied by hand. The `push-check` workflow (manual) proves the secret
+   works without touching `main`: token identity, admin permission,
+   `enforce_admins` off, one push to a throwaway branch, deleted.
 5. If `ZENODO_TOKEN` is set: `python3 scripts/zenodo_deposit.py <report dir>`
    publishes the record, writes the DOI into `report.json`, re-renders the page
    and the archive, and commits again. Without the secret the step prints a
