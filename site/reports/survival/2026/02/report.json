@@ -4477,9 +4477,15 @@
   "opted_out": 0,
   "optout_file": "https://github.com/croviatrust/causari/blob/main/.github/survival-optout.txt"
  },
- "doi": null,
+ "doi": "10.5281/zenodo.22944117",
  "concept_doi": "10.5281/zenodo.22863965",
- "zenodo": null,
+ "zenodo": {
+  "record_url": "https://zenodo.org/records/22944117",
+  "record_id": 22944117,
+  "version": "#2-r2",
+  "sandbox": false,
+  "published_at": "2026-09-24T17:50:29Z"
+ },
  "revision": 2,
  "revised_at": "2026-09-24T17:46:09Z",
  "corrections": [
