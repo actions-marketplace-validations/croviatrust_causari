@@ -102,6 +102,18 @@ release workflow copies it verbatim. Counts, not adjectives.
 
 ### Survival Report
 
+- The report carries the method v3 baseline. Every row measured with v3
+  gains `baseline` (untagged figures, the by-age windows, the age-matched
+  gap, the oldest surviving line); the page and `report.md` add the
+  columns "Untagged, same age" and "Gap", a Baseline section with the age
+  windows pooled across repositories, the median gap across repositories
+  with its bootstrap interval, how many gaps fall on each side of zero,
+  and the list of repositories where more than half of the commits
+  predate the oldest line still at HEAD (cleared or rewritten; marked
+  "· rewritten" in the table). Repository pages and `latest.json` carry
+  the same block. Rows measured before v3 keep building without it, and
+  reports #1 and #2 render as before. Additive: the schema stays
+  `causari.survival_report.v1`.
 - One repository counts once, whatever it is called. Report #2 counted
   `All-Hands-AI/OpenHands` and `OpenHands/OpenHands` — one repository,
   renamed on GitHub — as two rows with byte-identical audits. The

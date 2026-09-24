@@ -89,7 +89,8 @@ site/reports/survival/
   zenodo.json                Concept DOI and one record per report (written by the deposit)
   <YYYY>/<NN>/
     index.html               the report page
-    report.json              counts, intervals, coverage, DOI (schema causari.survival_report.v1)
+    report.json              counts, intervals, coverage, DOI (schema causari.survival_report.v1);
+                             from method v3 each row and the aggregate carry a `baseline` block
     report.r<K>.json, .md    revision K as it was published, unchanged, when a later revision exists
     report.md                plain-text version, also the Zenodo description
     card.svg, card.png       Open Graph card, identity style
