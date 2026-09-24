@@ -49,6 +49,19 @@ release workflow copies it verbatim. Counts, not adjectives.
   `GET /repos/{owner}/{repo}` and treats the listed name and the name
   GitHub now gives as one seed, so a renamed seed is never discovered a
   second time; the seed line was corrected to `OpenHands/OpenHands`.
+- `survival_report.py revise`: a published report is corrected by
+  revision, never in place. The superseded `report.json`/`report.md` are
+  frozen as `report.r<K>.*`; the new report carries `revision`,
+  `revised_at` and `corrections[]` (note, previous aggregate, previous
+  file and DOI), shown on the page, in the markdown, in the archive row
+  and the feed entry. Rebuilding the same number with `build` is refused.
+  The Zenodo deposit publishes a revision as version `#N-rK` under the
+  same Concept DOI and states the correction in the record. Repository
+  pages that existed only under a dropped duplicate name are removed and
+  redirected to the kept name (page, badges, `latest.json`).
+- Report #2 revision 2 (2026-09-24): 54 repositories, 13,733,809 of
+  27,108,452 lines (50.7 %); revision 1 (55, 50.0 %) stays at
+  `report.r1.json`, DOI 10.5281/zenodo.22928161.
 
 ## 0.2.0 — 2026-09-20
 

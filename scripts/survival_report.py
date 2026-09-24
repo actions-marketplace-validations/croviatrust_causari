@@ -308,7 +308,8 @@ def drop_duplicate_audits(rows: list[dict[str, Any]], listed: list[str]) -> tupl
             for r in group[1:]:
                 if r["repo"] in dropped or r is keep:
                     continue
-                dropped[r["repo"]] = {"dropped": r["repo"], "kept": keep["repo"], "reason": reason}
+                dropped[r["repo"]] = {"dropped": r["repo"], "kept": keep["repo"], "reason": reason,
+                                      "audit_file": r["audit_file"], "kept_audit_file": keep["audit_file"]}
     kept_rows = [r for r in rows if r["repo"] not in dropped]
     for r in kept_rows:
         r.pop("_head", None)
@@ -366,6 +367,7 @@ def collect(run_dir: Path, number: int, date: str, root: Path) -> dict[str, Any]
             "_source": fp,
         })
     opted_out = len(opted)
+    every_audit = list(rows)
     rows, duplicates = drop_duplicate_audits(rows, read_repo_list(root))
 
     # Alphabetical, case-insensitive, and nothing else: never by rate.
@@ -453,7 +455,10 @@ def collect(run_dir: Path, number: int, date: str, root: Path) -> dict[str, Any]
         "doi": None,
         "concept_doi": None,
         "zenodo": None,
-        "_sources": {r["repo"]: r["_source"] for r in rows},
+        # every audit file of the run is kept next to the page, dropped
+        # duplicates included: the byte-identity a reader may want to check
+        # is checkable there.
+        "_sources": {r["repo"]: r["_source"] for r in every_audit},
     }
     return facts
 
@@ -475,11 +480,33 @@ def headline(f: dict[str, Any]) -> str:
     return s
 
 
+def revision_of(f: dict[str, Any]) -> int:
+    return int(f.get("revision") or 1)
+
+
 def cite(f: dict[str, Any]) -> str:
-    s = f"Crovia Trust. Survival Report #{f['number']} ({f['date']}). {f['url']}"
+    rev = f", revision {revision_of(f)}" if revision_of(f) > 1 else ""
+    s = f"Crovia Trust. Survival Report #{f['number']} ({f['date']}{rev}). {f['url']}"
     if f.get("doi"):
         s += f" DOI {f['doi']}"
     return s
+
+
+def correction_lines(f: dict[str, Any]) -> list[str]:
+    """One plain sentence per correction, newest first: what changed, when,
+    and where the superseded bytes are. Used by the page, the markdown and
+    the feed, so the three say the same thing."""
+    out = []
+    for c in sorted(f.get("corrections") or [], key=lambda c: -int(c["revision"])):
+        prev = c.get("previous") or {}
+        agg = prev.get("aggregate") or {}
+        was = ""
+        if agg.get("introduced") is not None:
+            was = (f" Revision {int(c['revision']) - 1} counted {agg.get('repositories')} repositories, "
+                   f"{fmt_int(agg.get('surviving'))} of {fmt_int(agg.get('introduced'))} lines ({fmt_pct(agg.get('survival_rate'))});"
+                   f" its bytes are kept unchanged at {prev.get('file')}" + (f", DOI {prev['doi']}" if prev.get("doi") else "") + ".")
+        out.append(f"Revision {c['revision']} ({c['date']}): {c['note']}{was}")
+    return out
 
 
 POSITIONING = {
@@ -521,8 +548,9 @@ def report_selection(f: dict[str, Any]) -> str:
 def report_md(f: dict[str, Any]) -> str:
     a = f["aggregate"]
     m = f["method"]
+    rev = f" (revision {revision_of(f)})" if revision_of(f) > 1 else ""
     lines = [
-        f"# Survival Report #{f['number']} — {f['date']}",
+        f"# Survival Report #{f['number']} — {f['date']}{rev}",
         "",
         f"Counts of surviving lines from AI-tagged commits in {a['repositories']} open-source repositories, "
         f"measured with {f['tool']['name']} {f['tool']['version']}, method {m['version']}. "
@@ -535,6 +563,8 @@ def report_md(f: dict[str, Any]) -> str:
     ]
     if f.get("doi"):
         lines.append(f"DOI: https://doi.org/{f['doi']}  ")
+    if f.get("corrections"):
+        lines += ["", "## Corrections", ""] + [f"- {c}" for c in correction_lines(f)]
     lines += ["", "## Aggregate", "", headline(f), ""]
     if a["repositories"]:
         lines += [
@@ -806,10 +836,13 @@ def render_report(f: dict[str, Any]) -> str:
     url = f["url"]
     img = url + "card.png"
     title = f"Survival Report #{f['number']} · {f['date']}"
+    if revision_of(f) > 1:
+        title += f" · revision {revision_of(f)}"
     desc = headline(f) + " Counts, not grades; method public; every number reproducible."
     jsonld = {
         "@context": "https://schema.org", "@type": "Report", "name": title, "headline": headline(f), "url": url,
-        "datePublished": f["date"], "dateModified": f["generated_at"], "inLanguage": "en", "image": img,
+        "datePublished": f["date"], "dateModified": f.get("revised_at") or f["generated_at"], "inLanguage": "en", "image": img,
+        "version": str(revision_of(f)),
         "author": {"@type": "Organization", "name": "Crovia Trust", "url": "https://croviatrust.com"},
         "publisher": {"@type": "Organization", "name": "Crovia Trust", "url": "https://croviatrust.com"},
         "license": LICENSE_URL,
@@ -877,16 +910,31 @@ def render_report(f: dict[str, Any]) -> str:
         f'<a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a> '
         "removes a repository from the next report, no questions asked.</li>"
     )
+    corrections = ""
+    if f.get("corrections"):
+        items = "".join(f"<li>{esc(c)}</li>" for c in correction_lines(f))
+        prev_links = " · ".join(
+            f'<a href="{esc(c["previous"]["file"])}">revision {int(c["revision"]) - 1}</a>'
+            for c in sorted(f["corrections"], key=lambda c: -int(c["revision"])) if (c.get("previous") or {}).get("file")
+        )
+        corrections = f"""
+    <div class="rp-section rp-corrections" id="corrections">
+    <h3>Corrections</h3>
+    <p class="muted">This is revision {revision_of(f)} of report #{f['number']}. A report is never edited in place: every superseded revision keeps its bytes and its DOI next to this page ({prev_links}), and what changed is stated here.</p>
+    <ul class="rp-list">{items}</ul>
+    </div>"""
+    eyebrow_rev = f" · revision {revision_of(f)}" if revision_of(f) > 1 else ""
     body = f"""
 <section class="section">
   <div class="container">
     <div class="section-head">
-      <p class="eyebrow">survival report #{f['number']} · {esc(f['date'])} · method {esc(m['version'])} · {esc(f['tool']['name'])} {esc(f['tool']['version'])} · unranked</p>
+      <p class="eyebrow">survival report #{f['number']} · {esc(f['date'])}{eyebrow_rev} · method {esc(m['version'])} · {esc(f['tool']['name'])} {esc(f['tool']['version'])} · unranked</p>
       <h1>Survival Report #{f['number']}</h1>
       <p class="lede">{esc(headline(f))} <strong>These are counts, not grades.</strong> There is no rank, no colour and no verdict on this page; rows are alphabetical. Every number links to the audit bytes behind it and the <a href="/method">method and its limits</a> are public.</p>
       <p class="rp-meta">{doi_html(f)} · <a href="report.json">report.json</a> · <a href="report.md">report.md</a> · <a href="card.png">card</a> · <a href="/{REPORTS_REL}/feed.xml">Atom feed</a> · <a href="/{REPORTS_REL}/">all reports</a></p>
     </div>
     <img class="rp-card" src="card.png" alt="Survival Report #{f['number']} card" width="1200" height="630" loading="lazy" />
+{corrections}
 {strip}
     <div class="rp-section">
     <h3 id="repositories">Repositories</h3>
@@ -941,7 +989,7 @@ def render_index(archive: list[dict[str, Any]]) -> str:
               "publisher": {"@type": "Organization", "name": "Crovia Trust", "url": "https://croviatrust.com"},
               "hasPart": [{"@type": "Report", "name": f"Survival Report #{a['number']}", "url": a["url"], "datePublished": a["date"]} for a in archive[:52]]}
     rows = "\n".join(
-        f'<tr><td><a href="/{REPORTS_REL}/{esc(a["id"])}/">Survival Report #{a["number"]}</a></td><td>{esc(a["date"])}</td>'
+        f'<tr><td><a href="/{REPORTS_REL}/{esc(a["id"])}/">Survival Report #{a["number"]}</a>{(" <a class=\"muted\" href=\"/" + REPORTS_REL + "/" + esc(a["id"]) + "/#corrections\">rev. " + str(revision_of(a)) + "</a>") if revision_of(a) > 1 else ""}</td><td>{esc(a["date"])}</td>'
         f'<td>{a["aggregate"]["repositories"]}</td><td>{fmt_int(a["aggregate"]["ai_tagged_commits"])}</td>'
         f'<td>{fmt_int(a["aggregate"]["introduced"])}</td><td>{fmt_int(a["aggregate"]["surviving"])}</td>'
         f'<td>{fmt_pct(a["aggregate"]["survival_rate"])}</td><td class="txt">{esc(a["method"]["version"])}</td>'
@@ -988,12 +1036,14 @@ def render_index(archive: list[dict[str, Any]]) -> str:
 
 def render_feed(archive: list[dict[str, Any]]) -> str:
     feed_url = f"{SITE_URL}/{REPORTS_REL}/feed.xml"
-    updated = archive[0]["generated_at"] if archive else dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    updated = max((a.get("revised_at") or a["generated_at"] for a in archive), default=None) if archive else dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     entries = []
     for a in archive[:104]:
         summary = headline(a) + " Counts, not grades. " + LICENSE + "."
         if a.get("doi"):
             summary += f" DOI {a['doi']}."
+        if a.get("corrections"):
+            summary += " " + " ".join(correction_lines(a))
         entries.append(f"""  <entry>
     <title>Survival Report #{a['number']} · {esc(a['date'])}</title>
     <link rel="alternate" type="text/html" href="{esc(a['url'])}"/>
@@ -1001,7 +1051,7 @@ def render_feed(archive: list[dict[str, Any]]) -> str:
     <link rel="related" type="application/json" href="{esc(a['url'])}report.json"/>
     <id>{esc(a['url'])}</id>
     <published>{esc(a['date'])}T00:00:00Z</published>
-    <updated>{esc(a['generated_at'])}</updated>
+    <updated>{esc(a.get('revised_at') or a['generated_at'])}</updated>
     <summary>{esc(summary)}</summary>
   </entry>""")
     return f"""<?xml version="1.0" encoding="utf-8"?>
@@ -1338,6 +1388,27 @@ def render_repo_index(entries: list[dict[str, Any]]) -> str:
     return page_head(title, desc, url, f"{SITE_URL}/assets/og.png", jsonld) + body + page_foot()
 
 
+REPO_PAGE_FILES = {"index.html", "badge.svg", "badge-dark.svg", "latest.json"}
+
+
+def repo_aliases(archive: list[dict[str, Any]], entries: list[dict[str, Any]]) -> list[tuple[str, str]]:
+    """Names a report dropped as duplicates of another repository, mapped to
+    the page of the name kept: (alias path, kept path). A page that was
+    published under the dropped name, and any badge embedded from it, keeps
+    resolving. Only names no report measures on their own."""
+    measured = {e["key"] for e in entries}
+    kept_path = {e["key"]: e["path"] for e in entries}
+    out: dict[str, str] = {}
+    for f in archive:
+        for d in (f.get("excluded") or {}).get("duplicates") or []:
+            alias, kept = d["dropped"], d["kept"].lower()
+            if alias.lower() not in measured and kept in kept_path:
+                out[alias.lower()] = kept_path[kept]
+                if alias != alias.lower():
+                    out[alias] = kept_path[kept]
+    return sorted(out.items())
+
+
 def write_repo_pages(site: Path, archive: list[dict[str, Any]]) -> list[dict[str, Any]]:
     entries = measured_repos(archive)
     base = site / REPOS_REL
@@ -1350,6 +1421,19 @@ def write_repo_pages(site: Path, archive: list[dict[str, Any]]) -> list[dict[str
         (out / "badge-dark.svg").write_text(badge_svg(e, dark=True), encoding="utf-8")
         dump_json(out / "latest.json", repo_latest(e))
     (base / "index.html").write_text(render_repo_index(entries), encoding="utf-8")
+    # A page no report measures any more (a name that turned out to be a
+    # duplicate) is removed, but only if it holds nothing but generated
+    # files; the redirect block sends its URLs to the page of the kept name.
+    live = {site / e["path"].strip("/") for e in entries}
+    for owner in sorted(p for p in base.iterdir() if p.is_dir()):
+        for page in sorted(p for p in owner.iterdir() if p.is_dir()):
+            if page in live:
+                continue
+            files = {p.name for p in page.iterdir()}
+            if files and files <= REPO_PAGE_FILES:
+                shutil.rmtree(page)
+        if not any(owner.iterdir()):
+            owner.rmdir()
     return entries
 
 
@@ -1365,7 +1449,7 @@ def replace_block(text: str, begin: str, end: str, body: str, insert_before: str
     return text.rstrip("\n") + "\n\n" + block + "\n"
 
 
-def update_redirects(site: Path, latest: dict[str, Any] | None, repos: list[dict[str, Any]] = ()) -> None:
+def update_redirects(site: Path, latest: dict[str, Any] | None, repos: list[dict[str, Any]] = (), aliases: list[tuple[str, str]] = ()) -> None:
     path = site / "_redirects"
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     lines = [
@@ -1381,6 +1465,9 @@ def update_redirects(site: Path, latest: dict[str, Any] | None, repos: list[dict
         cased = f"/{REPOS_REL}/{e['repo']}/"
         if cased != e["path"]:
             lines.append(f"{cased:<21} {e['path']}   301")
+    for alias, kept in aliases:
+        for name in ("", "badge.svg", "badge-dark.svg", "latest.json"):
+            lines.append(f"/{REPOS_REL}/{alias}/{name}".ljust(21) + f" {kept}{name}   301")
     path.write_text(replace_block(text, REDIRECT_BEGIN, REDIRECT_END, "\n".join(lines), None), encoding="utf-8")
 
 
@@ -1427,7 +1514,7 @@ def rebuild(site: Path) -> list[dict[str, Any]]:
     if archive:
         dump_json(base / "latest.json", archive[0])
     repos = write_repo_pages(site, archive)
-    update_redirects(site, archive[0] if archive else None, repos)
+    update_redirects(site, archive[0] if archive else None, repos, repo_aliases(archive, repos))
     update_sitemap(site, archive, repos)
     return archive
 
@@ -1438,6 +1525,13 @@ def write_report(f: dict[str, Any], site: Path, png: bool = True) -> Path:
         existing = load_json(out / "report.json", {})
         if existing.get("number") != f["number"]:
             raise SystemExit(f"{out} already holds report #{existing.get('number')}; refusing to overwrite")
+        # The same number again is a correction: it goes through `revise`,
+        # which freezes the superseded bytes and says what changed.
+        if revision_of(f) <= revision_of(existing):
+            raise SystemExit(
+                f"{out} already holds report #{existing.get('number')} revision {revision_of(existing)}; "
+                f"a correction is `revise --number {f['number']} --run <dir> --note '<what changed>'`"
+            )
     out.mkdir(parents=True, exist_ok=True)
     sources = f.pop("_sources", {})
     (out / "repos").mkdir(exist_ok=True)
@@ -1450,6 +1544,57 @@ def write_report(f: dict[str, Any], site: Path, png: bool = True) -> Path:
         card_png(f, out / "card.png")
     (out / "index.html").write_text(render_report(f), encoding="utf-8")
     return out
+
+
+def revise(run_dir: Path, number: int, note: str, site: Path, root: Path, today: str | None = None, png: bool = True) -> dict[str, Any]:
+    """Publish a corrected revision of an existing report from the same run
+    directory (or a corrected one), without editing history: the superseded
+    report.json and report.md are frozen as report.r<K>.json / .md next to
+    the page, the new report.json carries `revision`, `revised_at` and a
+    `corrections` entry naming what changed and where the old bytes are. The
+    report date stays the date of the measurement. A DOI belongs to bytes,
+    so the new revision starts without one; the deposit mints a new version
+    under the same Concept DOI."""
+    if not note.strip():
+        raise SystemExit("revise: --note must say what changed")
+    out = site / REPORTS_REL
+    prior = None
+    for fp in glob.glob(str(out / "[0-9][0-9][0-9][0-9]" / f"{number:02d}" / "report.json")):
+        candidate = load_json(Path(fp), None)
+        if isinstance(candidate, dict) and candidate.get("number") == number:
+            prior = candidate
+    if prior is None:
+        raise SystemExit(f"revise: no published report #{number} under {out}")
+    prior_rev = revision_of(prior)
+    report_dir = out / prior["id"]
+    frozen = report_dir / f"report.r{prior_rev}.json"
+    prior_bytes = (report_dir / "report.json").read_bytes()
+    if frozen.exists() and frozen.read_bytes() != prior_bytes:
+        raise SystemExit(f"revise: {frozen} exists with different bytes; refusing to overwrite a frozen revision")
+    frozen.write_bytes(prior_bytes)
+    if (report_dir / "report.md").exists():
+        (report_dir / f"report.r{prior_rev}.md").write_bytes((report_dir / "report.md").read_bytes())
+
+    facts = collect(run_dir, number, prior["date"], root)
+    facts["revision"] = prior_rev + 1
+    facts["revised_at"] = today or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    facts["generated_at"] = prior["generated_at"]
+    pa = prior.get("aggregate") or {}
+    facts["corrections"] = list(prior.get("corrections") or []) + [{
+        "revision": prior_rev + 1,
+        "date": facts["revised_at"][:10],
+        "note": note.strip(),
+        "previous": {
+            "revision": prior_rev,
+            "file": frozen.name,
+            "doi": prior.get("doi"),
+            "aggregate": {k: pa.get(k) for k in ("repositories", "ai_tagged_commits", "introduced", "surviving", "survival_rate")},
+        },
+    }]
+    facts["concept_doi"] = prior.get("concept_doi")
+    write_report(facts, site, png=png)
+    rebuild(site)
+    return facts
 
 
 def rerender(report_dir: Path) -> None:
@@ -1574,6 +1719,11 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--number", type=int, help="report number (default: existing report dirs + 1)")
     b.add_argument("--date", help="report date YYYY-MM-DD (default: run.json generated_at, else today UTC)")
     b.add_argument("--no-png", action="store_true", help="skip card.png even if Pillow is present")
+    rv = sub.add_parser("revise", help="publish a corrected revision of an existing report: the superseded report.json/.md are frozen as report.r<K>.*, the new one says what changed")
+    rv.add_argument("--run", required=True, help="run directory (the original, or a corrected one)")
+    rv.add_argument("--number", type=int, required=True, help="the report to correct")
+    rv.add_argument("--note", required=True, help="one plain sentence: what was wrong, what changed")
+    rv.add_argument("--no-png", action="store_true")
     sub.add_parser("rebuild", help="report pages, archive index, feed, latest.json, repository pages and badges (site/r/), redirects, sitemap from existing report.json files")
     rr = sub.add_parser("rerender", help="re-render one report's page and markdown from its report.json")
     rr.add_argument("report_dir")
@@ -1594,6 +1744,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "rerender":
         rerender(Path(args.report_dir))
         rebuild(site)
+        return 0
+    if args.cmd == "revise":
+        facts = revise(Path(args.run), args.number, args.note, site, root, png=not args.no_png)
+        a = facts["aggregate"]
+        print(f"survival_report: #{args.number} revision {facts['revision']} · {a['repositories']} repositories aggregated · "
+              f"{fmt_int(a['surviving'])}/{fmt_int(a['introduced'])} lines ({fmt_pct(a['survival_rate'])}) · "
+              f"previous bytes frozen as {facts['corrections'][-1]['previous']['file']}")
         return 0
     if args.cmd == "rebuild":
         archive = rebuild(site)
