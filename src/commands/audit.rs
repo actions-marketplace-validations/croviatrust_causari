@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::audit::{
-    AuditOptions, CAP_CEILING_LINES, IGNORE_REVS_FILE, METHOD_VERSION, ShallowCloneRefused,
-    SurvivalReport, SurvivalStat, audit_repo,
+    AgeBucket, AuditOptions, Baseline, CAP_CEILING_LINES, IGNORE_REVS_FILE, METHOD_VERSION,
+    ShallowCloneRefused, SurvivalReport, SurvivalStat, audit_repo,
 };
 use crate::audit_seal::{self, AuditBinding};
 use crate::cli::AuditArgs;
@@ -378,11 +378,14 @@ fn print_terminal(report: &SurvivalReport) {
         }
     }
 
+    print_baseline(&report.baseline);
+
     println!();
     println!("{}", "Confidence notes".bright_black().bold());
     println!("  · VERIFIED = explicit metadata (trailers, bot author, etc.)");
     println!("  · PROBABLE = weak heuristic; may include human-assisted commits");
-    println!("  · UNKNOWN commits are excluded from headline numbers");
+    println!("  · UNKNOWN commits are excluded from headline numbers; they form");
+    println!("    the untagged baseline (human, inline-completed and untagged-agent code alike)");
     println!("  · line-wt = Σ surviving / Σ introduced; capped = same, with each commit");
     println!(
         "    weighing at most min(p95 of per-commit introduced lines, {} lines);",
@@ -461,6 +464,7 @@ fn print_summary(report: &SurvivalReport) {
             );
         }
         println!();
+        summary_baseline(&report.baseline);
     }
     if report.probable.commits > 0 {
         println!(
@@ -510,11 +514,163 @@ fn print_summary(report: &SurvivalReport) {
          inline completions leave no git trace and are not measured. \
          Capped: each commit weighs at most min(p95 of per-commit introduced lines, {} lines); \
          median: median of per-commit rates. \
+         Untagged = commits with no AI signal (human, inline-completed and untagged-agent code alike); \
+         age = commit date to HEAD date. \
          Method {}: [causari.dev/method](https://causari.dev/method) · reproduce: `re audit`</sub>",
         report.coverage.blame_flags.join(" "),
         CAP_CEILING_LINES,
         report.coverage.method,
     );
+}
+
+/// The Markdown counterpart of [`print_baseline`]: one paragraph, one
+/// table when there is something to put side by side.
+fn summary_baseline(b: &Baseline) {
+    if b.untagged.commits == 0 {
+        println!(
+            "Every commit carries an AI tag; there is no untagged code in this repository to compare with."
+        );
+        println!();
+        return;
+    }
+    println!(
+        "Same repository, untagged lines: {} of {} still at HEAD ({} line-weighted, {} commit{}).",
+        b.untagged.surviving,
+        b.untagged.introduced,
+        pct(b.untagged.survival_rate()),
+        b.untagged.commits,
+        plural(b.untagged.commits),
+    );
+    match &b.age_matched {
+        Some(m) => println!(
+            "**Age-matched: AI-tagged {} vs untagged {} of the same age ({:+.1} points)**, over {} age window{} holding {:.0}% of the AI-tagged lines.",
+            pct(Some(m.tagged_rate)),
+            pct(Some(m.untagged_rate)),
+            m.gap * 100.0,
+            m.buckets_used,
+            plural(m.buckets_used as u64),
+            m.tagged_lines_covered * 100.0,
+        ),
+        None => println!(
+            "No age window holds at least {} commits of both kinds, so there is no age-matched comparison.",
+            crate::audit::SAMPLE_FLOOR
+        ),
+    }
+    let rows: Vec<&AgeBucket> = b
+        .by_age
+        .iter()
+        .filter(|r| r.tagged.commits + r.untagged.commits > 0)
+        .collect();
+    if rows.len() > 1 {
+        println!();
+        println!("| Line age | AI-tagged | Untagged |");
+        println!("|---|---:|---:|");
+        for r in rows {
+            println!(
+                "| {} | {} | {} |",
+                r.label(),
+                cohort_cell(&r.tagged),
+                cohort_cell(&r.untagged)
+            );
+        }
+    }
+    if let Some(o) = &b.oldest_surviving
+        && o.commits_before > 0
+    {
+        println!();
+        println!(
+            "_The oldest line still at HEAD dates {}; {} commit{} ({} AI-tagged) are older and nothing from before that date survives, tagged or not._",
+            o.date,
+            o.commits_before,
+            plural(o.commits_before),
+            o.tagged_commits_before,
+        );
+    }
+    println!();
+}
+
+/// The same repository's untagged lines, by age, next to the AI-tagged ones.
+fn print_baseline(b: &Baseline) {
+    println!();
+    println!(
+        "{}",
+        "Baseline: untagged lines of the same repository".bold()
+    );
+    if b.untagged.commits == 0 {
+        println!("  every commit carries an AI tag; there is no untagged code to compare with");
+    } else {
+        println!(
+            "  untagged: {} commits, {} introduced, {} survived · {} line-weighted · {} median",
+            b.untagged.commits,
+            b.untagged.introduced,
+            b.untagged.surviving,
+            pct(b.untagged.survival_rate()),
+            pct(b.untagged.median_survival()),
+        );
+    }
+    let rows: Vec<&AgeBucket> = b
+        .by_age
+        .iter()
+        .filter(|r| r.tagged.commits + r.untagged.commits > 0)
+        .collect();
+    if !rows.is_empty() {
+        println!(
+            "  {:>10} {:>22} {:>22}",
+            "line age", "AI-tagged", "untagged"
+        );
+        for r in rows {
+            println!(
+                "  {:>10} {:>22} {:>22}{}",
+                r.label(),
+                cohort_cell(&r.tagged),
+                cohort_cell(&r.untagged),
+                if r.comparable() {
+                    ""
+                } else {
+                    "   (below floor on one side)"
+                }
+            );
+        }
+    }
+    match &b.age_matched {
+        Some(m) => println!(
+            "  age-matched: AI-tagged {} vs untagged {} of the same age → {:+.1} points, \
+             over {} window{} holding {:.0}% of AI-tagged lines",
+            pct(Some(m.tagged_rate)),
+            pct(Some(m.untagged_rate)),
+            m.gap * 100.0,
+            m.buckets_used,
+            plural(m.buckets_used as u64),
+            m.tagged_lines_covered * 100.0,
+        ),
+        None => println!(
+            "  age-matched: no age window holds at least {} commits of both kinds; no comparison",
+            crate::audit::SAMPLE_FLOOR
+        ),
+    }
+    if let Some(o) = &b.oldest_surviving
+        && o.commits_before > 0
+    {
+        println!(
+            "  oldest line still at HEAD dates {} ({} days); {} commit{} ({} lines, {} AI-tagged commit{} \
+             with {} lines) are older: nothing from before that date survives, tagged or not",
+            o.date,
+            o.age_days,
+            o.commits_before,
+            plural(o.commits_before),
+            o.introduced_before,
+            o.tagged_commits_before,
+            plural(o.tagged_commits_before),
+            o.tagged_introduced_before,
+        );
+    }
+}
+
+fn cohort_cell(stat: &SurvivalStat) -> String {
+    if stat.commits == 0 {
+        return "—".into();
+    }
+    format!("{} ({} commits)", pct(stat.survival_rate()), stat.commits)
 }
 
 fn print_class(label: &str, stat: &SurvivalStat) {

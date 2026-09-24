@@ -12,10 +12,12 @@
 //!   5. aggregate                        -> `SurvivalReport`
 //!
 //! Every number carries its evidence class. A commit with no machine-readable
-//! authorship signal is UNKNOWN and never enters the headline figures.
+//! authorship signal is UNKNOWN and never enters the headline figures; since
+//! method v3 those commits form the repository's own baseline (`Baseline`),
+//! so a VERIFIED rate is read next to the untagged rate of the same age.
 
 use anyhow::{Context, Result};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -44,6 +46,9 @@ pub struct CommitMeta {
     /// Git notes attached under `refs/notes/ai` (git-ai authorship logs),
     /// empty when absent.
     pub notes: String,
+    /// Committer timestamp, seconds since the Unix epoch: when the commit
+    /// entered this history, which is what a line's age is counted from.
+    pub committed_at: i64,
 }
 
 /// Canonical name of a vendor whose product name appears anywhere in the
@@ -645,9 +650,12 @@ pub fn parse_blame_owners(porcelain: &str) -> Vec<String> {
     owners
 }
 
-/// Version of the measurement method that produced a report. Bumped only
-/// when a number computed from the same repository can change.
-pub const METHOD_VERSION: &str = "v2";
+/// Version of the measurement method that produced a report. Bumped when a
+/// number computed from the same repository can change, or when the report
+/// gains a figure a reader must not look for in older results. v3 adds the
+/// untagged baseline of the same repository (`baseline`); every v2 figure is
+/// computed exactly as before and can be compared across the two versions.
+pub const METHOD_VERSION: &str = "v3";
 
 /// Below this many VERIFIED commits a ratio is reported but flagged: one
 /// commit can dominate it.
@@ -812,6 +820,149 @@ impl Default for Coverage {
     }
 }
 
+/// Upper edges, in days, of the age buckets of the by-age table (method
+/// v3). A line's age is the time from its commit's committer date to the
+/// committer date of HEAD, so the table depends only on the repository, not
+/// on when the audit ran. The last bucket is open-ended.
+pub const AGE_EDGES_DAYS: [u64; 5] = [30, 90, 180, 365, 730];
+
+/// One row of the by-age table: VERIFIED lines and untagged lines that
+/// entered the repository in the same age window.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize)]
+pub struct AgeBucket {
+    pub from_days: u64,
+    /// `None` for the open-ended last bucket.
+    pub to_days: Option<u64>,
+    pub tagged: SurvivalStat,
+    pub untagged: SurvivalStat,
+}
+
+impl AgeBucket {
+    pub fn label(&self) -> String {
+        match self.to_days {
+            Some(to) => format!("{}-{} d", self.from_days, to),
+            None => format!("{}+ d", self.from_days),
+        }
+    }
+
+    /// Both cohorts have at least the sample floor in this window, so their
+    /// rates can be put side by side.
+    pub fn comparable(&self) -> bool {
+        self.tagged.commits >= SAMPLE_FLOOR
+            && self.untagged.commits >= SAMPLE_FLOOR
+            && self.tagged.introduced > 0
+            && self.untagged.introduced > 0
+    }
+}
+
+/// VERIFIED survival against the untagged survival of the same repository,
+/// at the same age. The untagged rate is re-weighted to the age mix of the
+/// VERIFIED lines (direct standardisation over the comparable buckets), so
+/// "AI code is newer" cannot by itself produce a gap.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct AgeMatched {
+    /// Line-weighted VERIFIED survival over the comparable buckets.
+    pub tagged_rate: f64,
+    /// Untagged survival weighted by the VERIFIED introduced lines of each
+    /// comparable bucket.
+    pub untagged_rate: f64,
+    /// `tagged_rate - untagged_rate`, in rate units (0.05 = five points).
+    pub gap: f64,
+    pub buckets_used: usize,
+    /// Share of all VERIFIED introduced lines that lie inside the buckets
+    /// used; below 1.0 some VERIFIED lines had no untagged counterpart of
+    /// the same age.
+    pub tagged_lines_covered: f64,
+}
+
+/// The oldest commit that still owns a line at HEAD, any class, and what
+/// lies behind it. When many commits predate it, the repository was cleared
+/// or rewritten at some point: nothing from before that date survives,
+/// tagged or not, and every survival figure over those commits measures
+/// the rewrite, not the code.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize)]
+pub struct OldestSurviving {
+    /// Committer date, `YYYY-MM-DD`.
+    pub date: String,
+    pub age_days: u64,
+    pub commits_before: u64,
+    pub introduced_before: u64,
+    pub tagged_commits_before: u64,
+    pub tagged_introduced_before: u64,
+}
+
+/// Method v3: the same repository's untagged lines as the baseline for its
+/// VERIFIED lines. Costs nothing extra: `git log --numstat` already walks
+/// every commit and `git blame` already names the owner of every line.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize)]
+pub struct Baseline {
+    /// Commits with no machine-readable AI signal: human-written, inline-
+    /// completed and untagged-agent code alike. PROBABLE commits are in
+    /// neither cohort.
+    pub untagged: SurvivalStat,
+    pub by_age: Vec<AgeBucket>,
+    pub age_matched: Option<AgeMatched>,
+    pub oldest_surviving: Option<OldestSurviving>,
+}
+
+impl Baseline {
+    fn bucket_index(age_days: u64) -> usize {
+        AGE_EDGES_DAYS
+            .iter()
+            .position(|edge| age_days < *edge)
+            .unwrap_or(AGE_EDGES_DAYS.len())
+    }
+
+    fn empty_buckets() -> Vec<AgeBucket> {
+        let mut from = 0;
+        let mut buckets = Vec::with_capacity(AGE_EDGES_DAYS.len() + 1);
+        for edge in AGE_EDGES_DAYS {
+            buckets.push(AgeBucket {
+                from_days: from,
+                to_days: Some(edge),
+                ..Default::default()
+            });
+            from = edge;
+        }
+        buckets.push(AgeBucket {
+            from_days: from,
+            to_days: None,
+            ..Default::default()
+        });
+        buckets
+    }
+
+    fn age_matched(by_age: &[AgeBucket]) -> Option<AgeMatched> {
+        let total_tagged: u64 = by_age.iter().map(|b| b.tagged.introduced).sum();
+        let used: Vec<&AgeBucket> = by_age.iter().filter(|b| b.comparable()).collect();
+        if used.is_empty() || total_tagged == 0 {
+            return None;
+        }
+        let tagged_intro: u64 = used.iter().map(|b| b.tagged.introduced).sum();
+        let tagged_surv: u64 = used.iter().map(|b| b.tagged.surviving).sum();
+        let untagged_weighted: f64 = used
+            .iter()
+            .map(|b| b.tagged.introduced as f64 * b.untagged.survival_rate().unwrap_or(0.0))
+            .sum();
+        let tagged_rate = tagged_surv as f64 / tagged_intro as f64;
+        let untagged_rate = untagged_weighted / tagged_intro as f64;
+        Some(AgeMatched {
+            tagged_rate,
+            untagged_rate,
+            gap: tagged_rate - untagged_rate,
+            buckets_used: used.len(),
+            tagged_lines_covered: tagged_intro as f64 / total_tagged as f64,
+        })
+    }
+}
+
+/// `YYYY-MM-DD` of a Unix timestamp, UTC.
+pub fn ymd(ts: i64) -> String {
+    chrono::DateTime::from_timestamp(ts, 0)
+        .map(|d| d.format("%Y-%m-%d").to_string())
+        .unwrap_or_else(|| ts.to_string())
+}
+
 /// The full audit result.
 #[derive(Debug, Default, serde::Serialize)]
 pub struct SurvivalReport {
@@ -820,26 +971,35 @@ pub struct SurvivalReport {
     pub probable: SurvivalStat,
     /// Per-agent verified stats.
     pub by_agent: BTreeMap<String, SurvivalStat>,
+    pub baseline: Baseline,
     pub coverage: Coverage,
 }
 
-/// Pure aggregation: given per-commit introduced counts, detections, and the
-/// blame owner of every line at HEAD, compute the survival report.
+/// Pure aggregation: given per-commit introduced counts, detections, the
+/// blame owner of every line at HEAD and the committer timestamp of HEAD,
+/// compute the survival report.
 pub fn compute_survival(
     commits: &[(CommitMeta, u64)],
     detections: &HashMap<String, Detection>,
     head_owners: &[String],
+    head_committed_at: i64,
 ) -> SurvivalReport {
     let mut report = SurvivalReport {
         total_commits: commits.len() as u64,
         ..Default::default()
     };
+    let mut by_age = Baseline::empty_buckets();
 
     // Surviving lines per commit hash.
     let mut surviving_by_hash: HashMap<&str, u64> = HashMap::new();
     for owner in head_owners {
         *surviving_by_hash.entry(owner.as_str()).or_default() += 1;
     }
+
+    // Commits ordered by committer date: the first one owning a line at HEAD
+    // is the horizon behind which nothing survives.
+    let mut oldest_surviving: Option<(i64, u64)> = None;
+    let mut before: Vec<(i64, bool, u64)> = Vec::new();
 
     for (meta, introduced) in commits {
         let det = detections.get(&meta.hash);
@@ -851,6 +1011,12 @@ pub fn compute_survival(
             // A commit can only "survive" up to what it introduced; blame can
             // attribute context/moved lines, so clamp to stay honest.
             .min(*introduced);
+        // Committer clocks can run ahead of HEAD's; such a line is simply new.
+        let age_days = if meta.committed_at > 0 {
+            Some(((head_committed_at - meta.committed_at).max(0) / 86_400) as u64)
+        } else {
+            None
+        };
 
         match class {
             EvidenceClass::Verified => {
@@ -862,11 +1028,55 @@ pub fn compute_survival(
                         .or_default()
                         .record(*introduced, surviving);
                 }
+                if let Some(age) = age_days {
+                    by_age[Baseline::bucket_index(age)]
+                        .tagged
+                        .record(*introduced, surviving);
+                }
             }
             EvidenceClass::Probable => report.probable.record(*introduced, surviving),
-            EvidenceClass::Unknown => {}
+            EvidenceClass::Unknown => {
+                report.baseline.untagged.record(*introduced, surviving);
+                if let Some(age) = age_days {
+                    by_age[Baseline::bucket_index(age)]
+                        .untagged
+                        .record(*introduced, surviving);
+                }
+            }
+        }
+
+        if meta.committed_at > 0 {
+            if surviving > 0 && oldest_surviving.is_none_or(|(ts, _)| meta.committed_at < ts) {
+                oldest_surviving = Some((meta.committed_at, age_days.unwrap_or(0)));
+            }
+            before.push((
+                meta.committed_at,
+                class == EvidenceClass::Verified,
+                *introduced,
+            ));
         }
     }
+
+    report.baseline.oldest_surviving = oldest_surviving.map(|(ts, age_days)| {
+        let mut o = OldestSurviving {
+            date: ymd(ts),
+            age_days,
+            ..Default::default()
+        };
+        for (committed_at, tagged, introduced) in &before {
+            if *committed_at < ts {
+                o.commits_before += 1;
+                o.introduced_before += introduced;
+                if *tagged {
+                    o.tagged_commits_before += 1;
+                    o.tagged_introduced_before += introduced;
+                }
+            }
+        }
+        o
+    });
+    report.baseline.age_matched = Baseline::age_matched(&by_age);
+    report.baseline.by_age = by_age;
 
     report.coverage.small_sample = report.verified.commits < SAMPLE_FLOOR;
     report
@@ -901,7 +1111,7 @@ pub fn read_commits(dir: &Path) -> Result<Vec<CommitMeta>> {
             "--reverse",
             "--no-merges",
             "--notes=ai",
-            "--pretty=format:%x00%H%x1f%an%x1f%ae%x1f%B%x1f%N",
+            "--pretty=format:%x00%H%x1f%ct%x1f%an%x1f%ae%x1f%B%x1f%N",
         ],
     )?;
     let mut commits = Vec::new();
@@ -909,8 +1119,14 @@ pub fn read_commits(dir: &Path) -> Result<Vec<CommitMeta>> {
         if record.trim().is_empty() {
             continue;
         }
-        let mut fields = record.splitn(5, '\u{1f}');
+        let mut fields = record.splitn(6, '\u{1f}');
         let hash = fields.next().unwrap_or("").trim().to_string();
+        let committed_at = fields
+            .next()
+            .unwrap_or("")
+            .trim()
+            .parse::<i64>()
+            .unwrap_or(0);
         let author_name = fields.next().unwrap_or("").to_string();
         let author_email = fields.next().unwrap_or("").to_string();
         let message = fields.next().unwrap_or("").to_string();
@@ -924,6 +1140,7 @@ pub fn read_commits(dir: &Path) -> Result<Vec<CommitMeta>> {
             author_email,
             message,
             notes,
+            committed_at,
         });
     }
     Ok(commits)
@@ -1091,6 +1308,15 @@ pub fn head_commit(dir: &Path) -> Result<String> {
     Ok(hash)
 }
 
+/// Committer timestamp of HEAD: the moment the measured tree came to be,
+/// from which every line's age is counted.
+pub fn head_committed_at(dir: &Path) -> Result<i64> {
+    let raw = git(dir, &["log", "-1", "--format=%ct", "HEAD"])?;
+    raw.trim()
+        .parse::<i64>()
+        .with_context(|| format!("git log -1 --format=%ct returned {raw:?}"))
+}
+
 /// The `origin` remote URL, if the repository has one.
 pub fn origin_url(dir: &Path) -> Option<String> {
     git(dir, &["remote", "get-url", "origin"])
@@ -1131,37 +1357,26 @@ pub fn audit_repo(dir: &Path, opts: &AuditOptions) -> Result<SurvivalReport> {
     }
 
     let commits = read_commits(dir)?;
-    let mut detections: HashMap<String, Detection> = HashMap::new();
-    let mut with_intro: Vec<(CommitMeta, u64)> = Vec::new();
-
-    // Only count introduced lines for attributed commits (cheap + focused).
-    let attributed: HashSet<String> = commits
+    let detections: HashMap<String, Detection> = commits
         .iter()
         .filter_map(|c| detect_ai(c).map(|d| (c.hash.clone(), d)))
-        .map(|(h, d)| {
-            detections.insert(h.clone(), d);
-            h
-        })
         .collect();
 
-    // One git traversal for all counts instead of one `git show` per commit.
-    let added_by_hash = if attributed.is_empty() {
-        HashMap::new()
-    } else {
-        lines_added_all(dir)?
-    };
-    for c in commits {
-        let introduced = if attributed.contains(&c.hash) {
-            added_by_hash.get(&c.hash).copied().unwrap_or(0)
-        } else {
-            0
-        };
-        with_intro.push((c, introduced));
-    }
+    // One git traversal counts the introduced lines of every commit: the
+    // tagged ones for the headline, the untagged ones for the baseline.
+    let added_by_hash = lines_added_all(dir)?;
+    let with_intro: Vec<(CommitMeta, u64)> = commits
+        .into_iter()
+        .map(|c| {
+            let introduced = added_by_hash.get(&c.hash).copied().unwrap_or(0);
+            (c, introduced)
+        })
+        .collect();
+    let head_committed_at = head_committed_at(dir)?;
 
     let ignore_revs = ignore_revs_file(dir);
     let head_owners = blame_head(dir, ignore_revs.as_deref())?;
-    let mut report = compute_survival(&with_intro, &detections, &head_owners);
+    let mut report = compute_survival(&with_intro, &detections, &head_owners, head_committed_at);
     report.coverage.ignore_revs_file = ignore_revs.is_some();
     report.coverage.shallow = shallow;
     Ok(report)
@@ -1182,6 +1397,7 @@ mod tests {
             author_email: email.into(),
             message: message.into(),
             notes: String::new(),
+            committed_at: 0,
         }
     }
 
@@ -1714,16 +1930,194 @@ mod tests {
             .chain(std::iter::repeat_n(human.hash.clone(), 50))
             .collect();
 
-        let report = compute_survival(&commits, &detections, &head_owners);
+        let report = compute_survival(&commits, &detections, &head_owners, 0);
         assert_eq!(report.total_commits, 2);
         assert_eq!(report.verified.commits, 1);
         assert_eq!(report.verified.introduced, 5);
         assert_eq!(report.verified.surviving, 3);
         assert_eq!(report.verified.survival_rate(), Some(0.6));
-        // Human commit contributes nothing to any attributed class.
+        // Human commit contributes nothing to any attributed class; it is
+        // the baseline.
         assert_eq!(report.probable, SurvivalStat::default());
+        assert_eq!(report.baseline.untagged.commits, 1);
+        assert_eq!(report.baseline.untagged.introduced, 100);
+        assert_eq!(report.baseline.untagged.surviving, 50);
         // Per-agent aggregation present.
         assert_eq!(report.by_agent["claude-code"].surviving, 3);
+    }
+
+    const DAY: i64 = 86_400;
+
+    fn dated(hash: &str, message: &str, committed_at: i64) -> CommitMeta {
+        let mut c = meta(&hash.repeat(40), "x", "x@x", message);
+        c.committed_at = committed_at;
+        c
+    }
+
+    fn owners(pairs: &[(&CommitMeta, u64)]) -> Vec<String> {
+        pairs
+            .iter()
+            .flat_map(|(c, n)| std::iter::repeat_n(c.hash.clone(), *n as usize))
+            .collect()
+    }
+
+    #[test]
+    fn baseline_puts_untagged_lines_next_to_tagged_ones_of_the_same_age() {
+        let head = 1_000 * DAY;
+        // Two windows, 0-30 d and 90-180 d, each with five tagged and five
+        // untagged commits so both are comparable; one lone tagged commit at
+        // 400 d with no untagged counterpart.
+        // (age in days, tagged, introduced, surviving)
+        let mut plan: Vec<(i64, bool, u64, u64)> = Vec::new();
+        for _ in 0..5 {
+            plan.push((10, true, 100, 90)); // tagged, young: 90 %
+            plan.push((10, false, 100, 80)); // untagged, young: 80 %
+            plan.push((120, true, 100, 40)); // tagged, older: 40 %
+            plan.push((120, false, 100, 60)); // untagged, older: 60 %
+        }
+        plan.push((400, true, 1_000, 0));
+        let mut commits = Vec::new();
+        let mut detections = HashMap::new();
+        let mut alive: Vec<(CommitMeta, u64)> = Vec::new();
+        for (i, (age, tagged, intro, surv)) in plan.into_iter().enumerate() {
+            let mut c = dated("0", if tagged { "ai" } else { "hand" }, head - age * DAY);
+            c.hash = format!("{i:040x}");
+            if tagged {
+                detections.insert(c.hash.clone(), detection("claude-code", 1.0));
+            }
+            commits.push((c.clone(), intro));
+            alive.push((c, surv));
+        }
+        let owner_pairs: Vec<(&CommitMeta, u64)> = alive.iter().map(|(c, s)| (c, *s)).collect();
+        let report = compute_survival(&commits, &detections, &owners(&owner_pairs), head);
+
+        let by_age = &report.baseline.by_age;
+        assert_eq!(by_age.len(), AGE_EDGES_DAYS.len() + 1);
+        assert_eq!((by_age[0].from_days, by_age[0].to_days), (0, Some(30)));
+        assert_eq!(by_age[5].to_days, None);
+        assert_eq!(by_age[0].tagged.commits, 5);
+        assert_eq!(by_age[0].untagged.commits, 5);
+        assert!(approx(by_age[0].tagged.survival_rate(), 0.9));
+        assert!(approx(by_age[0].untagged.survival_rate(), 0.8));
+        assert!(approx(by_age[2].tagged.survival_rate(), 0.4));
+        assert!(approx(by_age[2].untagged.survival_rate(), 0.6));
+        assert!(by_age[0].comparable() && by_age[2].comparable());
+        // The lone 400 d commit sits in 365-730 d without a counterpart.
+        assert_eq!(by_age[4].tagged.commits, 1);
+        assert!(!by_age[4].comparable());
+
+        // Age-matched: tagged 650/1000 = 0.65; untagged re-weighted by the
+        // tagged line mix (500 young at 0.8, 500 older at 0.6) = 0.70.
+        let m = report
+            .baseline
+            .age_matched
+            .as_ref()
+            .expect("two comparable buckets");
+        assert_eq!(m.buckets_used, 2);
+        assert!(approx(Some(m.tagged_rate), 0.65));
+        assert!(approx(Some(m.untagged_rate), 0.70));
+        assert!(approx(Some(m.gap), -0.05));
+        // 1,000 of the 2,000 tagged lines had no counterpart of their age.
+        assert!(approx(Some(m.tagged_lines_covered), 0.5));
+
+        // Untagged totals and the oldest surviving line (a 120 d commit; the
+        // 400 d one owns nothing at HEAD and is the only commit before it).
+        assert_eq!(report.baseline.untagged.commits, 10);
+        let o = report.baseline.oldest_surviving.as_ref().unwrap();
+        assert_eq!(o.age_days, 120);
+        assert_eq!(o.date, ymd(head - 120 * DAY));
+        assert_eq!(o.commits_before, 1);
+        assert_eq!(o.tagged_commits_before, 1);
+        assert_eq!(o.tagged_introduced_before, 1_000);
+    }
+
+    #[test]
+    fn age_matched_needs_a_counterpart_in_at_least_one_window() {
+        let head = 1_000 * DAY;
+        let ai = dated("a", "ai", head - 10 * DAY);
+        let hand = dated("b", "hand", head - 500 * DAY);
+        let mut detections = HashMap::new();
+        detections.insert(ai.hash.clone(), detection("claude-code", 1.0));
+        let commits = vec![(ai.clone(), 10u64), (hand.clone(), 10u64)];
+        let report = compute_survival(
+            &commits,
+            &detections,
+            &owners(&[(&ai, 5), (&hand, 5)]),
+            head,
+        );
+        assert!(report.baseline.age_matched.is_none());
+        // A commit dated ahead of HEAD is simply new, not negative.
+        let future = dated("c", "hand", head + 3 * DAY);
+        let report = compute_survival(
+            &[(future.clone(), 4)],
+            &HashMap::new(),
+            &owners(&[(&future, 4)]),
+            head,
+        );
+        assert_eq!(report.baseline.by_age[0].untagged.commits, 1);
+        // A missing committer date keeps the commit out of the by-age table
+        // but not out of the totals.
+        let undated = dated("d", "hand", 0);
+        let report = compute_survival(
+            &[(undated.clone(), 4)],
+            &HashMap::new(),
+            &owners(&[(&undated, 4)]),
+            head,
+        );
+        assert_eq!(report.baseline.untagged.commits, 1);
+        assert!(
+            report
+                .baseline
+                .by_age
+                .iter()
+                .all(|b| b.untagged.commits == 0)
+        );
+        assert!(report.baseline.oldest_surviving.is_none());
+    }
+
+    #[test]
+    fn a_cleared_repository_shows_as_commits_before_the_oldest_surviving_line() {
+        // Old history, tagged and untagged, owns nothing at HEAD: the
+        // repository was emptied and rebuilt 100 days ago.
+        let head = 2_000 * DAY;
+        let mut commits = Vec::new();
+        let mut detections = HashMap::new();
+        let mut live = Vec::new();
+        for i in 0..8i64 {
+            let mut c = dated(
+                "0",
+                if i % 2 == 0 { "ai" } else { "hand" },
+                head - (600 + i) * DAY,
+            );
+            c.hash = format!("{i:040x}");
+            if i % 2 == 0 {
+                detections.insert(c.hash.clone(), detection("openhands", 1.0));
+            }
+            commits.push((c, 50));
+        }
+        let mut rebuilt = dated("0", "hand", head - 100 * DAY);
+        rebuilt.hash = format!("{:040x}", 77);
+        commits.push((rebuilt.clone(), 500));
+        live.push((&rebuilt, 500));
+        let report = compute_survival(&commits, &detections, &owners(&live), head);
+
+        let o = report.baseline.oldest_surviving.as_ref().unwrap();
+        assert_eq!(o.age_days, 100);
+        assert_eq!(o.commits_before, 8);
+        assert_eq!(o.introduced_before, 400);
+        assert_eq!(o.tagged_commits_before, 4);
+        assert_eq!(o.tagged_introduced_before, 200);
+        // The headline still says 0 %: the number is right, the baseline
+        // says what it measures.
+        assert_eq!(report.verified.survival_rate(), Some(0.0));
+        assert_eq!(
+            report.baseline.by_age[4].untagged.survival_rate(),
+            Some(0.0)
+        );
+        let v = serde_json::to_value(&report).unwrap();
+        assert_eq!(v["baseline"]["oldest_surviving"]["commits_before"], 8);
+        assert_eq!(v["baseline"]["by_age"].as_array().unwrap().len(), 6);
+        assert!(v["baseline"]["by_age"][0].get("tagged").is_some());
     }
 
     #[test]
@@ -1739,7 +2133,7 @@ mod tests {
             .chain(std::iter::repeat_n(p.hash.clone(), 9))
             .collect();
 
-        let report = compute_survival(&commits, &detections, &owners);
+        let report = compute_survival(&commits, &detections, &owners, 0);
         assert_eq!(report.verified.surviving, 4);
         assert_eq!(report.probable.surviving, 9);
         // Probable agents never leak into the per-agent verified table.
@@ -1755,7 +2149,7 @@ mod tests {
         let commits = vec![(c.clone(), 2u64)];
         let owners: Vec<String> = std::iter::repeat_n(c.hash.clone(), 7).collect();
 
-        let report = compute_survival(&commits, &detections, &owners);
+        let report = compute_survival(&commits, &detections, &owners, 0);
         assert_eq!(report.verified.surviving, 2);
         assert_eq!(report.verified.survival_rate(), Some(1.0));
     }
@@ -1850,15 +2244,15 @@ mod tests {
         let mut detections = HashMap::new();
         detections.insert(c.hash.clone(), detection("claude-code", 1.0));
         let owners = vec![c.hash.clone()];
-        let report = compute_survival(&[(c, 3)], &detections, &owners);
-        assert_eq!(report.coverage.method, "v2");
+        let report = compute_survival(&[(c, 3)], &detections, &owners, 0);
+        assert_eq!(report.coverage.method, "v3");
         assert_eq!(report.coverage.blame_flags, vec!["-w", "-M", "-C"]);
         assert_eq!(report.coverage.sample_floor, 5);
         assert!(report.coverage.small_sample);
         assert!(!report.coverage.shallow);
 
         let v = serde_json::to_value(&report).unwrap();
-        assert_eq!(v["coverage"]["method"], "v2");
+        assert_eq!(v["coverage"]["method"], "v3");
         assert_eq!(v["verified"]["survival_rate"], 1.0 / 3.0);
         assert_eq!(v["by_agent"]["claude-code"]["median_survival"], 1.0 / 3.0);
     }
@@ -1933,6 +2327,23 @@ mod tests {
         // replaced. Exactly 1 original AI line remains attributable at HEAD.
         assert_eq!(report.verified.surviving, 1);
         assert!(report.by_agent.contains_key("claude-code"));
+
+        // The two hand-written commits are the baseline: the scaffold line
+        // and the one rewritten line of the refresh body both stand at HEAD.
+        let b = &report.baseline;
+        assert_eq!(b.untagged.commits, 2);
+        assert_eq!(b.untagged.introduced, 2);
+        assert_eq!(b.untagged.surviving, 2);
+        // Everything was committed moments ago: one age window holds it all,
+        // and the oldest surviving line is the scaffold with nothing before it.
+        assert_eq!(b.by_age[0].tagged.commits, 1);
+        assert_eq!(b.by_age[0].untagged.commits, 2);
+        let o = b.oldest_surviving.as_ref().expect("scaffold line survives");
+        assert_eq!(o.commits_before, 0);
+        assert_eq!(o.age_days, 0);
+        assert_eq!(o.date, ymd(head_committed_at(dir).unwrap()));
+        // Below the sample floor on both sides: no age-matched figure.
+        assert!(b.age_matched.is_none());
     }
 
     #[test]

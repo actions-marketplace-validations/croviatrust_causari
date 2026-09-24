@@ -66,7 +66,7 @@ fn repo_with_history() -> tempfile::TempDir {
 }
 
 #[test]
-fn json_report_carries_compat_fields_and_method_v2_extras() {
+fn json_report_carries_compat_fields_and_method_extras() {
     let temp = repo_with_history();
     let v = json(&re(temp.path(), &["audit", "--json"]));
 
@@ -89,7 +89,7 @@ fn json_report_carries_compat_fields_and_method_v2_extras() {
             "by_agent.claude-code.{key} missing"
         );
     }
-    assert_eq!(v["coverage"]["method"], "v2");
+    assert_eq!(v["coverage"]["method"], "v3");
     assert_eq!(
         v["coverage"]["blame_flags"],
         serde_json::json!(["-w", "-M", "-C"])
@@ -97,7 +97,25 @@ fn json_report_carries_compat_fields_and_method_v2_extras() {
     assert_eq!(v["coverage"]["shallow"], false);
     assert_eq!(v["coverage"]["sample_floor"], 5);
     assert_eq!(v["coverage"]["small_sample"], true);
-    assert_eq!(v["method"], "v2");
+    assert_eq!(v["method"], "v3");
+
+    // Method v3: the same repository's untagged lines are the baseline. The
+    // scaffold commit is the one untagged commit; its line stands at HEAD.
+    let b = &v["baseline"];
+    assert_eq!(b["untagged"]["commits"], 1);
+    assert_eq!(b["untagged"]["introduced"], 1);
+    assert_eq!(b["untagged"]["surviving"], 1);
+    assert_eq!(b["by_age"].as_array().map(Vec::len), Some(6));
+    assert_eq!(b["by_age"][0]["from_days"], 0);
+    assert_eq!(b["by_age"][0]["to_days"], 30);
+    assert_eq!(b["by_age"][0]["tagged"]["commits"], 1);
+    assert_eq!(b["by_age"][0]["untagged"]["commits"], 1);
+    assert!(b["by_age"][5]["to_days"].is_null());
+    // Two commits do not reach the floor: no age-matched figure, and the
+    // oldest surviving line is the first commit with nothing before it.
+    assert!(b["age_matched"].is_null());
+    assert_eq!(b["oldest_surviving"]["commits_before"], 0);
+    assert_eq!(b["oldest_surviving"]["age_days"], 0);
 
     // The report names what it measured: the commit at HEAD, and the origin
     // label (a digest of the path here, since this repo has no remote).
@@ -123,13 +141,15 @@ fn human_readable_outputs_name_the_method_version_and_no_verdict() {
         .lines()
         .find(|l| l.starts_with("<sub>"))
         .expect("summary ends with a <sub> footer");
-    assert!(sub.contains("Method v2"), "{sub}");
+    assert!(sub.contains("Method v3"), "{sub}");
+    assert!(text.contains("untagged lines"), "{text}");
     assert!(text.contains("capped") && text.contains("median"), "{text}");
 
     let terminal = re(temp.path(), &["audit"]);
     assert!(terminal.status.success());
     let text = String::from_utf8_lossy(&terminal.stdout).into_owned() + &text;
-    assert!(text.contains("method v2"), "{text}");
+    assert!(text.contains("method v3"), "{text}");
+    assert!(text.contains("Baseline: untagged lines"), "{text}");
     // Hard rule of the project: audit output measures, it does not grade.
     for verdict in ["healthy", "churn", "waste", "🟢", "🟡", "🔴"] {
         assert!(
@@ -167,5 +187,5 @@ fn shallow_clone_is_refused_unless_allowed() {
     );
     let v = json(&allowed);
     assert_eq!(v["coverage"]["shallow"], true);
-    assert_eq!(v["coverage"]["method"], "v2");
+    assert_eq!(v["coverage"]["method"], "v3");
 }
