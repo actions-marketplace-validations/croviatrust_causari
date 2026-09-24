@@ -75,7 +75,8 @@ for, so no editor has to remember it:
 | One repository counts once, whatever it is called: audits that measured the same `repository.head` (written by `re audit` from 0.2.1) or are byte-identical are one measurement; the name in `.github/survival-repos.txt` is kept, the other is listed under `excluded.duplicates` with the name it was counted under | `drop_duplicate_audits()`; discovery resolves every seed through `GET /repos` so a renamed seed is never discovered a second time (`resolve_seeds()`) |
 | Bootstrap interval over repositories, 2,000 resamples, seed = report number, labelled as an interval over the sample | `bootstrap_rate()`, `bootstrap_median()` |
 | Method section states method version, tool version, blame flags, cap rule, sample floor; links `/method` | `render_report()` |
-| Report directories are append-only; a directory holding a different report is never overwritten | `write_report()` |
+| Report directories are append-only; a directory holding a different report is never overwritten, and the same number is never rebuilt in place: a correction is a revision | `write_report()`, `revise()` |
+| A correction keeps the superseded bytes (`report.r<K>.json`, `report.r<K>.md`) next to the page; the new `report.json` carries `revision`, `revised_at` and `corrections[]` (what changed, the previous aggregate, the previous file and DOI); page, markdown, archive row and feed entry say so; the measurement date does not move | `revise()`, `correction_lines()` |
 | Old method v1 data cannot be relabelled as v2 | `from_existing()` refuses rows without a `coverage` block |
 
 ## Files
@@ -89,6 +90,7 @@ site/reports/survival/
   <YYYY>/<NN>/
     index.html               the report page
     report.json              counts, intervals, coverage, DOI (schema causari.survival_report.v1)
+    report.r<K>.json, .md    revision K as it was published, unchanged, when a later revision exists
     report.md                plain-text version, also the Zenodo description
     card.svg, card.png       Open Graph card, identity style
     repos/<owner>__<repo>.json   the exact `re audit --json` bytes per repository
@@ -192,6 +194,28 @@ Setup for the repository owner:
   `zenodo.json` so a sandbox concept is never reused live.
 - The first successful deposit creates the Concept DOI; it is then shown on
   every report page and in the archive.
+
+## Correcting a published report
+
+A published number that turns out to be wrong is not edited: it is
+superseded. `python3 scripts/survival_report.py revise --number N --run
+<dir> --note "<what was wrong, what changed>"` freezes the current
+`report.json` and `report.md` as `report.r<K>.json` / `.md`, builds the
+report again from the run directory (the original one, or a corrected
+one), and writes `revision: K+1`, `revised_at` and a `corrections` entry
+that names the note, the previous aggregate, the previous file and the
+previous DOI. The report date stays the date of the measurement. A DOI
+belongs to bytes, so the new revision starts without one; the next
+deposit (`survival-report.yml` with `deposit_only`) publishes it as a new
+Zenodo version `#N-rK+1` under the same Concept DOI and writes the DOI
+back. A repository page that existed only under a dropped name is removed
+and its URLs (page, badges, `latest.json`) redirect to the kept name.
+
+Report #2, revision 2 (2026-09-24): `All-Hands-AI/OpenHands` and
+`OpenHands/OpenHands` were one repository counted twice (byte-identical
+audits); 54 repositories, 13,733,809 of 27,108,452 lines (50.7 %), where
+revision 1 said 55, 14,015,893 of 28,046,116 (50.0 %). Revision 1 is
+`report.r1.json`, DOI 10.5281/zenodo.22928161.
 
 ## Report #1
 

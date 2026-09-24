@@ -126,7 +126,15 @@ def description(f: dict[str, Any], concept_doi: str | None) -> str:
         for r in f["repositories"]
     )
     series = f" Cite the series by the Concept DOI {concept_doi}." if concept_doi else ""
-    return (
+    corrections = ""
+    if f.get("corrections"):
+        sys.path.insert(0, str(HERE))
+        import survival_report
+
+        items = "".join(f"<li>{c}</li>" for c in survival_report.correction_lines(f))
+        corrections = (f"<p>This is revision {f.get('revision')} of report #{f['number']}. Superseded revisions keep their bytes and "
+                       f"their DOI; what changed:</p><ul>{items}</ul>")
+    return (corrections +
         f"<p>Survival Report #{f['number']} ({f['date']}): counts of surviving lines from AI-tagged commits in "
         f"{a['repositories']} open-source repositories, measured with {f['tool']['name']} {f['tool']['version']}, method {m['version']}. "
         f"{a['surviving']:,} of {a['introduced']:,} lines introduced by {a['ai_tagged_commits']:,} commits carrying machine-readable AI "
@@ -246,7 +254,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"skipped": True, "reason": "same bytes already deposited", "report": f["id"], "doi": prior.get("doi")}, indent=1))
         return 0
     files["MANIFEST.json"] = (json.dumps(manifest(f, files), indent=1) + "\n").encode()
-    revision = (prior or {}).get("revision", 0) + 1
+    # The Zenodo version follows the report's own revision when it has one
+    # (a correction published with `survival_report.py revise`); otherwise
+    # one more than the last deposit of this report.
+    revision = max((prior or {}).get("revision", 0) + 1, int(f.get("revision") or 1))
     version = f"#{f['number']}" if revision == 1 else f"#{f['number']}-r{revision}"
     meta = metadata(f, version, env.get("concept_doi"))
 

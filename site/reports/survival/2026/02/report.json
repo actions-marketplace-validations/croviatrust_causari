@@ -29,26 +29,26 @@
   "selection": "the repositories were selected, not drawn at random: 30 hand-picked and 30 found by GitHub commit search as public repositories with at least 5 commits carrying the same AI authorship metadata and at least 100 stars, most-starred first (discovered 2026-09-23); the selection rule and the counts behind it are public."
  },
  "aggregate": {
-  "repositories": 55,
-  "total_commits": 805065,
-  "ai_tagged_commits": 60693,
-  "introduced": 28046116,
-  "surviving": 14015893,
-  "survival_rate": 0.499744527905397,
+  "repositories": 54,
+  "total_commits": 796760,
+  "ai_tagged_commits": 58061,
+  "introduced": 27108452,
+  "surviving": 13733809,
+  "survival_rate": 0.5066246128698164,
   "survival_rate_interval_95": {
-   "low": 0.3340443251016988,
-   "high": 0.7429016662741382
+   "low": 0.32756971329935564,
+   "high": 0.7721302741370929
   },
-  "median_capped_survival_rate": 0.7473666525190149,
+  "median_capped_survival_rate": 0.7494138701347042,
   "median_capped_survival_rate_interval_95": {
-   "low": 0.6900213902771558,
-   "high": 0.7698772530069088
+   "low": 0.6942224237001373,
+   "high": 0.7733682062255476
   },
   "interval_method": {
    "kind": "bootstrap over repositories",
    "resamples": 2000,
    "seed": 2,
-   "note": "95 % percentile interval from 2000 bootstrap resamples of the 55 aggregated repositories (with replacement, seed 2). It describes the sampled repositories, not all AI-assisted code, and not the repositories not in this sample."
+   "note": "95 % percentile interval from 2000 bootstrap resamples of the 54 aggregated repositories (with replacement, seed 2). It describes the sampled repositories, not all AI-assisted code, and not the repositories not in this sample."
   }
  },
  "by_agent": {
@@ -67,11 +67,11 @@
    "survival_rate": 0.6278866661518839
   },
   "claude-code": {
-   "repositories": 47,
-   "commits": 16511,
-   "introduced": 12700663,
-   "surviving": 5794276,
-   "survival_rate": 0.456218387969195
+   "repositories": 46,
+   "commits": 16448,
+   "introduced": 12658706,
+   "surviving": 5774404,
+   "survival_rate": 0.4561606849862853
   },
   "copilot": {
    "repositories": 4,
@@ -81,11 +81,11 @@
    "survival_rate": 0.5893292926070659
   },
   "cursor": {
-   "repositories": 35,
-   "commits": 1203,
-   "introduced": 4329968,
-   "surviving": 785174,
-   "survival_rate": 0.18133482741673843
+   "repositories": 34,
+   "commits": 1170,
+   "introduced": 4287008,
+   "surviving": 751155,
+   "survival_rate": 0.1752166079466145
   },
   "devin": {
    "repositories": 12,
@@ -102,18 +102,18 @@
    "survival_rate": 0.6222693220180444
   },
   "github-copilot": {
-   "repositories": 37,
-   "commits": 9965,
-   "introduced": 4878312,
-   "surviving": 3916219,
-   "survival_rate": 0.8027815769061102
+   "repositories": 36,
+   "commits": 9960,
+   "introduced": 4878197,
+   "surviving": 3916188,
+   "survival_rate": 0.8027941470998403
   },
   "jules": {
-   "repositories": 8,
-   "commits": 37,
-   "introduced": 3399,
+   "repositories": 7,
+   "commits": 36,
+   "introduced": 3357,
    "surviving": 2047,
-   "survival_rate": 0.6022359517505148
+   "survival_rate": 0.6097706285373846
   },
   "llm": {
    "repositories": 1,
@@ -123,11 +123,11 @@
    "survival_rate": 0.7149211711711712
   },
   "openai-codex": {
-   "repositories": 18,
-   "commits": 1665,
-   "introduced": 557028,
-   "surviving": 292585,
-   "survival_rate": 0.5252608486467467
+   "repositories": 17,
+   "commits": 1662,
+   "introduced": 556459,
+   "surviving": 292140,
+   "survival_rate": 0.5249982478493473
   },
   "opencode": {
    "repositories": 2,
@@ -137,11 +137,11 @@
    "survival_rate": 0.8904278239458295
   },
   "openhands": {
-   "repositories": 6,
-   "commits": 6888,
-   "introduced": 2229052,
-   "surviving": 871349,
-   "survival_rate": 0.39090564060416716
+   "repositories": 5,
+   "commits": 4361,
+   "introduced": 1377031,
+   "surviving": 643632,
+   "survival_rate": 0.46740559943821164
   },
   "pi": {
    "repositories": 2,
@@ -280,108 +280,6 @@
      "capped_survival_rate": 0.8079896907216495,
      "cap_lines": 312,
      "largest_commit_share": 0.4020618556701031
-    }
-   },
-   "coverage": {
-    "method": "v2",
-    "blame_flags": [
-     "-w",
-     "-M",
-     "-C"
-    ],
-    "ignore_revs_file": false,
-    "shallow": false,
-    "sample_floor": 5,
-    "small_sample": false
-   },
-   "aggregated": true
-  },
-  {
-   "repo": "All-Hands-AI/OpenHands",
-   "url": "https://github.com/All-Hands-AI/OpenHands",
-   "audit_file": "repos/All-Hands-AI__OpenHands.json",
-   "reproduce": "re audit All-Hands-AI/OpenHands --json",
-   "total_commits": 8305,
-   "verified": {
-    "commits": 2632,
-    "introduced": 937664,
-    "surviving": 282084,
-    "survival_rate": 0.3008369735854208,
-    "median_survival": 0.0,
-    "capped_survival_rate": 0.28159852435611293,
-    "cap_lines": 1440,
-    "largest_commit_share": 0.1436921967783769
-   },
-   "probable": {
-    "commits": 0,
-    "introduced": 0,
-    "surviving": 0,
-    "survival_rate": null,
-    "median_survival": null,
-    "capped_survival_rate": null,
-    "cap_lines": null,
-    "largest_commit_share": null
-   },
-   "by_agent": {
-    "claude-code": {
-     "commits": 63,
-     "introduced": 41957,
-     "surviving": 19872,
-     "survival_rate": 0.4736277617560836,
-     "median_survival": 0.0,
-     "capped_survival_rate": 0.4502401546694911,
-     "cap_lines": 3032,
-     "largest_commit_share": 0.1347570131324928
-    },
-    "cursor": {
-     "commits": 33,
-     "introduced": 42960,
-     "surviving": 34019,
-     "survival_rate": 0.7918761638733706,
-     "median_survival": 0.8103616813294232,
-     "capped_survival_rate": 0.7908428618538385,
-     "cap_lines": 4814,
-     "largest_commit_share": 0.12383612662942271
-    },
-    "github-copilot": {
-     "commits": 5,
-     "introduced": 115,
-     "surviving": 31,
-     "survival_rate": 0.26956521739130435,
-     "median_survival": 0.0,
-     "capped_survival_rate": 0.26956521739130435,
-     "cap_lines": 76,
-     "largest_commit_share": 0.6608695652173913
-    },
-    "jules": {
-     "commits": 1,
-     "introduced": 42,
-     "surviving": 0,
-     "survival_rate": 0.0,
-     "median_survival": 0.0,
-     "capped_survival_rate": 0.0,
-     "cap_lines": 42,
-     "largest_commit_share": 1.0
-    },
-    "openai-codex": {
-     "commits": 3,
-     "introduced": 569,
-     "surviving": 445,
-     "survival_rate": 0.7820738137082601,
-     "median_survival": 0.8,
-     "capped_survival_rate": 0.7820738137082601,
-     "cap_lines": 373,
-     "largest_commit_share": 0.655536028119508
-    },
-    "openhands": {
-     "commits": 2527,
-     "introduced": 852021,
-     "surviving": 227717,
-     "survival_rate": 0.26726688661429704,
-     "median_survival": 0.0,
-     "capped_survival_rate": 0.2470428557438615,
-     "cap_lines": 1247,
-     "largest_commit_share": 0.15813577364877157
     }
    },
    "coverage": {
@@ -4567,16 +4465,46 @@
    "fern-api/fern",
    "richlander/dotnet-inspect"
   ],
+  "duplicates": [
+   {
+    "dropped": "All-Hands-AI/OpenHands",
+    "kept": "OpenHands/OpenHands",
+    "reason": "byte-identical audit output",
+    "audit_file": "repos/All-Hands-AI__OpenHands.json",
+    "kept_audit_file": "repos/OpenHands__OpenHands.json"
+   }
+  ],
   "opted_out": 0,
   "optout_file": "https://github.com/croviatrust/causari/blob/main/.github/survival-optout.txt"
  },
- "doi": "10.5281/zenodo.22928161",
+ "doi": "10.5281/zenodo.22944117",
  "concept_doi": "10.5281/zenodo.22863965",
  "zenodo": {
-  "record_url": "https://zenodo.org/records/22928161",
-  "record_id": 22928161,
-  "version": "#2",
+  "record_url": "https://zenodo.org/records/22944117",
+  "record_id": 22944117,
+  "version": "#2-r2",
   "sandbox": false,
-  "published_at": "2026-09-24T01:20:31Z"
- }
+  "published_at": "2026-09-24T17:50:29Z"
+ },
+ "revision": 2,
+ "revised_at": "2026-09-24T17:46:09Z",
+ "corrections": [
+  {
+   "revision": 2,
+   "date": "2026-09-24",
+   "note": "All-Hands-AI/OpenHands and OpenHands/OpenHands are one repository, renamed on GitHub; revision 1 counted its audit twice (the two files under repos/ are byte-identical, SHA-256 1500353f…). It now counts once, under OpenHands/OpenHands.",
+   "previous": {
+    "revision": 1,
+    "file": "report.r1.json",
+    "doi": "10.5281/zenodo.22928161",
+    "aggregate": {
+     "repositories": 55,
+     "ai_tagged_commits": 60693,
+     "introduced": 28046116,
+     "surviving": 14015893,
+     "survival_rate": 0.499744527905397
+    }
+   }
+  }
+ ]
 }

@@ -515,11 +515,13 @@ class DuplicateTests(unittest.TestCase):
         self.assertEqual(f["aggregate"]["repositories"], 3)
         self.assertEqual(f["aggregate"]["introduced"], 1000 + 500 + 800)
         self.assertEqual(f["excluded"]["duplicates"], [
-            {"dropped": "old-org/last", "kept": "zeta/last", "reason": "byte-identical audit output"}])
+            {"dropped": "old-org/last", "kept": "zeta/last", "reason": "byte-identical audit output",
+             "audit_file": "repos/old-org__last.json", "kept_audit_file": "repos/zeta__last.json"}])
         self.assertIn("One repository, two names", page)
         self.assertIn("old-org/last", page)
-        self.assertFalse((out / "repos" / "old-org__last.json").exists())
-        self.assertTrue((out / "repos" / "zeta__last.json").exists())
+        # both files stay next to the page, so the byte-identity is checkable
+        self.assertEqual((out / "repos" / "old-org__last.json").read_bytes(), (out / "repos" / "zeta__last.json").read_bytes())
+        self.assertNotIn("old-org/last", [r["repo"] for r in f["repositories"] + f["not_aggregated"]])
 
     def test_listed_name_wins_even_when_alphabetically_later(self) -> None:
         f, _, _ = self._build_with({"aaa/last": "zeta/last"}, "zeta/last\n")
@@ -536,7 +538,8 @@ class DuplicateTests(unittest.TestCase):
         f = s.build()
         self.assertEqual(f["aggregate"]["repositories"], 3)
         self.assertEqual(f["excluded"]["duplicates"], [
-            {"dropped": "zeta/last", "kept": "new/last", "reason": "same commit at HEAD"}])
+            {"dropped": "zeta/last", "kept": "new/last", "reason": "same commit at HEAD",
+             "audit_file": "repos/zeta__last.json", "kept_audit_file": "repos/new__last.json"}])
 
     def test_distinct_repositories_are_never_merged(self) -> None:
         s = Scratch()
@@ -545,6 +548,95 @@ class DuplicateTests(unittest.TestCase):
         self.assertEqual(f["excluded"]["duplicates"], [])
         self.assertNotIn("One repository, two names",
                          (s.site / "reports" / "survival" / "2026" / "01" / "index.html").read_text(encoding="utf-8"))
+
+
+class RevisionTests(unittest.TestCase):
+    """A correction is a new revision of the same report: the old bytes stay,
+    the page says what changed, the archive and feed carry the revision, and
+    a plain rebuild of the same number is refused."""
+
+    def setUp(self) -> None:
+        self.s = Scratch()
+        self.addCleanup(self.s.close)
+        # r1 holds a row that should not have been there
+        (self.s.run / "extra__one.json").write_text(json.dumps(audit(8, 200, 100, agent="devin")), encoding="utf-8")
+        self.first = self.s.build(number=1)
+        self.dir = self.s.site / "reports" / "survival" / "2026" / "01"
+        self.assertEqual(self.first["aggregate"]["repositories"], 4)
+        # the corrected run: that row removed
+        (self.s.run / "extra__one.json").unlink()
+
+    def revise(self, note: str = "extra/one was measured from a mirror of mid/one; it is removed.") -> dict:
+        rc = sr.main(["--site", str(self.s.site), "--root", str(self.s.root), "revise", "--run", str(self.s.run),
+                      "--number", "1", "--note", note, "--no-png"])
+        self.assertEqual(rc, 0)
+        return json.loads((self.dir / "report.json").read_text(encoding="utf-8"))
+
+    def test_first_build_has_no_revision_field(self) -> None:
+        self.assertNotIn("revision", self.first)
+        self.assertNotIn("corrections", self.first)
+
+    def test_same_number_again_is_refused_and_points_to_revise(self) -> None:
+        with self.assertRaises(SystemExit) as cm:
+            sr.main(["--site", str(self.s.site), "--root", str(self.s.root), "build", "--run", str(self.s.run),
+                     "--number", "1", "--date", "2026-09-21", "--no-png"])
+        self.assertIn("revise", str(cm.exception))
+
+    def test_revision_freezes_the_old_bytes_and_states_the_change(self) -> None:
+        before = (self.dir / "report.json").read_bytes()
+        before_md = (self.dir / "report.md").read_bytes()
+        f = self.revise()
+        self.assertEqual((self.dir / "report.r1.json").read_bytes(), before)
+        self.assertEqual((self.dir / "report.r1.md").read_bytes(), before_md)
+        self.assertEqual(f["revision"], 2)
+        self.assertEqual(f["date"], "2026-09-21")  # the measurement date does not move
+        self.assertEqual(f["generated_at"], self.first["generated_at"])
+        self.assertTrue(f["revised_at"] > f["generated_at"])
+        self.assertIsNone(f["doi"])  # a DOI belongs to bytes; the deposit mints one for this revision
+        c = f["corrections"]
+        self.assertEqual(len(c), 1)
+        self.assertEqual(c[0]["revision"], 2)
+        self.assertEqual(c[0]["previous"]["file"], "report.r1.json")
+        self.assertEqual(c[0]["previous"]["aggregate"]["repositories"], 4)
+        self.assertEqual(f["aggregate"]["repositories"], 3)
+        self.assertNotIn("extra/one", [r["repo"] for r in f["repositories"]])
+        page = (self.dir / "index.html").read_text(encoding="utf-8")
+        self.assertIn("revision 2", page)
+        self.assertIn('href="report.r1.json"', page)
+        self.assertIn("Revision 2 (", page)
+        self.assertIn("Revision 1 counted 4 repositories", page)
+        md = (self.dir / "report.md").read_text(encoding="utf-8")
+        self.assertIn("## Corrections", md)
+        self.assertIn("revision 2", sr.cite(f))
+        archive = (self.s.site / "reports" / "survival" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("rev. 2", archive)
+        feed = (self.s.site / "reports" / "survival" / "feed.xml").read_text(encoding="utf-8")
+        self.assertIn("Revision 2 (", feed)
+        self.assertIn(f"<updated>{f['revised_at']}</updated>", feed)
+        latest = json.loads((self.s.site / "reports" / "survival" / "latest.json").read_text(encoding="utf-8"))
+        self.assertEqual(latest["revision"], 2)
+
+    def test_second_revision_keeps_both_predecessors(self) -> None:
+        self.revise()
+        r2 = (self.dir / "report.json").read_bytes()
+        f = self.revise("second correction, for the test.")
+        self.assertEqual(f["revision"], 3)
+        self.assertEqual((self.dir / "report.r2.json").read_bytes(), r2)
+        self.assertTrue((self.dir / "report.r1.json").exists())
+        self.assertEqual([c["revision"] for c in f["corrections"]], [2, 3])
+
+    def test_revise_refuses_an_empty_note_and_an_unknown_report(self) -> None:
+        with self.assertRaises(SystemExit):
+            sr.revise(self.s.run, 1, "   ", self.s.site, self.s.root, png=False)
+        with self.assertRaises(SystemExit):
+            sr.revise(self.s.run, 9, "note", self.s.site, self.s.root, png=False)
+        self.assertFalse((self.dir / "report.r1.json").exists())
+
+    def test_rebuild_keeps_the_revision(self) -> None:
+        f = self.revise()
+        sr.rebuild(self.s.site)
+        self.assertEqual(json.loads((self.dir / "report.json").read_text(encoding="utf-8")), f)
+        self.assertIn("revision 2", (self.dir / "index.html").read_text(encoding="utf-8"))
 
 
 class ScaleTests(unittest.TestCase):

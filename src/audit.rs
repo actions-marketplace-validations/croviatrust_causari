@@ -20,7 +20,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// How sure we are that a commit is AI-authored, and why.
+/// How sure we are that a commit's metadata tags it as AI-authored, and why.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Detection {
     pub agent: String,
@@ -260,7 +260,8 @@ fn git_ai_agent(notes: &str) -> Option<String> {
     Some("ai".into())
 }
 
-/// Classify a commit as AI-authored (or not) from its metadata alone.
+/// Classify a commit as AI-tagged (or not) from its metadata alone: the
+/// tag is what the metadata says, not a judgement about who typed the code.
 ///
 /// Detectors are ordered strongest-first; the first match wins. Trailers are
 /// read from the git trailer block only (see [`parse_trailers`]). Signals:

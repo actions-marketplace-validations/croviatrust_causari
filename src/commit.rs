@@ -63,6 +63,20 @@ pub fn commit_event(
     event: &Event,
     session: Option<&str>,
 ) -> Result<String> {
+    // Every event passes here before it is written: a pasted credential in
+    // a prompt, a message or a reasoning trace is replaced, and the event
+    // says how many times.
+    let redacted;
+    let event = if event.has_secrets() {
+        redacted = {
+            let mut e = event.clone();
+            e.redact_secrets();
+            e
+        };
+        &redacted
+    } else {
+        event
+    };
     let id = store.write_event(event)?;
     // Compare-and-swap: the ref must still point at the parent this event
     // was built on. If another recorder slipped in (lock broken, lock
@@ -116,6 +130,7 @@ mod tests {
             exit_code: None,
             created_at: Utc::now().to_rfc3339(),
             evidence: None,
+            redactions: 0,
         }
     }
 

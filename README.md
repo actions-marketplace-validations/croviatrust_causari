@@ -1,6 +1,6 @@
 <h1 align="center">∵ causari</h1>
 
-<p align="center"><strong>AI-written code has no author. It has causes. Causari proves them.</strong></p>
+<p align="center"><strong>AI-written code has no author. It has causes. Causari records them.</strong></p>
 <p align="center"><em>How many lines from AI-tagged commits are still alive in your repo? One command, any git repo, no setup. A count, not a grade.</em></p>
 
 <p align="center">
@@ -39,7 +39,7 @@ $ re audit
 ───────────────────────────────────────────────────
   36 commits analyzed (git metadata only, no setup required)
 
-Verified AI-authored: 3 commits, 1773 introduced, 1773 survived (100.0%)
+Verified AI-tagged:   3 commits, 1773 introduced, 1773 survived (100.0%)
 Probable AI-assisted: none detected
 By agent (verified only)
   cursor                 1773 lines,   1773 survived (100.0%)
@@ -151,10 +151,16 @@ Two evidence classes, and every output says which one it is:
   wrong per-line attribution when two prompts touch one file in the same
   window.
 
-Everything stays on your machine. `re proxy` stores prompts and completions
-verbatim; snapshots store every non-ignored file (`.env*`, `node_modules`,
-`target`, `dist`, `build`, `.git` and a few others are excluded by default).
-Treat `.causari/` as sensitive.
+Everything stays on your machine. `re proxy` and the hooks store prompts,
+completions and commands in clear under `.causari/` (gitignored); credentials
+in recognisable formats — `sk-…` keys, GitHub/GitLab/Slack/npm/PyPI/Hugging
+Face tokens, AWS and Google keys, bearer values, JWTs, PEM private keys — are
+replaced by `[redacted:<kind>]` before writing, and the record says how many.
+Anything else you paste is kept as typed. Snapshots store every non-ignored
+file (`.env*`, `node_modules`, `target`, `dist`, `build`, `.git` and a few
+others are excluded by default). Treat `.causari/` as sensitive. What is
+stored, what is not, and what the tool does and does not defend against:
+[`SECURITY.md`](SECURITY.md) and [`docs/threat-model.md`](docs/threat-model.md).
 
 ## Receipts you can verify without us
 
@@ -348,8 +354,8 @@ Phases and exit criteria: [`ROADMAP.md`](ROADMAP.md).
 
 Causari is part of [Crovia](https://croviatrust.com), one grammar in three
 tenses: **TACET** proves a model's silence about its training data, **PNX**
-proves an agent's egress carried no protected bytes, **Causari** proves why a
-line of code exists and whether it is still there. Same rules everywhere:
+proves an agent's egress carried no protected bytes, **Causari** records why a
+line of code exists and measures whether it is still there. Same rules everywhere:
 reproducible numbers, no verdicts, offline verification, limits stated first.
 
 Role in the Crovia canon — Sibling product: proof of cause for AI-written code

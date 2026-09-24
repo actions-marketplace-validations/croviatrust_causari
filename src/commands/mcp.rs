@@ -240,6 +240,7 @@ fn tool_record(args: &Value) -> Result<String> {
             .map(|n| n as i32),
         created_at: Utc::now().to_rfc3339(),
         evidence: Some(crate::object::Evidence::declared("mcp")),
+        redactions: 0,
     };
     let id = crate::commit::commit_event(&repo, &store, &event, session.as_deref())?;
     Ok(format!(

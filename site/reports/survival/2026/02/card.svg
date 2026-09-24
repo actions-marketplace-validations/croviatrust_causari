@@ -5,9 +5,9 @@
   <circle cx="137.0" cy="165.6" r="18.9" fill="#f5f4ef"/>
   <text x="252" y="170" font-family="'JetBrains Mono','SF Mono','Cascadia Mono','Fira Code',Consolas,monospace" font-size="72" font-weight="500" letter-spacing="-1" fill="#f5f4ef">causari</text>
   <text x="72" y="270" font-family="'JetBrains Mono','SF Mono','Cascadia Mono','Fira Code',Consolas,monospace" font-size="26" fill="#9aa3ad">Survival Report #2 · 2026-09-23 · method v2</text>
-  <text x="72" y="345" font-family="'JetBrains Mono','SF Mono','Cascadia Mono','Fira Code',Consolas,monospace" font-size="44" fill="#f5f4ef">14,015,893 of 28,046,116 lines</text>
-  <text x="72" y="400" font-family="'JetBrains Mono','SF Mono','Cascadia Mono','Fira Code',Consolas,monospace" font-size="26" fill="#f5f4ef">from 60,693 AI-tagged commits in 55 repositories are still at HEAD</text>
-  <text x="72" y="450" font-family="'JetBrains Mono','SF Mono','Cascadia Mono','Fira Code',Consolas,monospace" font-size="24" fill="#9aa3ad">50.0 % · 95 % interval over the sampled repositories 33.4 % – 74.3 %</text>
+  <text x="72" y="345" font-family="'JetBrains Mono','SF Mono','Cascadia Mono','Fira Code',Consolas,monospace" font-size="44" fill="#f5f4ef">13,733,809 of 27,108,452 lines</text>
+  <text x="72" y="400" font-family="'JetBrains Mono','SF Mono','Cascadia Mono','Fira Code',Consolas,monospace" font-size="26" fill="#f5f4ef">from 58,061 AI-tagged commits in 54 repositories are still at HEAD</text>
+  <text x="72" y="450" font-family="'JetBrains Mono','SF Mono','Cascadia Mono','Fira Code',Consolas,monospace" font-size="24" fill="#9aa3ad">50.7 % · 95 % interval over the sampled repositories 32.8 % – 77.2 %</text>
   <text x="72" y="540" font-family="'JetBrains Mono','SF Mono','Cascadia Mono','Fira Code',Consolas,monospace" font-size="24" fill="#9aa3ad">counts, not grades  ·  re audit &lt;owner/repo&gt; --json  ·  CC-BY-4.0</text>
   <text x="72" y="580" font-family="'JetBrains Mono','SF Mono','Cascadia Mono','Fira Code',Consolas,monospace" font-size="24" fill="#9aa3ad">causari.dev/reports/survival</text>
 </svg>

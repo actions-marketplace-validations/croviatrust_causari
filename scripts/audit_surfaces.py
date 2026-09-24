@@ -284,13 +284,18 @@ def check_release(canon: dict, r: Report) -> None:
 
 # ---------------------------------------------------------------- live
 
-def fetch(url: str, follow: bool = True) -> tuple[int, dict, bytes]:
+def fetch(url: str, follow: bool = True, plain: bool = False) -> tuple[int, dict, bytes]:
+    """`plain=True` sends what any script sends: urllib's own User-Agent
+    (`Python-urllib/3.x`), no cookie, no browser hint. That is the client the
+    reproducibility claim invites, and the one a Cloudflare Browser Integrity
+    Check turns away with a 403."""
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: N802
             return None
 
     opener = urllib.request.build_opener() if follow else urllib.request.build_opener(NoRedirect)
-    req = urllib.request.Request(url, headers={"User-Agent": "causari-canon-audit/1.0"})
+    headers = {} if plain else {"User-Agent": "causari-canon-audit/1.0"}
+    req = urllib.request.Request(url, headers=headers)
     try:
         with opener.open(req, timeout=30) as resp:
             return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read(200_000)
@@ -365,6 +370,22 @@ def check_live(canon: dict, r: Report) -> None:
             r.add("live", "medium", src, f"expected redirect to …{dst}, got HTTP {status} {loc!r}")
         else:
             r.add("live", "info", src, f"{status} → {loc}")
+    # Data paths with a plain script client. The pages above pass with a
+    # named User-Agent; a 403 here and 200 there is a bot rule in front of
+    # the data, and the "reproducible by anyone" claim is false for scripts.
+    for path, marker in (live.get("data") or {}).get("paths", {}).items():
+        status, headers, body = fetch(base + path, plain=True)
+        text = body.decode("utf-8", errors="replace")
+        if status == 403:
+            r.add("live", "critical", path,
+                  "HTTP 403 for a plain script client (Python-urllib): a bot rule blocks the data; "
+                  "exempt this path from the Cloudflare Browser Integrity Check")
+        elif status != 200:
+            r.add("live", "critical", path, f"HTTP {status} for a plain script client {headers.get('error', '')}")
+        elif marker not in text:
+            r.add("live", "high", path, f"200 but marker {marker!r} absent")
+        else:
+            r.add("live", "info", path, f"200 for a plain script client, {len(body)} bytes")
 
 
 # ---------------------------------------------------------------- main

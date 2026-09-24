@@ -1,7 +1,7 @@
 /// `re audit` — retroactive Group-0 AI-code survival audit.
 ///
 /// Works on any git repository without a Causari ledger. Reads git history,
-/// classifies AI-authored commits by metadata, then counts how many of those
+/// classifies commits tagged as AI-authored by their metadata, then counts how many of those
 /// lines survived to HEAD.
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
@@ -352,7 +352,7 @@ fn print_terminal(report: &SurvivalReport) {
     );
     println!();
 
-    print_class("Verified AI-authored", &report.verified);
+    print_class("Verified AI-tagged", &report.verified);
     print_class("Probable AI-assisted", &report.probable);
 
     if !report.by_agent.is_empty() {

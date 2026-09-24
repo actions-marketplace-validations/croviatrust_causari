@@ -1,32 +1,28 @@
-# Survival Report #2 — 2026-09-23 (revision 2)
+# Survival Report #2 — 2026-09-23
 
-Counts of surviving lines from AI-tagged commits in 54 open-source repositories, measured with causari 0.2.0, method v2. Counts, not grades: no rank, no verdict; rows are alphabetical.
+Counts of surviving lines from AI-tagged commits in 55 open-source repositories, measured with causari 0.2.0, method v2. Counts, not grades: no rank, no verdict; rows are alphabetical.
 
 Page: https://causari.dev/reports/survival/2026/02/  
 Data: https://causari.dev/reports/survival/2026/02/report.json  
 Feed: https://causari.dev/reports/survival/feed.xml  
 Licence: CC-BY-4.0  
-DOI: https://doi.org/10.5281/zenodo.22944117  
-
-## Corrections
-
-- Revision 2 (2026-09-24): All-Hands-AI/OpenHands and OpenHands/OpenHands are one repository, renamed on GitHub; revision 1 counted its audit twice (the two files under repos/ are byte-identical, SHA-256 1500353f…). It now counts once, under OpenHands/OpenHands. Revision 1 counted 55 repositories, 14,015,893 of 28,046,116 lines (50.0 %); its bytes are kept unchanged at report.r1.json, DOI 10.5281/zenodo.22928161.
+DOI: https://doi.org/10.5281/zenodo.22928161  
 
 ## Aggregate
 
-13,733,809 of 27,108,452 lines introduced by 58,061 AI-tagged commits in 54 open-source repositories are still at HEAD (50.7 %). 95 % interval over the sampled repositories: 32.8 % to 77.2 %.
+14,015,893 of 28,046,116 lines introduced by 60,693 AI-tagged commits in 55 open-source repositories are still at HEAD (50.0 %). 95 % interval over the sampled repositories: 33.4 % to 74.3 %.
 
-- Repositories aggregated: 54
-- Commits in those repositories (no merges): 796,760
-- AI-tagged (VERIFIED) commits: 58,061
-- Lines introduced by them: 27,108,452
-- Still attributed to them at HEAD: 13,733,809
-- Line-weighted ratio: 50.7 %
-- 95 % bootstrap interval over the sampled repositories: 32.8 % to 77.2 %
-- Median of per-repository capped ratios: 74.9 %
-- 95 % bootstrap interval on that median: 69.4 % to 77.3 %
+- Repositories aggregated: 55
+- Commits in those repositories (no merges): 805,065
+- AI-tagged (VERIFIED) commits: 60,693
+- Lines introduced by them: 28,046,116
+- Still attributed to them at HEAD: 14,015,893
+- Line-weighted ratio: 50.0 %
+- 95 % bootstrap interval over the sampled repositories: 33.4 % to 74.3 %
+- Median of per-repository capped ratios: 74.7 %
+- 95 % bootstrap interval on that median: 69.0 % to 77.0 %
 
-95 % percentile interval from 2000 bootstrap resamples of the 54 aggregated repositories (with replacement, seed 2). It describes the sampled repositories, not all AI-assisted code, and not the repositories not in this sample.
+95 % percentile interval from 2000 bootstrap resamples of the 55 aggregated repositories (with replacement, seed 2). It describes the sampled repositories, not all AI-assisted code, and not the repositories not in this sample.
 
 ## Repositories (alphabetical)
 
@@ -34,6 +30,7 @@ DOI: https://doi.org/10.5281/zenodo.22944117
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | Aider-AI/aider | 12,461 | 11,156 | 374,687 | 235,782 | 62.9 % | 41.9 % | 33.3 % | 27 % | `re audit Aider-AI/aider --json` |
 | airbytehq/airbyte | 52,899 | 2,199 | 1,058,017 | 906,457 | 85.7 % | 75.2 % | 86.0 % | 47 % | `re audit airbytehq/airbyte --json` |
+| All-Hands-AI/OpenHands | 8,305 | 2,632 | 937,664 | 282,084 | 30.1 % | 28.2 % | 0.0 % | 14 % | `re audit All-Hands-AI/OpenHands --json` |
 | anthropics/anthropic-sdk-python | 1,408 | 39 | 4,961 | 4,116 | 83.0 % | 79.7 % | 83.3 % | 32 % | `re audit anthropics/anthropic-sdk-python --json` |
 | anthropics/anthropic-sdk-typescript | 1,334 | 50 | 14,219 | 11,877 | 83.5 % | 85.6 % | 96.4 % | 39 % | `re audit anthropics/anthropic-sdk-typescript --json` |
 | anthropics/claude-code | 727 | 71 | 31,257 | 29,225 | 93.5 % | 74.6 % | 47.2 % | 70 % | `re audit anthropics/claude-code --json` |
@@ -93,17 +90,17 @@ DOI: https://doi.org/10.5281/zenodo.22944117
 |---|---:|---:|---:|---:|---:|
 | ai | 4 | 59 | 8,280 | 7,152 | 86.4 % |
 | aider | 4 | 11,167 | 375,563 | 235,811 | 62.8 % |
-| claude-code | 46 | 16,448 | 12,658,706 | 5,774,404 | 45.6 % |
+| claude-code | 47 | 16,511 | 12,700,663 | 5,794,276 | 45.6 % |
 | copilot | 4 | 3,927 | 250,780 | 147,792 | 58.9 % |
-| cursor | 34 | 1,170 | 4,287,008 | 751,155 | 17.5 % |
+| cursor | 35 | 1,203 | 4,329,968 | 785,174 | 18.1 % |
 | devin | 12 | 7,415 | 2,166,047 | 1,615,028 | 74.6 % |
 | gemini | 13 | 1,511 | 470,396 | 292,713 | 62.2 % |
-| github-copilot | 36 | 9,960 | 4,878,197 | 3,916,188 | 80.3 % |
-| jules | 7 | 36 | 3,357 | 2,047 | 61.0 % |
+| github-copilot | 37 | 9,965 | 4,878,312 | 3,916,219 | 80.3 % |
+| jules | 8 | 37 | 3,399 | 2,047 | 60.2 % |
 | llm | 1 | 307 | 71,040 | 50,788 | 71.5 % |
-| openai-codex | 17 | 1,662 | 556,459 | 292,140 | 52.5 % |
+| openai-codex | 18 | 1,665 | 557,028 | 292,585 | 52.5 % |
 | opencode | 2 | 6 | 3,249 | 2,893 | 89.0 % |
-| openhands | 5 | 4,361 | 1,377,031 | 643,632 | 46.7 % |
+| openhands | 6 | 6,888 | 2,229,052 | 871,349 | 39.1 % |
 | pi | 2 | 32 | 2,339 | 2,066 | 88.3 % |
 
 ## Measured but not aggregated (fewer than 5 AI-tagged commits)
@@ -118,7 +115,6 @@ DOI: https://doi.org/10.5281/zenodo.22944117
 
 - Shallow clones (history truncated; method v2 refuses them): none
 - Audits that failed in this run: fern-api/fern, richlander/dotnet-inspect
-- All-Hands-AI/OpenHands is the same repository as OpenHands/OpenHands (byte-identical audit output); counted once, under OpenHands/OpenHands
 - Opted out by their maintainers (https://github.com/croviatrust/causari/blob/main/.github/survival-optout.txt): 0
 
 ## Method
@@ -135,4 +131,4 @@ Prior measurement work asks related questions with different instruments. GitCle
 
 ## Cite
 
-Crovia Trust. Survival Report #2 (2026-09-23, revision 2). https://causari.dev/reports/survival/2026/02/ DOI 10.5281/zenodo.22944117
+Crovia Trust. Survival Report #2 (2026-09-23). https://causari.dev/reports/survival/2026/02/ DOI 10.5281/zenodo.22928161

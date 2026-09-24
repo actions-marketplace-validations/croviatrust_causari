@@ -16,15 +16,15 @@
     "published_at": "2026-09-20T20:19:53Z"
    },
    "2026/02": {
-    "doi": "10.5281/zenodo.22928161",
+    "doi": "10.5281/zenodo.22944117",
     "concept_doi": "10.5281/zenodo.22863965",
-    "html": "https://zenodo.org/records/22928161",
-    "id": 22928161,
-    "version": "#2",
-    "revision": 1,
+    "html": "https://zenodo.org/records/22944117",
+    "id": 22944117,
+    "version": "#2-r2",
+    "revision": 2,
     "sandbox": false,
-    "content_sha256": "8d93c50b56595c18617298423b72e551e4650a797a5d4c700f20e833413f74fa",
-    "published_at": "2026-09-24T01:20:31Z"
+    "content_sha256": "7edded742d3ca6c2347093b467a6231da535b0701857a0e106eb48ab28654445",
+    "published_at": "2026-09-24T17:50:29Z"
    }
   }
  },

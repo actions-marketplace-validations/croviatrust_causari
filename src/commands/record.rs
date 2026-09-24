@@ -116,6 +116,7 @@ pub fn run(args: RecordArgs) -> Result<()> {
         exit_code,
         created_at: Utc::now().to_rfc3339(),
         evidence: Some(crate::object::Evidence::declared("record")),
+        redactions: 0,
     };
 
     let event_id = commit_event(&repo, &store, &event, session)?;

@@ -105,6 +105,8 @@ pub(super) fn install(user: bool, dry_run: bool) -> Result<()> {
     println!("  stop → drops the pre-states the turn never used");
     println!("  sessionStart → injects verified experience into every new conversation");
     println!();
+    println!("  {}", crate::redact::STORAGE_NOTICE.bright_black());
+    println!();
     println!(
         "  {} `re` must be on PATH for Cursor to run them. Cursor reloads hooks.json on save.",
         "note:".yellow()
@@ -234,16 +236,16 @@ fn handle_in(repo: &Repo, event: &str, v: &Value) -> Result<Value> {
                     .iter()
                     .filter_map(|a| relative_to_repo(repo, a))
                     .collect();
-                append_jsonl(
-                    &prompts_path(repo),
-                    &PromptRecord {
-                        ts_ms: now_ms(),
-                        session_id: common.conversation_id.clone(),
-                        prompt: p.prompt,
-                        model: common.model.clone(),
-                        attachments,
-                    },
-                )?;
+                let mut record = PromptRecord {
+                    ts_ms: now_ms(),
+                    session_id: common.conversation_id.clone(),
+                    prompt: p.prompt,
+                    model: common.model.clone(),
+                    attachments,
+                    redactions: 0,
+                };
+                record.redact_secrets();
+                append_jsonl(&prompts_path(repo), &record)?;
             }
             Ok(json!({ "continue": true }))
         }
@@ -306,27 +308,27 @@ fn handle_in(repo: &Repo, event: &str, v: &Value) -> Result<Value> {
                 return Ok(json!({}));
             };
             let prompt = last_prompt(repo, session)?;
-            append_jsonl(
-                &exchanges_path(repo),
-                &Exchange {
-                    id: Some(new_exchange_id()?),
-                    ts_ms: now_ms(),
-                    agent: Some(AGENT.to_string()),
-                    model: common
-                        .model
-                        .clone()
-                        .or_else(|| prompt.as_ref().and_then(|p| p.model.clone())),
-                    prompt: prompt.map(|p| p.prompt),
-                    response_text: text,
-                    tokens_in: None,
-                    tokens_out: None,
-                    cost_usd: None,
-                    request_sha256: None,
-                    response_sha256: None,
-                    seal_id: None,
-                    truncated: false,
-                },
-            )?;
+            let mut exchange = Exchange {
+                id: Some(new_exchange_id()?),
+                ts_ms: now_ms(),
+                agent: Some(AGENT.to_string()),
+                model: common
+                    .model
+                    .clone()
+                    .or_else(|| prompt.as_ref().and_then(|p| p.model.clone())),
+                prompt: prompt.map(|p| p.prompt),
+                response_text: text,
+                tokens_in: None,
+                tokens_out: None,
+                cost_usd: None,
+                request_sha256: None,
+                response_sha256: None,
+                seal_id: None,
+                truncated: false,
+                redactions: 0,
+            };
+            exchange.redact_secrets();
+            append_jsonl(&exchanges_path(repo), &exchange)?;
             Ok(json!({}))
         }
         "stop" => {

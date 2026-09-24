@@ -136,6 +136,7 @@ fn record_revert(
         exit_code: Some(0),
         created_at: chrono::Utc::now().to_rfc3339(),
         evidence: Some(crate::object::Evidence::declared("re revert")),
+        redactions: 0,
     };
     crate::commit::commit_event(repo, store, &ev, None)
 }

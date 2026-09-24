@@ -28,6 +28,51 @@ release workflow copies it verbatim. Counts, not adjectives.
 - Integration matrix: Cursor is its own row (prompt and file exact, model
   yes, tokens and cost no); Windsurf and Copilot stay on MCP self-report.
 
+### Words
+
+- The one-liner is "AI-written code has no author. It has causes. Causari
+  records them." — `records`, not `proves`: the ledger records prompts,
+  reads and writes as the runtime reports them; a seal proves that a record
+  or an audit was not altered, not that it is true. Same line in the
+  canon, README, MANIFESTO, home page, OG card, `llms.txt`, `re --help`
+  and the npm/PyPI READMEs.
+- `re audit` prints "Verified AI-tagged" where it said "Verified
+  AI-authored": the class is what the commit metadata says, not who typed
+  the code. The JSON keys (`verified`, `probable`) are unchanged.
+- README, Family: Causari "records why a line of code exists and measures
+  whether it is still there"; it does not prove why.
+
+### Security
+
+- Secret redaction before every clear-text write: prompts (`re proxy`,
+  Claude Code and Cursor hooks), completions and agent answers, shell
+  commands, and the `message`/`prompt`/`reasoning` of every event
+  (`commit_event` is the choke point, so `re record`, MCP and `re watch`
+  are covered). Recognised shapes: `sk-…` API keys, Stripe, GitHub,
+  GitLab, Slack, Hugging Face, npm and PyPI tokens, AWS access key ids,
+  Google API keys, `Bearer` values, JWTs and PEM private-key blocks —
+  replaced by `[redacted:<kind>]`; the record carries `redactions: <n>`
+  (absent when zero, so untouched bytes and object ids are unchanged).
+  Prefix-anchored, no classifier: a bare password passes through, and
+  `SECURITY.md` says so.
+- `re proxy`, `re hook claude-code` and `re hook cursor` print once what
+  is stored, where, and what the redaction does not catch.
+- `SECURITY.md`: reporting, the storage table (what, by which command,
+  where, in clear or hashed), redaction scope, permissions, retention and
+  deletion, the loopback proxy, what a seal proves. `docs/threat-model.md`:
+  assets, actors, and for each claim what is defended, what is not, and
+  the assumption behind it.
+
+### Site
+
+- The weekly live audit fetches every data path (`latest.json`,
+  `report.json`, the audit bytes, the feed, `llms.txt`, `sitemap.xml`)
+  as a plain script — urllib's default User-Agent, no browser, no cookie —
+  and reports a 403 as critical. Today causari.dev answers those clients
+  with Cloudflare's Browser Integrity Check (error 1010) while named agents
+  and browsers get 200: "reproducible by anyone" is false for a script
+  until the path is exempted. The canon carries the rule and the paths.
+
 ### Audit
 
 - `re audit --json` names what it measured: `repository.head` (the commit
@@ -49,6 +94,19 @@ release workflow copies it verbatim. Counts, not adjectives.
   `GET /repos/{owner}/{repo}` and treats the listed name and the name
   GitHub now gives as one seed, so a renamed seed is never discovered a
   second time; the seed line was corrected to `OpenHands/OpenHands`.
+- `survival_report.py revise`: a published report is corrected by
+  revision, never in place. The superseded `report.json`/`report.md` are
+  frozen as `report.r<K>.*`; the new report carries `revision`,
+  `revised_at` and `corrections[]` (note, previous aggregate, previous
+  file and DOI), shown on the page, in the markdown, in the archive row
+  and the feed entry. Rebuilding the same number with `build` is refused.
+  The Zenodo deposit publishes a revision as version `#N-rK` under the
+  same Concept DOI and states the correction in the record. Repository
+  pages that existed only under a dropped duplicate name are removed and
+  redirected to the kept name (page, badges, `latest.json`).
+- Report #2 revision 2 (2026-09-24): 54 repositories, 13,733,809 of
+  27,108,452 lines (50.7 %); revision 1 (55, 50.0 %) stays at
+  `report.r1.json`, DOI 10.5281/zenodo.22928161.
 
 ## 0.2.0 — 2026-09-20
 
