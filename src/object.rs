@@ -158,6 +158,35 @@ pub struct Event {
     /// by older binaries (which leaves their object ids unchanged).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evidence: Option<Evidence>,
+
+    /// Recognised secrets replaced by `[redacted:<kind>]` in `message`,
+    /// `prompt` and `reasoning` before the event was written. Absent when
+    /// zero, so the object ids of untouched events are unchanged.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub redactions: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
+}
+
+impl Event {
+    /// Whether any text field holds a recognised secret.
+    pub fn has_secrets(&self) -> bool {
+        [&self.message, &self.prompt, &self.reasoning]
+            .into_iter()
+            .flatten()
+            .any(|t| crate::redact::redact(t).1 > 0)
+    }
+
+    /// Replace recognised secrets in the text fields and count them.
+    pub fn redact_secrets(&mut self) {
+        let mut n = 0;
+        crate::redact::redact_opt(&mut self.message, &mut n);
+        crate::redact::redact_opt(&mut self.prompt, &mut n);
+        crate::redact::redact_opt(&mut self.reasoning, &mut n);
+        self.redactions += n;
+    }
 }
 
 /// The evidence class of an event's attribution: what the reader is being
@@ -357,6 +386,7 @@ mod tests {
             exit_code: None,
             created_at: "2026-01-01T00:00:00Z".into(),
             evidence: None,
+            redactions: 0,
         };
         let a = canonical_json(&ev).unwrap();
         let b = canonical_json(&ev.clone()).unwrap();

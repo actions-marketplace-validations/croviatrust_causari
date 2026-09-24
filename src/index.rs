@@ -174,6 +174,7 @@ mod tests {
             exit_code: None,
             created_at: ts.into(),
             evidence: None,
+            redactions: 0,
         }
     }
 

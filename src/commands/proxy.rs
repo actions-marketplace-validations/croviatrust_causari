@@ -135,6 +135,7 @@ pub fn run(args: ProxyArgs) -> Result<()> {
             run.sheet_path().display().to_string().bright_black()
         );
     }
+    println!("  {}", crate::redact::STORAGE_NOTICE.bright_black());
     println!("  Press Ctrl-C to stop.");
     println!();
 
@@ -601,7 +602,7 @@ fn record_exchange(repo: &Repo, cfg: &ProxyConfig, c: Captured<'_>) -> Result<Ex
         None
     };
 
-    let exchange = Exchange {
+    let mut exchange = Exchange {
         id: Some(crate::capture::new_exchange_id()?),
         ts_ms: now_ms(),
         agent: c.user_agent,
@@ -615,7 +616,11 @@ fn record_exchange(repo: &Repo, cfg: &ProxyConfig, c: Captured<'_>) -> Result<Ex
         response_sha256: Some(crate::seal::sha256_hex(c.response_bytes)),
         seal_id,
         truncated: c.truncated,
+        redactions: 0,
     };
+    // The seal, when one was emitted, covers the wire bytes by hash; the
+    // stored text is what a reader sees, and it must not carry a pasted key.
+    exchange.redact_secrets();
     append_jsonl(&exchanges_path(repo), &exchange)?;
     Ok(exchange)
 }

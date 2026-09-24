@@ -226,6 +226,100 @@ fn prompt_then_edit_is_answered_by_why_and_show() {
     assert!(!pending.exists() || fs::read_to_string(&pending).unwrap().trim().is_empty());
 }
 
+/// A credential pasted into a prompt, typed into a shell command or echoed
+/// back by the agent is replaced before it is written, everywhere the text
+/// lands: prompts.jsonl, the event object, the index, exchanges.jsonl. The
+/// record says how many replacements were made.
+#[test]
+fn pasted_secrets_never_reach_the_ledger_in_clear() {
+    // Assembled at run time so the source holds nothing a secret scanner flags.
+    let key = format!("{}{}", "sk-proj-", "abcdefghijklmnopqrstuvwxyz0123456789");
+    let gh = format!("{}{}", "ghp_", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef0123456789");
+    let (key, gh) = (key.as_str(), gh.as_str());
+    let temp = fixture();
+    let root = temp.path();
+    ok(root, &["hook", "cursor"]);
+
+    let submit = with(
+        common(root, "conv-7", "beforeSubmitPrompt"),
+        json!({ "prompt": format!("use OPENAI_API_KEY={key} and push with {gh}"), "attachments": [] }),
+    );
+    hook_event(root, "beforeSubmitPrompt", &submit);
+
+    let pre = with(
+        common(root, "conv-7", "preToolUse"),
+        json!({ "tool_name": "Shell", "tool_input": { "command": "x" }, "tool_use_id": "tu-1", "cwd": root.to_string_lossy() }),
+    );
+    hook_event(root, "preToolUse", &pre);
+    fs::write(root.join("note.txt"), "changed\n").unwrap();
+    let shell = with(
+        common(root, "conv-7", "afterShellExecution"),
+        json!({ "command": format!("curl -H 'Authorization: Bearer {key}' https://api.example.com"), "output": "ok", "duration": 12 }),
+    );
+    hook_event(root, "afterShellExecution", &shell);
+
+    let answer = with(
+        common(root, "conv-7", "afterAgentResponse"),
+        json!({ "text": format!("Done. For reference your key is {key}.") }),
+    );
+    hook_event(root, "afterAgentResponse", &answer);
+
+    // Nothing under .causari/ holds either secret.
+    let mut stack = vec![root.join(".causari")];
+    let mut files = 0;
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                files += 1;
+                let bytes = fs::read(&path).unwrap();
+                let text = String::from_utf8_lossy(&bytes);
+                assert!(!text.contains(key), "{} holds the API key", path.display());
+                assert!(
+                    !text.contains(gh),
+                    "{} holds the GitHub token",
+                    path.display()
+                );
+            }
+        }
+    }
+    assert!(files > 3, "the ledger was written");
+
+    let prompts = fs::read_to_string(root.join(".causari/capture/prompts.jsonl")).unwrap();
+    let record: Value = serde_json::from_str(prompts.lines().last().unwrap()).unwrap();
+    assert_eq!(
+        record["prompt"],
+        json!("use OPENAI_API_KEY=[redacted:api-key] and push with [redacted:github-token]")
+    );
+    assert_eq!(record["redactions"], json!(2));
+
+    let exchanges = fs::read_to_string(root.join(".causari/capture/exchanges.jsonl")).unwrap();
+    let exchange: Value = serde_json::from_str(exchanges.lines().last().unwrap()).unwrap();
+    assert_eq!(
+        exchange["response_text"],
+        json!("Done. For reference your key is [redacted:api-key].")
+    );
+    // The prompt was already stored redacted; this line replaced one more.
+    assert_eq!(exchange["redactions"], json!(1));
+    assert_eq!(
+        exchange["prompt"],
+        json!("use OPENAI_API_KEY=[redacted:api-key] and push with [redacted:github-token]")
+    );
+
+    let id = fs::read_to_string(root.join(".causari/refs/sessions/main"))
+        .unwrap()
+        .trim()
+        .to_string();
+    let shown: Value = serde_json::from_str(&ok(root, &["show", &id, "--json"])).unwrap();
+    assert_eq!(
+        shown["message"],
+        json!("curl -H 'Authorization: [redacted:bearer-token]' https://api.example.com")
+    );
+    assert_eq!(shown["redactions"], json!(1));
+}
+
 #[test]
 fn edits_outside_the_repository_are_ignored_silently() {
     let temp = fixture();

@@ -42,6 +42,27 @@ release workflow copies it verbatim. Counts, not adjectives.
 - README, Family: Causari "records why a line of code exists and measures
   whether it is still there"; it does not prove why.
 
+### Security
+
+- Secret redaction before every clear-text write: prompts (`re proxy`,
+  Claude Code and Cursor hooks), completions and agent answers, shell
+  commands, and the `message`/`prompt`/`reasoning` of every event
+  (`commit_event` is the choke point, so `re record`, MCP and `re watch`
+  are covered). Recognised shapes: `sk-…` API keys, Stripe, GitHub,
+  GitLab, Slack, Hugging Face, npm and PyPI tokens, AWS access key ids,
+  Google API keys, `Bearer` values, JWTs and PEM private-key blocks —
+  replaced by `[redacted:<kind>]`; the record carries `redactions: <n>`
+  (absent when zero, so untouched bytes and object ids are unchanged).
+  Prefix-anchored, no classifier: a bare password passes through, and
+  `SECURITY.md` says so.
+- `re proxy`, `re hook claude-code` and `re hook cursor` print once what
+  is stored, where, and what the redaction does not catch.
+- `SECURITY.md`: reporting, the storage table (what, by which command,
+  where, in clear or hashed), redaction scope, permissions, retention and
+  deletion, the loopback proxy, what a seal proves. `docs/threat-model.md`:
+  assets, actors, and for each claim what is defended, what is not, and
+  the assumption behind it.
+
 ### Audit
 
 - `re audit --json` names what it measured: `repository.head` (the commit

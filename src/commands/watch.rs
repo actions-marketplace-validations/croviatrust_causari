@@ -242,6 +242,7 @@ fn record_change(
             },
             None => Evidence::observed("watch"),
         }),
+        redactions: 0,
     };
     let id = commit_event(repo, store, &event, session)?;
     if let Some(c) = &correlation {

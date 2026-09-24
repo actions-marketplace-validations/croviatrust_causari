@@ -77,6 +77,25 @@ pub struct Exchange {
     /// that point; the provider still billed the whole completion.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub truncated: bool,
+    /// How many recognised secrets were replaced by `[redacted:<kind>]` in
+    /// `prompt` and `response_text` before this line was written. Absent
+    /// when zero, so untouched lines keep their bytes.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub redactions: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
+}
+
+impl Exchange {
+    /// Replace recognised secrets in the stored text and count them.
+    pub fn redact_secrets(&mut self) {
+        let mut n = 0;
+        crate::redact::redact_opt(&mut self.prompt, &mut n);
+        crate::redact::redact_str(&mut self.response_text, &mut n);
+        self.redactions += n;
+    }
 }
 
 /// A user prompt reported by an agent-side hook (e.g. Claude Code, Cursor).
@@ -96,6 +115,17 @@ pub struct PromptRecord {
     /// this prompt produces.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<String>,
+    /// Recognised secrets replaced in `prompt` before writing; absent when zero.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub redactions: u32,
+}
+
+impl PromptRecord {
+    pub fn redact_secrets(&mut self) {
+        let mut n = 0;
+        crate::redact::redact_str(&mut self.prompt, &mut n);
+        self.redactions += n;
+    }
 }
 
 pub fn now_ms() -> u64 {
@@ -755,6 +785,7 @@ mod tests {
             response_sha256: None,
             seal_id: None,
             truncated: false,
+            redactions: 0,
         }
     }
 

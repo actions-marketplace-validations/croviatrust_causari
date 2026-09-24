@@ -151,10 +151,16 @@ Two evidence classes, and every output says which one it is:
   wrong per-line attribution when two prompts touch one file in the same
   window.
 
-Everything stays on your machine. `re proxy` stores prompts and completions
-verbatim; snapshots store every non-ignored file (`.env*`, `node_modules`,
-`target`, `dist`, `build`, `.git` and a few others are excluded by default).
-Treat `.causari/` as sensitive.
+Everything stays on your machine. `re proxy` and the hooks store prompts,
+completions and commands in clear under `.causari/` (gitignored); credentials
+in recognisable formats — `sk-…` keys, GitHub/GitLab/Slack/npm/PyPI/Hugging
+Face tokens, AWS and Google keys, bearer values, JWTs, PEM private keys — are
+replaced by `[redacted:<kind>]` before writing, and the record says how many.
+Anything else you paste is kept as typed. Snapshots store every non-ignored
+file (`.env*`, `node_modules`, `target`, `dist`, `build`, `.git` and a few
+others are excluded by default). Treat `.causari/` as sensitive. What is
+stored, what is not, and what the tool does and does not defend against:
+[`SECURITY.md`](SECURITY.md) and [`docs/threat-model.md`](docs/threat-model.md).
 
 ## Receipts you can verify without us
 

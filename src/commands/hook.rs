@@ -107,6 +107,8 @@ fn install_claude_code(dry_run: bool) -> Result<()> {
     );
     println!("  SessionStart → injects verified experience into every new session");
     println!();
+    println!("  {}", crate::redact::STORAGE_NOTICE.bright_black());
+    println!();
     println!(
         "  {} restart Claude Code (or run /hooks) to load them.",
         "note:".yellow()
@@ -189,16 +191,16 @@ fn run_event_inner(kind: &str) -> Result<()> {
             if prompt.is_empty() {
                 return Ok(());
             }
-            append_jsonl(
-                &prompts_path(&repo),
-                &PromptRecord {
-                    ts_ms: now_ms(),
-                    session_id,
-                    prompt,
-                    model: None,
-                    attachments: Vec::new(),
-                },
-            )
+            let mut record = PromptRecord {
+                ts_ms: now_ms(),
+                session_id,
+                prompt,
+                model: None,
+                attachments: Vec::new(),
+                redactions: 0,
+            };
+            record.redact_secrets();
+            append_jsonl(&prompts_path(&repo), &record)
         }
         "pre-tool" => record_pre_state(&repo, session_id.as_deref()),
         "post-tool" => record_tool_event(&repo, &v, session_id.as_deref()),
@@ -477,6 +479,7 @@ fn record_tool_action(repo: &Repo, action: ToolAction) -> Result<Option<String>>
         exit_code: None,
         created_at: Utc::now().to_rfc3339(),
         evidence: Some(crate::object::Evidence::declared(action.evidence_source)),
+        redactions: 0,
     };
     let id = crate::commit::commit_event(repo, &store, &event, None)?;
     if let Some(e) = &exchange {
@@ -587,6 +590,7 @@ mod tests {
             response_sha256: None,
             seal_id: None,
             truncated: false,
+            redactions: 0,
         }
     }
 

@@ -14,6 +14,7 @@ mod object;
 mod pnx;
 mod pnx_run;
 mod provenance;
+mod redact;
 mod repo;
 mod seal;
 mod skill;

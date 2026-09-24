@@ -295,6 +295,7 @@ mod tests {
             exit_code: None,
             created_at: chrono::Utc::now().to_rfc3339(),
             evidence: None,
+            redactions: 0,
         };
         commit_event(repo, store, &ev, None).unwrap()
     }
