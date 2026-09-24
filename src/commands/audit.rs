@@ -615,12 +615,12 @@ fn print_baseline(b: &Baseline) {
         .collect();
     if !rows.is_empty() {
         println!(
-            "  {:>10} {:>22} {:>22}",
+            "  {:>10} {:>24} {:>24}",
             "line age", "AI-tagged", "untagged"
         );
         for r in rows {
             println!(
-                "  {:>10} {:>22} {:>22}{}",
+                "  {:>10} {:>24} {:>24}{}",
                 r.label(),
                 cohort_cell(&r.tagged),
                 cohort_cell(&r.untagged),
@@ -670,7 +670,12 @@ fn cohort_cell(stat: &SurvivalStat) -> String {
     if stat.commits == 0 {
         return "—".into();
     }
-    format!("{} ({} commits)", pct(stat.survival_rate()), stat.commits)
+    format!(
+        "{} ({} commit{})",
+        pct(stat.survival_rate()),
+        stat.commits,
+        plural(stat.commits)
+    )
 }
 
 fn print_class(label: &str, stat: &SurvivalStat) {

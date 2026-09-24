@@ -37,20 +37,31 @@ re audit vercel/next.js     # any public repo, cloned to a temp dir and removed 
 $ re audit
 ∵ causari · AI code survival
 ───────────────────────────────────────────────────
-  36 commits analyzed (git metadata only, no setup required)
+  216 commits analyzed (git metadata only, no setup required)
 
-Verified AI-tagged:   3 commits, 1773 introduced, 1773 survived (100.0%)
+Verified AI-tagged: 14 commits, 6267 introduced, 5185 survived
+  survival 82.7% line-weighted · 82.7% capped · median 92.8%
 Probable AI-assisted: none detected
 By agent (verified only)
-  cursor                 1773 lines,   1773 survived (100.0%)
+  agent                commits introduced  survived  line-wt   capped   median
+  cursor                    14       6267      5185    82.7%    82.7%    92.8%
+
+Baseline: untagged lines of the same repository
+  untagged: 202 commits, 95759 introduced, 76085 survived · 79.5% line-weighted · 92.1% median
+    line age                AI-tagged                 untagged
+      0-30 d       85.6% (13 commits)      82.7% (142 commits)
+     30-90 d                        —       75.8% (23 commits)   (below floor on one side)
+    90-180 d         73.9% (1 commit)       62.6% (37 commits)   (below floor on one side)
+  age-matched: AI-tagged 85.6% vs untagged 82.7% of the same age → +2.9 points, over 1 window holding 75% of AI-tagged lines
 
 Confidence notes
   · VERIFIED = explicit metadata (trailers, bot author, etc.)
   · PROBABLE = weak heuristic; may include human-assisted commits
-  · UNKNOWN commits are excluded from headline numbers
+  · UNKNOWN commits are excluded from headline numbers; they form
+    the untagged baseline (human, inline-completed and untagged-agent code alike)
   · Only lines from AI-tagged commits are measured; inline completions
     (Copilot, Cursor Tab, …) leave no git trace and are invisible here
-  · A measurement, not a grade: method at https://causari.dev/method
+  · A measurement, not a grade: method v3 at https://causari.dev/method
 ```
 
 Everyone argues about how much code AI writes. Nobody can check the numbers.
@@ -63,11 +74,19 @@ estimate, no survey. Anyone re-runs it and gets the same bytes.
 - `--summary` Markdown for CI; `--badge` / `--card` one-colour SVGs
 - `--save` append a snapshot to track your own trend
 
+**Compared with what**: since method v3 every audit puts the repository's
+own untagged lines next to the AI-tagged ones, by line age, and states the
+age-matched gap: AI-tagged survival against untagged survival of the same
+age in the same repository. It also names the oldest line still at HEAD and
+how many commits predate it: a repository that was cleared or rewritten
+shows there, and its ratio is read accordingly.
+
 **What it cannot see**: code from inline completions (Copilot, Cursor Tab,
-Windsurf, …) leaves no git trace and counts as human. Commits without a
-trailer are UNKNOWN. A formatter pass or a moved function counts as a death
-under method v1. One bulk commit can dominate a line-weighted ratio; ratios
-under 5 AI-tagged commits are flagged. All of this is written out at
+Windsurf, …) leaves no git trace and counts as human, so it is in the
+untagged baseline. Commits without a trailer are UNKNOWN. A formatter pass
+or a moved function counts as a death under method v1. One bulk commit can
+dominate a line-weighted ratio; ratios under 5 AI-tagged commits are
+flagged. All of this is written out at
 [causari.dev/method](https://causari.dev/method), with how to contest a number.
 The questions people ask, answered with the command and the limit: [causari.dev/faq](https://causari.dev/faq); how this differs from `git blame`, vendor dashboards and churn reports: [causari.dev/compare](https://causari.dev/compare).
 

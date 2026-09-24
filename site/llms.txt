@@ -26,7 +26,9 @@ Local install (single binary, about 5 MB, Linux/macOS/Windows):
 - The binary is `causari`; `re` is installed alongside as the short alias.
 
 Key commands:
-- `re audit [owner/repo]` — AI code survival from git history alone; `--json`
+- `re audit [owner/repo]` — AI code survival from git history alone, with
+  the same repository's untagged lines as the baseline (by line age, an
+  age-matched gap, the oldest line still at HEAD; method v3); `--json`
   gives the exact bytes; `--summary` gives Markdown for CI; `--seal` also
   writes `audit.seal.json`, a crovia.seal.v1 over the audit JSON bound to
   the commit and method version

@@ -10,7 +10,7 @@ as siblings.
 ## What it is
 
 Counts of surviving lines from AI-tagged commits in N open-source
-repositories, under method v2. For each repository the report states how
+repositories, under the current method (v3; v2 until report #2). For each repository the report states how
 many lines were introduced by commits that carry machine-readable AI
 authorship metadata (`Co-Authored-By` trailers naming an agent, bot author
 identities, aider markers, `Assisted-by:`, git-ai notes) and how many of

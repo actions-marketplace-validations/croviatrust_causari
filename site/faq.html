@@ -53,7 +53,7 @@
         "name": "What does \"survival\" mean here?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "A line survives if git blame -w -M -C at HEAD still attributes it to the AI-tagged commit that introduced it. The survival ratio is surviving lines divided by introduced lines, summed over all such commits, so it is line-weighted; method v2 also reports a capped ratio and the median per commit. A rewritten line is a death even when the meaning is unchanged; a surviving line may be dead code. It is a count from git history, not a judgement about quality. Definition: causari.dev/method#survival."
+          "text": "A line survives if git blame -w -M -C at HEAD still attributes it to the AI-tagged commit that introduced it. The survival ratio is surviving lines divided by introduced lines, summed over all such commits, so it is line-weighted; method v2 also reports a capped ratio and the median per commit, and method v3 puts the untagged lines of the same repository and the same age next to it. A rewritten line is a death even when the meaning is unchanged; a surviving line may be dead code. It is a count from git history, not a judgement about quality. Definition: causari.dev/method#survival."
         }
       },
       {
@@ -229,7 +229,7 @@ re audit --json             <span class="dim"># "coverage": what was counted, wh
   <section class="faq-q" id="what-is-survival">
     <h2>What does "survival" mean here?</h2>
     <div class="faq-a">
-      <p>A line survives if <code translate="no">git blame -w -M -C</code> at HEAD still attributes it to the AI-tagged commit that introduced it. The survival ratio is surviving lines divided by introduced lines, summed over all such commits, so it is line-weighted; method v2 also reports a capped ratio and the median per commit. A rewritten line is a death even when the meaning is unchanged; a surviving line may be dead code. It is a count from git history, not a judgement about quality. Definition: <a href="/method#survival">causari.dev/method#survival</a>.</p>
+      <p>A line survives if <code translate="no">git blame -w -M -C</code> at HEAD still attributes it to the AI-tagged commit that introduced it. The survival ratio is surviving lines divided by introduced lines, summed over all such commits, so it is line-weighted; method v2 also reports a capped ratio and the median per commit, and method v3 puts the untagged lines of the same repository and the same age next to it. A rewritten line is a death even when the meaning is unchanged; a surviving line may be dead code. It is a count from git history, not a judgement about quality. Definition: <a href="/method#survival">causari.dev/method#survival</a>.</p>
     </div>
   </section>
 
