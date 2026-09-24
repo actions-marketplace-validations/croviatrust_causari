@@ -52,7 +52,6 @@
 /report               /reports/survival/2026/02/   302
 /report/latest        /reports/survival/2026/02/   302
 /r/Aider-AI/aider/    /r/aider-ai/aider/   301
-/r/All-Hands-AI/OpenHands/ /r/all-hands-ai/openhands/   301
 /r/BerriAI/litellm/   /r/berriai/litellm/   301
 /r/crewAIInc/crewAI/  /r/crewaiinc/crewai/   301
 /r/danny-avila/LibreChat/ /r/danny-avila/librechat/   301
@@ -67,4 +66,12 @@
 /r/QwenLM/qwen-code/  /r/qwenlm/qwen-code/   301
 /r/RooCodeInc/Roo-Code/ /r/roocodeinc/roo-code/   301
 /r/TracecatHQ/tracecat/ /r/tracecathq/tracecat/   301
+/r/All-Hands-AI/OpenHands/ /r/openhands/openhands/   301
+/r/All-Hands-AI/OpenHands/badge.svg /r/openhands/openhands/badge.svg   301
+/r/All-Hands-AI/OpenHands/badge-dark.svg /r/openhands/openhands/badge-dark.svg   301
+/r/All-Hands-AI/OpenHands/latest.json /r/openhands/openhands/latest.json   301
+/r/all-hands-ai/openhands/ /r/openhands/openhands/   301
+/r/all-hands-ai/openhands/badge.svg /r/openhands/openhands/badge.svg   301
+/r/all-hands-ai/openhands/badge-dark.svg /r/openhands/openhands/badge-dark.svg   301
+/r/all-hands-ai/openhands/latest.json /r/openhands/openhands/latest.json   301
 # survival-report: end

@@ -5,7 +5,7 @@
   <link rel="self" type="application/atom+xml" href="https://causari.dev/reports/survival/feed.xml"/>
   <link rel="alternate" type="text/html" href="https://causari.dev/reports/survival/"/>
   <id>https://causari.dev/reports/survival/</id>
-  <updated>2026-09-23T22:05:25Z</updated>
+  <updated>2026-09-24T17:46:09Z</updated>
   <author><name>Crovia Trust</name><uri>https://croviatrust.com</uri></author>
   <rights>CC-BY-4.0 Crovia Trust</rights>
   <icon>https://causari.dev/assets/favicon.svg</icon>
@@ -16,8 +16,8 @@
     <link rel="related" type="application/json" href="https://causari.dev/reports/survival/2026/02/report.json"/>
     <id>https://causari.dev/reports/survival/2026/02/</id>
     <published>2026-09-23T00:00:00Z</published>
-    <updated>2026-09-23T22:05:25Z</updated>
-    <summary>14,015,893 of 28,046,116 lines introduced by 60,693 AI-tagged commits in 55 open-source repositories are still at HEAD (50.0 %). 95 % interval over the sampled repositories: 33.4 % to 74.3 %. Counts, not grades. CC-BY-4.0. DOI 10.5281/zenodo.22928161.</summary>
+    <updated>2026-09-24T17:46:09Z</updated>
+    <summary>13,733,809 of 27,108,452 lines introduced by 58,061 AI-tagged commits in 54 open-source repositories are still at HEAD (50.7 %). 95 % interval over the sampled repositories: 32.8 % to 77.2 %. Counts, not grades. CC-BY-4.0. Revision 2 (2026-09-24): All-Hands-AI/OpenHands and OpenHands/OpenHands are one repository, renamed on GitHub; revision 1 counted its audit twice (the two files under repos/ are byte-identical, SHA-256 1500353f…). It now counts once, under OpenHands/OpenHands. Revision 1 counted 55 repositories, 14,015,893 of 28,046,116 lines (50.0 %); its bytes are kept unchanged at report.r1.json, DOI 10.5281/zenodo.22928161.</summary>
   </entry>
   <entry>
     <title>Survival Report #1 · 2026-09-20</title>
