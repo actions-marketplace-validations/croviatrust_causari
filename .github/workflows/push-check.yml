@@ -1,0 +1,59 @@
+name: push-check
+
+# Proves that the secret REPORT_PUSH_TOKEN can do what the weekly report and
+# the weekly discovery need: push to the protected main. It never touches
+# main itself: it reads who the token is, whether that account administers
+# the repository and whether main's protection lets administrators through,
+# then pushes an empty commit to a throwaway branch and deletes it.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: the secret exists
+        run: |
+          if [ -z "${{ secrets.REPORT_PUSH_TOKEN }}" ]; then
+            echo "::error title=REPORT_PUSH_TOKEN missing::add it under Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "REPORT_PUSH_TOKEN is set"
+
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.REPORT_PUSH_TOKEN }}
+          fetch-depth: 1
+
+      - name: who the token is, and what it may do
+        env:
+          GH_TOKEN: ${{ secrets.REPORT_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          login="$(gh api user --jq .login)"
+          echo "token user: $login"
+          perm="$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$login/permission" --jq .permission)"
+          echo "permission on $GITHUB_REPOSITORY: $perm"
+          [ "$perm" = "admin" ] || { echo "::error title=Not an administrator::the token's account has '$perm'; branch protection will reject its pushes to main"; exit 1; }
+          enforce="$(gh api "repos/$GITHUB_REPOSITORY/branches/main/protection" --jq '.enforce_admins.enabled' 2>/dev/null || echo unknown)"
+          echo "main protection, enforce_admins: $enforce"
+          if [ "$enforce" = "true" ]; then
+            echo "::error title=Administrators are not exempt::main's protection has 'Do not allow bypassing the above settings' on; the bot cannot push"
+            exit 1
+          fi
+
+      - name: push to a throwaway branch and delete it
+        run: |
+          set -euo pipefail
+          git config user.name "causari-report[bot]"
+          git config user.email "noreply@causari.dev"
+          branch="push-check/$GITHUB_RUN_ID"
+          git commit --allow-empty -q -m "push-check: run $GITHUB_RUN_ID"
+          git push -q origin "HEAD:refs/heads/$branch"
+          echo "pushed $branch"
+          git push -q origin --delete "$branch"
+          echo "deleted $branch · REPORT_PUSH_TOKEN can push"
