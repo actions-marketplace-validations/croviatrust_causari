@@ -362,15 +362,8 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(w0["tagged"], {"commits": 10, "introduced": 800, "surviving": 650, "survival_rate": 650 / 800})
         self.assertEqual(w0["untagged"]["commits"], 7)
         self.assertEqual(w0["untagged"]["introduced"], 550)
-        pm = b["pooled_age_matched"]
-        # windows with >= 5 commits of both kinds pooled: 0-30, 30-90, 90-180, 180-365
-        self.assertEqual(pm["buckets_used"], 4)
-        tagged_intro = 800 + 100 + 500 + 600
-        self.assertAlmostEqual(pm["tagged_rate"], (650 + 90 + 200 + 0) / tagged_intro)
-        expected_untagged = (800 * (450 / 550) + 100 * 0.75 + 500 * 0.6 + 600 * 0.0) / tagged_intro
-        self.assertAlmostEqual(pm["untagged_rate"], expected_untagged)
-        self.assertAlmostEqual(pm["gap"], pm["tagged_rate"] - pm["untagged_rate"])
-        self.assertAlmostEqual(pm["tagged_lines_covered"], tagged_intro / (tagged_intro + 1000))
+        self.assertNotIn("pooled_age_matched", b)
+        self.assertIn("no gap is computed from these rows", b["pooled_by_age_note"])
         self.assertIn("negative gap", b["definition"])
         iv = b["median_gap_interval_95"]
         self.assertAlmostEqual(iv["low"], -0.05)
