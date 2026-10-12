@@ -47,6 +47,17 @@
     "sandbox": false,
     "content_sha256": "8f55c4bdf441df686b5e520063b75f8623123e468474e04f38d622fca5af9389",
     "published_at": "2026-10-06T19:08:58Z"
+   },
+   "2026/05": {
+    "doi": "10.5281/zenodo.23323312",
+    "concept_doi": "10.5281/zenodo.22863965",
+    "html": "https://zenodo.org/records/23323312",
+    "id": 23323312,
+    "version": "#5",
+    "revision": 1,
+    "sandbox": false,
+    "content_sha256": "b7c9238fbb113db4091ffbb65fcc9d1b242915aaa2856046e0d2bc08f3ffa1ac",
+    "published_at": "2026-10-12T17:53:27Z"
    }
   }
  },
