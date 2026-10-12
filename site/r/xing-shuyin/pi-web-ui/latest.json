@@ -5,68 +5,68 @@
  "url": "https://causari.dev/r/xing-shuyin/pi-web-ui/",
  "badge": "https://causari.dev/r/xing-shuyin/pi-web-ui/badge.svg",
  "report": {
-  "number": 4,
-  "id": "2026/04",
-  "date": "2026-10-05",
-  "url": "https://causari.dev/reports/survival/2026/04/"
+  "number": 5,
+  "id": "2026/05",
+  "date": "2026-10-12",
+  "url": "https://causari.dev/reports/survival/2026/05/"
  },
- "method": "v3",
+ "method": "v4",
  "tool": {
   "name": "causari",
-  "version": "0.3.0"
+  "version": "0.4.1"
  },
  "verified": {
   "commits": 31,
   "introduced": 2459,
-  "surviving": 2181,
-  "survival_rate": 0.8869459129727532,
-  "capped_survival_rate": 0.8946999640675529,
-  "median_survival": 0.9642857142857143,
+  "surviving": 2078,
+  "survival_rate": 0.8450589670597805,
+  "capped_survival_rate": 0.8543178823811235,
+  "median_survival": 0.9326923076923077,
   "largest_commit_share": 0.08418056120374136
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 921,
-   "introduced": 578318,
-   "surviving": 442587,
-   "survival_rate": 0.7653004056591702,
-   "median_survival": 0.8374059711255432,
-   "capped_survival_rate": 0.7662840949439343,
-   "cap_lines": 2277,
-   "largest_commit_share": 0.12040434501433467
+   "commits": 1009,
+   "introduced": 673294,
+   "surviving": 515274,
+   "survival_rate": 0.7653031216675034,
+   "median_survival": 0.8247422680412371,
+   "capped_survival_rate": 0.766956394937589,
+   "cap_lines": 2343,
+   "largest_commit_share": 0.10341990274679412
   },
   "by_age": [
    {
     "from_days": 0,
     "to_days": 30,
     "tagged": {
-     "commits": 29,
-     "introduced": 2391,
-     "surviving": 2139,
-     "survival_rate": 0.8946047678795483
+     "commits": 23,
+     "introduced": 1868,
+     "surviving": 1729,
+     "survival_rate": 0.9255888650963597
     },
     "untagged": {
-     "commits": 541,
-     "introduced": 365561,
-     "surviving": 309748,
-     "survival_rate": 0.847322334712948
+     "commits": 485,
+     "introduced": 414181,
+     "surviving": 349968,
+     "survival_rate": 0.8449639167417143
     }
    },
    {
     "from_days": 30,
     "to_days": 90,
     "tagged": {
-     "commits": 2,
-     "introduced": 68,
-     "surviving": 42,
-     "survival_rate": 0.6176470588235294
+     "commits": 8,
+     "introduced": 591,
+     "surviving": 349,
+     "survival_rate": 0.5905245346869712
     },
     "untagged": {
-     "commits": 380,
-     "introduced": 212757,
-     "surviving": 132839,
-     "survival_rate": 0.6243695859595689
+     "commits": 524,
+     "introduced": 259113,
+     "surviving": 165306,
+     "survival_rate": 0.637968762663394
     }
    },
    {
@@ -135,15 +135,15 @@
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.8946047678795483,
-   "untagged_rate": 0.847322334712948,
-   "gap": 0.0472824331666003,
-   "buckets_used": 1,
-   "tagged_lines_covered": 0.9723464823098821
+   "tagged_rate": 0.8450589670597805,
+   "untagged_rate": 0.7952143697468842,
+   "gap": 0.049844597312896255,
+   "buckets_used": 2,
+   "tagged_lines_covered": 1.0
   },
   "oldest_surviving": {
    "date": "2026-08-04",
-   "age_days": 62,
+   "age_days": 69,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -152,10 +152,10 @@
   }
  },
  "probable_commits": 0,
- "total_commits": 952,
+ "total_commits": 1040,
  "aggregated": true,
  "coverage": {
-  "method": "v3",
+  "method": "v4",
   "blame_flags": [
    "-w",
    "-M",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 2,
+ "reports": 3,
  "reproduce": "re audit xing-shuyin/pi-web-ui --json",
- "bytes": "https://causari.dev/reports/survival/2026/04/repos/xing-shuyin__pi-web-ui.json",
+ "bytes": "https://causari.dev/reports/survival/2026/05/repos/xing-shuyin__pi-web-ui.json",
  "license": "CC-BY-4.0"
 }

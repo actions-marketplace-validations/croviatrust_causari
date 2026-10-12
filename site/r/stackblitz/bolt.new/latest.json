@@ -5,15 +5,15 @@
  "url": "https://causari.dev/r/stackblitz/bolt.new/",
  "badge": "https://causari.dev/r/stackblitz/bolt.new/badge.svg",
  "report": {
-  "number": 4,
-  "id": "2026/04",
-  "date": "2026-10-05",
-  "url": "https://causari.dev/reports/survival/2026/04/"
+  "number": 5,
+  "id": "2026/05",
+  "date": "2026-10-12",
+  "url": "https://causari.dev/reports/survival/2026/05/"
  },
- "method": "v3",
+ "method": "v4",
  "tool": {
   "name": "causari",
-  "version": "0.3.0"
+  "version": "0.4.1"
  },
  "verified": {
   "commits": 0,
@@ -149,7 +149,7 @@
  "total_commits": 101,
  "aggregated": false,
  "coverage": {
-  "method": "v3",
+  "method": "v4",
   "blame_flags": [
    "-w",
    "-M",
@@ -160,8 +160,8 @@
   "sample_floor": 5,
   "small_sample": true
  },
- "reports": 3,
+ "reports": 4,
  "reproduce": "re audit stackblitz/bolt.new --json",
- "bytes": "https://causari.dev/reports/survival/2026/04/repos/stackblitz__bolt.new.json",
+ "bytes": "https://causari.dev/reports/survival/2026/05/repos/stackblitz__bolt.new.json",
  "license": "CC-BY-4.0"
 }

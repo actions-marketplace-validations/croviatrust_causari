@@ -5,15 +5,15 @@
  "url": "https://causari.dev/r/lidge-ai/ima2-gen/",
  "badge": "https://causari.dev/r/lidge-ai/ima2-gen/badge.svg",
  "report": {
-  "number": 4,
-  "id": "2026/04",
-  "date": "2026-10-05",
-  "url": "https://causari.dev/reports/survival/2026/04/"
+  "number": 5,
+  "id": "2026/05",
+  "date": "2026-10-12",
+  "url": "https://causari.dev/reports/survival/2026/05/"
  },
- "method": "v3",
+ "method": "v4",
  "tool": {
   "name": "causari",
-  "version": "0.3.0"
+  "version": "0.4.1"
  },
  "verified": {
   "commits": 455,
@@ -155,7 +155,7 @@
  "total_commits": 2059,
  "aggregated": true,
  "coverage": {
-  "method": "v3",
+  "method": "v4",
   "blame_flags": [
    "-w",
    "-M",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 2,
+ "reports": 3,
  "reproduce": "re audit lidge-ai/ima2-gen --json",
- "bytes": "https://causari.dev/reports/survival/2026/04/repos/lidge-ai__ima2-gen.json",
+ "bytes": "https://causari.dev/reports/survival/2026/05/repos/lidge-ai__ima2-gen.json",
  "license": "CC-BY-4.0"
 }

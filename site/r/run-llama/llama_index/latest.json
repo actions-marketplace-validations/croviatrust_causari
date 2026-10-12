@@ -5,15 +5,15 @@
  "url": "https://causari.dev/r/run-llama/llama_index/",
  "badge": "https://causari.dev/r/run-llama/llama_index/badge.svg",
  "report": {
-  "number": 4,
-  "id": "2026/04",
-  "date": "2026-10-05",
-  "url": "https://causari.dev/reports/survival/2026/04/"
+  "number": 5,
+  "id": "2026/05",
+  "date": "2026-10-12",
+  "url": "https://causari.dev/reports/survival/2026/05/"
  },
- "method": "v3",
+ "method": "v4",
  "tool": {
   "name": "causari",
-  "version": "0.3.0"
+  "version": "0.4.1"
  },
  "verified": {
   "commits": 13,
@@ -27,14 +27,14 @@
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 7940,
-   "introduced": 3170453,
-   "surviving": 1764239,
-   "survival_rate": 0.5564627515373985,
-   "median_survival": 0.592,
-   "capped_survival_rate": 0.6278777166423697,
+   "commits": 7943,
+   "introduced": 3170512,
+   "surviving": 1764280,
+   "survival_rate": 0.5564653279974969,
+   "median_survival": 0.5923521840687715,
+   "capped_survival_rate": 0.627881261626103,
    "cap_lines": 1056,
-   "largest_commit_share": 0.26710977894956967
+   "largest_commit_share": 0.2671048083085634
   },
   "by_age": [
    {
@@ -47,10 +47,10 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 34,
-     "introduced": 2447,
-     "surviving": 2137,
-     "survival_rate": 0.873314262362076
+     "commits": 28,
+     "introduced": 2185,
+     "surviving": 1895,
+     "survival_rate": 0.8672768878718535
     }
    },
    {
@@ -63,10 +63,10 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 64,
-     "introduced": 9731,
-     "surviving": 8075,
-     "survival_rate": 0.8298222176549173
+     "commits": 72,
+     "introduced": 9965,
+     "surviving": 8306,
+     "survival_rate": 0.8335173105870547
     }
    },
    {
@@ -79,10 +79,10 @@
      "survival_rate": 0.9537553819167597
     },
     "untagged": {
-     "commits": 124,
-     "introduced": 15186,
-     "surviving": 12178,
-     "survival_rate": 0.801922823653365
+     "commits": 116,
+     "introduced": 14989,
+     "surviving": 12004,
+     "survival_rate": 0.8008539595703515
     }
    },
    {
@@ -95,10 +95,10 @@
      "survival_rate": 0.8326728313518273
     },
     "untagged": {
-     "commits": 598,
-     "introduced": 105413,
-     "surviving": 84354,
-     "survival_rate": 0.8002238813049624
+     "commits": 564,
+     "introduced": 95896,
+     "surviving": 81192,
+     "survival_rate": 0.8466672228247268
     }
    },
    {
@@ -111,10 +111,10 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 1807,
-     "introduced": 457026,
-     "surviving": 330517,
-     "survival_rate": 0.7231908031490549
+     "commits": 1812,
+     "introduced": 457501,
+     "surviving": 328754,
+     "survival_rate": 0.7185864074614045
     }
    },
    {
@@ -127,35 +127,35 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 5313,
-     "introduced": 2580650,
-     "surviving": 1326978,
-     "survival_rate": 0.5142030108693546
+     "commits": 5351,
+     "introduced": 2589976,
+     "surviving": 1332129,
+     "survival_rate": 0.5143402873231258
     }
    }
   ],
   "age_matched": {
    "tagged_rate": 0.9215640365254039,
-   "untagged_rate": 0.8014711380910584,
-   "gap": 0.12009289843434545,
+   "untagged_rate": 0.813034001814637,
+   "gap": 0.10853003471076683,
    "buckets_used": 2,
    "tagged_lines_covered": 1.0
   },
   "oldest_surviving": {
    "date": "2022-11-06",
-   "age_days": 1425,
+   "age_days": 1432,
    "commits_before": 3,
    "introduced_before": 3,
    "tagged_commits_before": 0,
    "tagged_introduced_before": 0,
-   "commits_before_share": 0.0003772161448509996
+   "commits_before_share": 0.0003770739064856712
   }
  },
  "probable_commits": 0,
- "total_commits": 7953,
+ "total_commits": 7956,
  "aggregated": true,
  "coverage": {
-  "method": "v3",
+  "method": "v4",
   "blame_flags": [
    "-w",
    "-M",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 3,
+ "reports": 4,
  "reproduce": "re audit run-llama/llama_index --json",
- "bytes": "https://causari.dev/reports/survival/2026/04/repos/run-llama__llama_index.json",
+ "bytes": "https://causari.dev/reports/survival/2026/05/repos/run-llama__llama_index.json",
  "license": "CC-BY-4.0"
 }

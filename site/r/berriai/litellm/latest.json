@@ -5,116 +5,116 @@
  "url": "https://causari.dev/r/berriai/litellm/",
  "badge": "https://causari.dev/r/berriai/litellm/badge.svg",
  "report": {
-  "number": 4,
-  "id": "2026/04",
-  "date": "2026-10-05",
-  "url": "https://causari.dev/reports/survival/2026/04/"
+  "number": 5,
+  "id": "2026/05",
+  "date": "2026-10-12",
+  "url": "https://causari.dev/reports/survival/2026/05/"
  },
- "method": "v3",
+ "method": "v4",
  "tool": {
   "name": "causari",
-  "version": "0.3.0"
+  "version": "0.4.1"
  },
  "verified": {
-  "commits": 5193,
-  "introduced": 1774352,
-  "surviving": 1157040,
-  "survival_rate": 0.6520915804755765,
-  "capped_survival_rate": 0.6884168583516453,
-  "median_survival": 0.6867469879518072,
-  "largest_commit_share": 0.04405326564289386
+  "commits": 5575,
+  "introduced": 2217640,
+  "surviving": 1390900,
+  "survival_rate": 0.6271982828592558,
+  "capped_survival_rate": 0.6840844169866477,
+  "median_survival": 0.6727211333082046,
+  "largest_commit_share": 0.035247380097761585
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 38755,
-   "introduced": 6294862,
-   "surviving": 3060420,
-   "survival_rate": 0.48617745710708193,
-   "median_survival": 0.22580645161290322,
-   "capped_survival_rate": 0.5453205754371587,
-   "cap_lines": 521,
-   "largest_commit_share": 0.06674840528672432
+   "commits": 38979,
+   "introduced": 6440837,
+   "surviving": 2974430,
+   "survival_rate": 0.46180799172529907,
+   "median_survival": 0.12195121951219512,
+   "capped_survival_rate": 0.5153705701216368,
+   "cap_lines": 533,
+   "largest_commit_share": 0.06523562077413231
   },
   "by_age": [
    {
     "from_days": 0,
     "to_days": 30,
     "tagged": {
-     "commits": 2504,
-     "introduced": 852649,
-     "surviving": 633578,
-     "survival_rate": 0.743070126159768
+     "commits": 2575,
+     "introduced": 1210581,
+     "surviving": 819729,
+     "survival_rate": 0.6771368458616152
     },
     "untagged": {
-     "commits": 2002,
-     "introduced": 582802,
-     "surviving": 373785,
-     "survival_rate": 0.6413584716593286
+     "commits": 1524,
+     "introduced": 609086,
+     "surviving": 329404,
+     "survival_rate": 0.5408168961361778
     }
    },
    {
     "from_days": 30,
     "to_days": 90,
     "tagged": {
-     "commits": 933,
-     "introduced": 279163,
-     "surviving": 133281,
-     "survival_rate": 0.47743074834415733
+     "commits": 1212,
+     "introduced": 353917,
+     "surviving": 183180,
+     "survival_rate": 0.517578980382406
     },
     "untagged": {
-     "commits": 4291,
-     "introduced": 1128931,
-     "surviving": 679607,
-     "survival_rate": 0.6019916186197385
+     "commits": 4595,
+     "introduced": 1161722,
+     "surviving": 688734,
+     "survival_rate": 0.592856122204796
     }
    },
    {
     "from_days": 90,
     "to_days": 180,
     "tagged": {
-     "commits": 586,
-     "introduced": 400483,
-     "surviving": 265064,
-     "survival_rate": 0.6618608030802806
+     "commits": 588,
+     "introduced": 400101,
+     "surviving": 259441,
+     "survival_rate": 0.6484387692107743
     },
     "untagged": {
-     "commits": 2232,
-     "introduced": 696139,
-     "surviving": 394008,
-     "survival_rate": 0.5659904128342185
+     "commits": 2287,
+     "introduced": 736729,
+     "surviving": 425492,
+     "survival_rate": 0.5775420812809052
     }
    },
    {
     "from_days": 180,
     "to_days": 365,
     "tagged": {
-     "commits": 1077,
-     "introduced": 219413,
-     "surviving": 112838,
-     "survival_rate": 0.5142721716580148
+     "commits": 1103,
+     "introduced": 229498,
+     "surviving": 116245,
+     "survival_rate": 0.5065185753252751
     },
     "untagged": {
-     "commits": 7215,
-     "introduced": 1658656,
-     "surviving": 616918,
-     "survival_rate": 0.37193848513495265
+     "commits": 7279,
+     "introduced": 1666033,
+     "surviving": 596491,
+     "survival_rate": 0.35803072328099145
     }
    },
    {
     "from_days": 365,
     "to_days": 730,
     "tagged": {
-     "commits": 91,
-     "introduced": 21947,
-     "surviving": 12016,
-     "survival_rate": 0.5475007973754955
+     "commits": 95,
+     "introduced": 22846,
+     "surviving": 12110,
+     "survival_rate": 0.5300709095684146
     },
     "untagged": {
-     "commits": 7360,
-     "introduced": 875708,
-     "surviving": 423117,
-     "survival_rate": 0.48317133108296373
+     "commits": 7572,
+     "introduced": 905037,
+     "surviving": 394669,
+     "survival_rate": 0.43608051383534596
     }
    },
    {
@@ -123,27 +123,27 @@
     "tagged": {
      "commits": 2,
      "introduced": 697,
-     "surviving": 263,
-     "survival_rate": 0.37733142037302725
+     "surviving": 195,
+     "survival_rate": 0.2797704447632712
     },
     "untagged": {
-     "commits": 15655,
-     "introduced": 1352626,
-     "surviving": 572985,
-     "survival_rate": 0.42360933473110823
+     "commits": 15722,
+     "introduced": 1362230,
+     "surviving": 539640,
+     "survival_rate": 0.3961445570865419
     }
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.6521995540282637,
-   "untagged_rate": 0.5828581568996655,
-   "gap": 0.06934139712859821,
+   "tagged_rate": 0.6273075130934805,
+   "untagged_rate": 0.5357511283587264,
+   "gap": 0.09155638473475414,
    "buckets_used": 5,
-   "tagged_lines_covered": 0.9996071805368946
+   "tagged_lines_covered": 0.9996857019173536
   },
   "oldest_surviving": {
    "date": "2023-07-27",
-   "age_days": 1166,
+   "age_days": 1173,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -152,10 +152,10 @@
   }
  },
  "probable_commits": 0,
- "total_commits": 43948,
+ "total_commits": 44554,
  "aggregated": true,
  "coverage": {
-  "method": "v3",
+  "method": "v4",
   "blame_flags": [
    "-w",
    "-M",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 3,
+ "reports": 4,
  "reproduce": "re audit BerriAI/litellm --json",
- "bytes": "https://causari.dev/reports/survival/2026/04/repos/BerriAI__litellm.json",
+ "bytes": "https://causari.dev/reports/survival/2026/05/repos/BerriAI__litellm.json",
  "license": "CC-BY-4.0"
 }

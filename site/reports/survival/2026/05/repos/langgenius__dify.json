@@ -1,0 +1,285 @@
+{
+  "baseline": {
+    "age_matched": {
+      "buckets_used": 5,
+      "gap": 0.07943733949557158,
+      "tagged_lines_covered": 1.0,
+      "tagged_rate": 0.527301346739117,
+      "untagged_rate": 0.4478640072435454
+    },
+    "by_age": [
+      {
+        "from_days": 0,
+        "tagged": {
+          "cap_lines": 1307,
+          "capped_survival_rate": 0.8964055985554037,
+          "commits": 37,
+          "introduced": 8694,
+          "largest_commit_share": 0.3286174373130895,
+          "median_survival": 0.9357798165137615,
+          "survival_rate": 0.9054520358868184,
+          "surviving": 7872
+        },
+        "to_days": 30,
+        "untagged": {
+          "cap_lines": 2354,
+          "capped_survival_rate": 0.8097359452203174,
+          "commits": 728,
+          "introduced": 351426,
+          "largest_commit_share": 0.08668396760626704,
+          "median_survival": 0.8973114975316148,
+          "survival_rate": 0.7763142169332946,
+          "surviving": 272817
+        }
+      },
+      {
+        "from_days": 30,
+        "tagged": {
+          "cap_lines": 1947,
+          "capped_survival_rate": 0.8696824219452153,
+          "commits": 31,
+          "introduced": 25739,
+          "largest_commit_share": 0.769221803488869,
+          "median_survival": 0.888876164299893,
+          "survival_rate": 0.9266482769338358,
+          "surviving": 23851
+        },
+        "to_days": 90,
+        "untagged": {
+          "cap_lines": 1394,
+          "capped_survival_rate": 0.7135403098185028,
+          "commits": 1599,
+          "introduced": 629305,
+          "largest_commit_share": 0.06890935238080104,
+          "median_survival": 0.7667982597486304,
+          "survival_rate": 0.7284369264506082,
+          "surviving": 458409
+        }
+      },
+      {
+        "from_days": 90,
+        "tagged": {
+          "cap_lines": 10000,
+          "capped_survival_rate": 0.5143492984802824,
+          "commits": 100,
+          "introduced": 227020,
+          "largest_commit_share": 0.1512730155933398,
+          "median_survival": 0.5316455696202531,
+          "survival_rate": 0.5113778521716148,
+          "surviving": 116093
+        },
+        "to_days": 180,
+        "untagged": {
+          "cap_lines": 2340,
+          "capped_survival_rate": 0.5246398166799947,
+          "commits": 1341,
+          "introduced": 1016794,
+          "largest_commit_share": 0.22460891783389753,
+          "median_survival": 0.5111317254174397,
+          "survival_rate": 0.5375189074679827,
+          "surviving": 546546
+        }
+      },
+      {
+        "from_days": 180,
+        "tagged": {
+          "cap_lines": 2309,
+          "capped_survival_rate": 0.5231949267103893,
+          "commits": 323,
+          "introduced": 259780,
+          "largest_commit_share": 0.15715220571252597,
+          "median_survival": 0.5,
+          "survival_rate": 0.5179613519131573,
+          "surviving": 134556
+        },
+        "to_days": 365,
+        "untagged": {
+          "cap_lines": 2687,
+          "capped_survival_rate": 0.4761279518017061,
+          "commits": 2425,
+          "introduced": 1859769,
+          "largest_commit_share": 0.20435441175758925,
+          "median_survival": 0.42105263157894735,
+          "survival_rate": 0.38732874889300767,
+          "surviving": 720342
+        }
+      },
+      {
+        "from_days": 365,
+        "tagged": {
+          "cap_lines": 1134,
+          "capped_survival_rate": 0.505543263440547,
+          "commits": 106,
+          "introduced": 128039,
+          "largest_commit_share": 0.7900717750060529,
+          "median_survival": 0.4087301587301587,
+          "survival_rate": 0.4685291200337397,
+          "surviving": 59990
+        },
+        "to_days": 730,
+        "untagged": {
+          "cap_lines": 562,
+          "capped_survival_rate": 0.3392954564566253,
+          "commits": 3831,
+          "introduced": 543716,
+          "largest_commit_share": 0.07826696289974913,
+          "median_survival": 0.07142857142857142,
+          "survival_rate": 0.33301760477896547,
+          "surviving": 181067
+        }
+      },
+      {
+        "from_days": 730,
+        "tagged": {
+          "cap_lines": null,
+          "capped_survival_rate": null,
+          "commits": 0,
+          "introduced": 0,
+          "largest_commit_share": null,
+          "median_survival": null,
+          "survival_rate": null,
+          "surviving": 0
+        },
+        "to_days": null,
+        "untagged": {
+          "cap_lines": 591,
+          "capped_survival_rate": 0.1539125810592452,
+          "commits": 3554,
+          "introduced": 1024753,
+          "largest_commit_share": 0.17201023075804608,
+          "median_survival": 0.0,
+          "survival_rate": 0.11874959136494355,
+          "surviving": 121689
+        }
+      }
+    ],
+    "oldest_surviving": {
+      "age_days": 1246,
+      "commits_before": 0,
+      "date": "2023-05-15",
+      "introduced_before": 0,
+      "tagged_commits_before": 0,
+      "tagged_introduced_before": 0
+    },
+    "untagged": {
+      "cap_lines": 1256,
+      "capped_survival_rate": 0.4812360315506614,
+      "commits": 13478,
+      "introduced": 5425763,
+      "largest_commit_share": 0.07004581659759189,
+      "median_survival": 0.2706434576798078,
+      "survival_rate": 0.42406385977419214,
+      "surviving": 2300870
+    }
+  },
+  "by_agent": {
+    "claude-code": {
+      "cap_lines": 4417,
+      "capped_survival_rate": 0.5170580208155635,
+      "commits": 139,
+      "introduced": 127227,
+      "largest_commit_share": 0.14783811612314995,
+      "median_survival": 0.6285714285714286,
+      "survival_rate": 0.5240318485855989,
+      "surviving": 66671
+    },
+    "cursor": {
+      "cap_lines": 10000,
+      "capped_survival_rate": 0.6787150387533912,
+      "commits": 12,
+      "introduced": 46682,
+      "largest_commit_share": 0.4867186495865644,
+      "median_survival": 0.916354763332575,
+      "survival_rate": 0.6572554732016623,
+      "surviving": 30682
+    },
+    "devin": {
+      "cap_lines": 43,
+      "capped_survival_rate": 0.7011494252873564,
+      "commits": 7,
+      "introduced": 87,
+      "largest_commit_share": 0.4942528735632184,
+      "median_survival": 0.975,
+      "survival_rate": 0.7011494252873564,
+      "surviving": 61
+    },
+    "gemini": {
+      "cap_lines": 1414,
+      "capped_survival_rate": 0.5189761033793096,
+      "commits": 186,
+      "introduced": 124555,
+      "largest_commit_share": 0.32776684998594996,
+      "median_survival": 0.5,
+      "survival_rate": 0.58236923447473,
+      "surviving": 72537
+    },
+    "github-copilot": {
+      "cap_lines": 3450,
+      "capped_survival_rate": 0.5097904671709501,
+      "commits": 213,
+      "introduced": 336571,
+      "largest_commit_share": 0.3005606543641609,
+      "median_survival": 0.5,
+      "survival_rate": 0.4820617343740251,
+      "surviving": 162248
+    },
+    "jules": {
+      "cap_lines": 256,
+      "capped_survival_rate": 0.6639269406392694,
+      "commits": 18,
+      "introduced": 1095,
+      "largest_commit_share": 0.23378995433789954,
+      "median_survival": 0.6171579743008315,
+      "survival_rate": 0.6639269406392694,
+      "surviving": 727
+    },
+    "openai-codex": {
+      "cap_lines": 294,
+      "capped_survival_rate": 0.8886705399863295,
+      "commits": 22,
+      "introduced": 13055,
+      "largest_commit_share": 0.8493297587131368,
+      "median_survival": 0.9540094339622642,
+      "survival_rate": 0.7227882037533512,
+      "surviving": 9436
+    }
+  },
+  "coverage": {
+    "blame_flags": [
+      "-w",
+      "-M",
+      "-C"
+    ],
+    "ignore_revs_file": false,
+    "method": "v4",
+    "sample_floor": 5,
+    "shallow": false,
+    "small_sample": false
+  },
+  "method": "v4",
+  "probable": {
+    "cap_lines": null,
+    "capped_survival_rate": null,
+    "commits": 0,
+    "introduced": 0,
+    "largest_commit_share": null,
+    "median_survival": null,
+    "survival_rate": null,
+    "surviving": 0
+  },
+  "repository": {
+    "head": "0838e2511da0ef0953b59d90d5407e0b441e2b32",
+    "origin": "https://github.com/langgenius/dify"
+  },
+  "total_commits": 14075,
+  "verified": {
+    "cap_lines": 3450,
+    "capped_survival_rate": 0.5321271380498891,
+    "commits": 597,
+    "introduced": 649272,
+    "largest_commit_share": 0.15580527113443982,
+    "median_survival": 0.5691849076842412,
+    "survival_rate": 0.527301346739117,
+    "surviving": 342362
+  }
+}
