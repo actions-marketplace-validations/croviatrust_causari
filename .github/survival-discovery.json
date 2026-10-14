@@ -1,4 +1,26 @@
 {
+ "last_attempt": {
+  "finished": false,
+  "list_replaced": false,
+  "discovered_at_still": "2026-09-27T10:04:14Z",
+  "note": "The repositories below are the 2026-09-27 selection. The two scheduled runs after it did not finish, so they did not replace the list.",
+  "runs": [
+   {
+    "started_at": "2026-10-04T10:38:41Z",
+    "conclusion": "failure",
+    "failed_step": "actions/checkout@v7",
+    "run": "https://github.com/croviatrust/causari/actions/runs/37196027771"
+   },
+   {
+    "started_at": "2026-10-11T10:53:31Z",
+    "conclusion": "cancelled",
+    "failed_step": "discover repositories",
+    "timeout_minutes": 120,
+    "run": "https://github.com/croviatrust/causari/actions/runs/38133573154",
+    "cause": "The job reached its 120 minute limit while search-counting candidates. On 2026-09-27, 383 of 400 candidates were under 100 stars and were counted before being dropped."
+   }
+  ]
+ },
  "schema": "causari.survival_discovery.v1",
  "discovered_at": "2026-09-27T10:04:14Z",
  "tool": "scripts/survival_discover.py",

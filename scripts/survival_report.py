@@ -197,10 +197,15 @@ def selection_sentence(root: Path) -> str:
     date = str(d.get("discovered_at") or "")[:10]
     retained = len(d.get("retained") or []) if isinstance(d.get("retained"), list) else 0
     kept = (f", {retained} of them found in an earlier week and counted again this week" if retained else "")
+    attempt = d.get("last_attempt")
+    stale = ""
+    if isinstance(attempt, dict) and attempt.get("finished") is False and attempt.get("list_replaced") is False:
+        stale = " The latest discovery run did not finish, and this list was not replaced."
     return (
         f"the repositories were selected, not drawn at random: {seeds} hand-picked and {found} found by GitHub commit search "
         f"as public repositories with at least {floor} commits carrying the same AI authorship metadata{stars}"
         f"{' (discovered ' + date + kept + ')' if date else ''}; the selection rule and the counts behind it are public."
+        f"{stale}"
     )
 
 
@@ -1498,7 +1503,7 @@ def render_index(archive: list[dict[str, Any]]) -> str:
         </tbody>
       </table>
     </div>{rate_html}
-    <p class="muted">The report replaced the weekly measurements table in September 2026. Repositories enter <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a> by pull request or through the weekly discovery, which lists the most-starred public repositories where GitHub commit search finds at least five commits carrying AI authorship metadata (<a href="/method#selection">how repositories are selected</a>); maintainers opt out with one line in <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
+    <p class="muted">The report replaced the weekly measurements table in September 2026. Repositories enter <a href="{REPO_URL}/blob/main/.github/survival-repos.txt" rel="noopener"><code translate="no">.github/survival-repos.txt</code></a> by pull request or through the weekly discovery, which lists the most-starred public repositories where GitHub commit search finds at least five commits carrying AI authorship metadata (<a href="/method#selection">how repositories are selected</a>). The date in the list is the last discovery run that finished; a run that does not finish leaves the list as it was. Maintainers opt out with one line in <a href="{REPO_URL}/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>.</p>
     <p><a href="/{REPOS_REL}/">Every repository has a page and a badge</a>: its counts across reports, the exact bytes behind each number, and a README badge that follows the latest report.</p>
     </div>
 

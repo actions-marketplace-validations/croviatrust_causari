@@ -48,7 +48,8 @@ not drawn at random: a hand-picked part added by pull request, and a part
 filled every week by [`scripts/survival_discover.py`](../scripts/survival_discover.py)
 with the most-starred public repositories where GitHub commit search finds
 at least five commits carrying the same AI authorship metadata (at least
-100 stars; forks, archived repositories and opt-outs dropped; stars first,
+100 stars, read before the repository-wide count so repositories under that
+floor are not search-counted; forks, archived repositories and opt-outs dropped; stars first,
 then commits; up to 100 in total; the rule
 is on the [method page](https://causari.dev/method#selection) and the
 counts behind each selection in

@@ -17,28 +17,29 @@ Selection rule
        ``sort=author-date``, up to ``--pages`` × ``--per-page`` results; the
        API stops at 1,000). Aggregate by ``repository.full_name``
        (case-insensitive), counting distinct commit SHAs.
-    2. Count. A repository seen at least ``--candidate-min`` times in the
-       sample is a candidate (at most ``--verify-max`` of them, most
-       sampled first). For each candidate and each signal it was seen with,
-       ask ``GET /search/commits?q=repo:<owner/repo> <signal>`` for its
-       ``total_count``: the number of matching commits in that repository,
-       not just in the sample. A repository's count is the sum over its
-       signals (a commit carrying two signals counts twice).
-    3. Floors. Keep repositories with at least ``--floor`` matching commits
-       (the method's sample floor, 5) and at least ``--min-stars`` stars
-       (100): the first floor says AI writes there, the second says people
-       use it. Without the second the list fills with contribution-graph
-       painters, kernel mirrors and one-person experiments, which a count
-       of trailers cannot tell from a project. Drop forks, archived
-       repositories and every line of ``.github/survival-optout.txt``.
+    2. Stars first. A repository seen at least ``--candidate-min`` times
+       is a candidate (at most ``--verify-max`` of them, most sampled
+       first). ``GET /repos`` reads stars, archived and whether the
+       repository is still there. Forks, archived repositories, opt-outs,
+       repositories that are gone, and repositories under ``--min-stars``
+       cannot enter the list, so they are not search-counted. On
+       2026-09-27 that was 383 of 400 candidates, and counting them anyway
+       is what made the 2026-10-11 run hit its two hour limit and write
+       nothing.
+    3. Count. For each repository that can still enter, and each signal it
+       was seen with, ask ``GET /search/commits?q=repo:<owner/repo> <signal>``
+       for its ``total_count``. A repository's count is the sum over its
+       signals (a commit carrying two signals counts twice). Keep those
+       with at least ``--floor`` matching commits (the sample floor, 5).
     4. Order by ``stargazers_count``, then matching commits, then name;
        keep the hand-picked seeds already in the list; fill up to
        ``--limit`` repositories.
     5. Retain. The sample is a moving window, so a repository discovered
        in an earlier week can miss it without anything having changed
        there. Every previously discovered repository the sample missed is
-       counted again repository-wide (step 2, with the signals it was found
-       with) and kept while it passes step 3. It leaves the list through
+       counted again repository-wide (step 3, after the same star gate,
+       with the signals it was found with) and kept while it passes the
+       floors. It leaves the list through
        the floors, an opt-out or disappearance from GitHub, never through
        the luck of the sample; ``left_list`` in the JSON names the ones
        that left and ``retained`` the ones kept this way.
@@ -57,8 +58,10 @@ Usage::
 
 Standard library only. Search endpoints allow 30 requests per minute with a
 token (10 without); the script paces itself and sleeps on 403/429 as the
-``Retry-After`` / ``X-RateLimit-Reset`` headers say. A full run is a few
-hundred search requests, so it takes on the order of half an hour.
+``Retry-After`` / ``X-RateLimit-Reset`` headers say. Counting only the
+repositories that can still enter the list keeps a run well inside the
+job limit. ``--deadline-minutes`` (default 90) stops a run that is still
+going and leaves the list unchanged, recording ``last_attempt`` instead.
 """
 
 from __future__ import annotations
@@ -187,6 +190,34 @@ class Client:
         self.requests = 0
         self.search_requests = 0
         self.waited_s = 0.0
+        self.deadline_at: float | None = None
+        self.stopped_stage: str | None = None
+
+    def out_of_time(self, stage: str) -> bool:
+        """True once `deadline_at` (monotonic) has passed. The first call
+        records the stage. A run that stops here must not replace the list."""
+        if self.deadline_at is None or time.monotonic() < self.deadline_at:
+            return False
+        if self.stopped_stage is None:
+            self.stopped_stage = stage
+            self.log(f"survival_discover: stopping at {stage}; the deadline passed and the list will not be replaced")
+        return True
+
+    def bounded_sleep(self, seconds: float, stage: str) -> bool:
+        """Sleep `seconds`, but not past the deadline. True means the run
+        has stopped and the caller must not start another request."""
+        if self.deadline_at is not None:
+            remaining = self.deadline_at - time.monotonic()
+            if remaining <= 0 or seconds > remaining:
+                if remaining > 0:
+                    self.sleep(remaining)
+                    self.waited_s += remaining
+                if self.stopped_stage is None:
+                    self.stopped_stage = stage
+                    self.log(f"survival_discover: stopping at {stage}; the deadline passed and the list will not be replaced")
+                return True
+        self.sleep(seconds)
+        return False
 
     def wait_for(self, status: int, headers: dict[str, str]) -> float | None:
         """Seconds to sleep before retrying, from Retry-After or X-RateLimit-Reset;
@@ -206,21 +237,27 @@ class Client:
 
     def get_json(self, url: str, pace: bool = False, attempts: int = 4) -> tuple[int, Any]:
         for attempt in range(attempts):
+            if self.out_of_time("request"):
+                return 0, None
             if pace:
-                if self.search_requests:
-                    self.sleep(self.pace_s)
+                if self.search_requests and self.bounded_sleep(self.pace_s, "request"):
+                    return 0, None
                 self.search_requests += 1
             self.requests += 1
             status, headers, body = self.fetch(url)
+            if self.out_of_time("request"):
+                return 0, None
             wait = self.wait_for(status, headers)
             if wait is not None:
                 self.log(f"survival_discover: rate limited (HTTP {status}); sleeping {wait:.0f} s")
+                if self.bounded_sleep(wait, "request"):
+                    return 0, None
                 self.waited_s += wait
-                self.sleep(wait)
                 continue
             if status >= 500 or status == 0:
                 self.log(f"survival_discover: HTTP {status} for {url.split('?')[0]}; retry {attempt + 1}/{attempts}")
-                self.sleep(min(60.0, 5.0 * (attempt + 1)))
+                if self.bounded_sleep(min(60.0, 5.0 * (attempt + 1)), "request"):
+                    return 0, None
                 continue
             try:
                 return status, json.loads(body.decode("utf-8")) if body else None
@@ -237,6 +274,9 @@ def search_signal(client: Client, name: str, query: str, pages: int, per_page: i
     items: list[dict[str, Any]] = []
     incomplete = False
     for page in range(1, pages + 1):
+        if client.out_of_time(f"sample:{name}"):
+            incomplete = True
+            break
         status, data = client.get_json(sample_url(query, page, per_page, until), pace=True)
         if status != 200 or not isinstance(data, dict):
             # 422 past the 1,000th result, 403 that never cleared, 5xx: keep
@@ -301,16 +341,24 @@ def verify_counts(client: Client, cands: list[dict[str, Any]], signals: dict[str
     counts, flagged)."""
     unverified: list[str] = []
     for r in cands:
+        if client.out_of_time("count"):
+            break
         by_signal: dict[str, int] = {}
         ok = True
         for name in r["sampled_by_signal"]:
+            if client.out_of_time("count"):
+                break
             status, data = client.get_json(count_url(r["repo"], signals[name]), pace=True)
+            if client.stopped_stage:
+                break
             if status != 200 or not isinstance(data, dict) or not isinstance(data.get("total_count"), int):
                 ok = False
                 break
             by_signal[name] = data["total_count"]
             if data.get("incomplete_results"):
                 r["incomplete"] = True
+        if client.stopped_stage:
+            break
         if ok:
             r["by_signal"] = by_signal
             r["commits"] = sum(by_signal.values())
@@ -330,6 +378,8 @@ def complete_details(client: Client, rows: list[dict[str, Any]]) -> list[str]:
     they are dropped."""
     unavailable: list[str] = []
     for r in rows:
+        if client.out_of_time("details"):
+            break
         if r["stars"] is not None and r["archived"] is not None:
             continue
         status, data = client.get_json(repo_url(r["repo"]))
@@ -480,6 +530,59 @@ def render_list(head: list[str], discovered: list[str], date: str, floor: int, m
     return "\n".join(out) + "\n"
 
 
+def profile_block(r: dict[str, Any], min_stars: int, optout: set[str], gone: set[str]) -> str | None:
+    """Why this repository cannot enter the list, or None when it still can.
+    `unavailable` is reported through `gone`, not as a block, so the dropped
+    list stays the one `select` already publishes."""
+    key = r["repo"].lower()
+    renamed = (r.get("renamed_from") or "").lower()
+    if key in gone or (renamed and renamed in gone):
+        return "unavailable"
+    if r.get("fork"):
+        return "fork"
+    if r.get("archived"):
+        return "archived"
+    if key in optout or (renamed and renamed in optout):
+        return "opted_out"
+    if int(r.get("stars") or 0) < min_stars:
+        return "below_stars"
+    return None
+
+
+def gate_before_count(client: Client, rows: list[dict[str, Any]], min_stars: int,
+                      optout: set[str]) -> tuple[list[dict[str, Any]], list[tuple[str, str]], list[str]]:
+    """Read stars before spending search quota. Returns the rows still worth
+    a repository-wide count, the (reason, name) pairs that are not, and the
+    names GitHub no longer serves."""
+    if not rows or min_stars <= 0:
+        return rows, [], []
+    unavailable = complete_details(client, rows)
+    if client.stopped_stage:
+        return [], [], unavailable
+    gone = {u.lower() for u in unavailable}
+    keep: list[dict[str, Any]] = []
+    blocked: list[tuple[str, str]] = []
+    for r in rows:
+        reason = profile_block(r, min_stars, optout, gone)
+        if reason is None:
+            keep.append(r)
+        elif reason != "unavailable":
+            blocked.append((reason, r["repo"]))
+    return keep, blocked, unavailable
+
+
+def _unfinished(client: Client, now: str) -> dict[str, Any]:
+    return {
+        "schema": SCHEMA,
+        "discovered_at": now,
+        "requests": client.requests,
+        "search_requests": client.search_requests,
+        "run": {"finished": False, "reason": "deadline", "stage": client.stopped_stage or "deadline"},
+        "_replace_list": False,
+        "_list_text": "",
+    }
+
+
 # ----------------------------------------------------------------------------- run
 
 def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT, pages: int = PAGES, per_page: int = PER_PAGE,
@@ -505,20 +608,36 @@ def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT,
     found: dict[str, list[dict[str, Any]]] = {}
     incomplete: list[str] = []
     for name, query in signals.items():
+        if client.out_of_time(f"sample:{name}"):
+            return _unfinished(client, now)
         items, inc = search_signal(client, name, query, pages, per_page, today)
         found[name] = items
         if inc:
             incomplete.append(name)
         client.log(f"survival_discover: sample {name}: {len(items)} commits{' (incomplete)' if inc else ''}")
+        if client.stopped_stage:
+            return _unfinished(client, now)
     repos = aggregate(found)
 
-    # 2. count
+    # 2. stars, then count. Search quota is spent only on repositories that
+    # can still enter the list. min_stars 0 keeps the old order so a caller
+    # who asked for no star floor still counts every candidate.
     cands = candidates(repos, candidate_min, verify_max)
+    n_sampled_candidates = len(cands)
     unverified: list[str] = []
+    blocked: list[tuple[str, str]] = []
+    unavailable_pre: list[str] = []
+    if verify and min_stars > 0:
+        cands, blocked, unavailable_pre = gate_before_count(client, cands, min_stars, optout)
+        if client.stopped_stage:
+            return _unfinished(client, now)
+        client.log(f"survival_discover: not search-counting {len(blocked)} repositories that cannot enter the list")
     if verify:
         unverified = verify_counts(client, cands, signals)
+        if client.stopped_stage:
+            return _unfinished(client, now)
         client.log(f"survival_discover: counted {len(cands)} candidates repository-wide ({len(unverified)} unverified)")
-    # 2b. Retain. The sample is a moving window (the ~1,000 most recent
+    # Retain. The sample is a moving window (the ~1,000 most recent
     # commits per signal), so a repository discovered in an earlier week can
     # miss it in a busy week without anything having changed there: report
     # #3 lost 18 of the 30 repositories of report #2 that way. A previously
@@ -527,20 +646,40 @@ def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT,
     # the same floors and exclusions as everything else. It leaves the list
     # through those, never through the luck of the sample.
     retained = retain_previous(previous_json, _previous, cands, signals) if verify else []
+    if retained and min_stars > 0:
+        retained, blocked_r, unavailable_r = gate_before_count(client, retained, min_stars, optout)
+        blocked.extend(blocked_r)
+        unavailable_pre.extend(unavailable_r)
+        if client.stopped_stage:
+            return _unfinished(client, now)
     if retained:
         unverified += verify_counts(client, retained, signals)
+        if client.stopped_stage:
+            return _unfinished(client, now)
         client.log(f"survival_discover: re-counted {len(retained)} previously discovered repositories the sample missed")
     rows = [r for r in cands + retained if r["commits"] >= floor]
 
     # 3. + 4. floor, exclusions, order, limit
     unavailable = complete_details(client, rows)
+    if client.stopped_stage:
+        return _unfinished(client, now)
+    seen_unavailable: list[str] = []
+    for name in unavailable_pre + unavailable:
+        if name.lower() not in {n.lower() for n in seen_unavailable}:
+            seen_unavailable.append(name)
+    unavailable = seen_unavailable
     seed_names = resolve_seeds(client, seeds)
     for old, new in seed_names.items():
         client.log(f"survival_discover: seed {old} is now {new} on GitHub; both names count as the seed. "
                    f"Update the hand-picked line to {new}.")
     discovered, dropped = select(rows, seeds, optout, floor, limit, unavailable, min_stars, seed_names)
     dropped["below_floor"] += len(cands) + len(retained) - len(rows)
-    dropped["not_candidates"] = len(repos) - len(cands)
+    for reason, name in blocked:
+        dropped.setdefault(reason, []).append(name)
+    for key in ("below_stars", "fork", "archived", "opted_out", "seed_duplicates"):
+        if isinstance(dropped.get(key), list):
+            dropped[key] = sorted(set(dropped[key]), key=str.lower)
+    dropped["not_candidates"] = len(repos) - n_sampled_candidates
     dropped["unverified"] = sorted(unverified, key=str.lower)
     # Previously discovered repositories that are not in the new list, so a
     # week-to-week change of the sample is a fact in the record, not a guess.
@@ -576,7 +715,8 @@ def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT,
                   "at most 1,000 results per query; repository-wide counts from total_count of repo:-scoped queries",
         "selection": {
             "rule": "sample the most recent matching commits per signal; a repository sampled at least `candidate_min` times is a "
-                    "candidate (at most `verify_max`); its count is the sum over its signals of the repository-wide total_count "
+                    "candidate (at most `verify_max`); when `min_stars` is set, stars are read first and repositories that cannot "
+                    "enter the list are not search-counted; its count is the sum over its signals of the repository-wide total_count "
                     "(a commit carrying two signals counts twice); keep repositories with at least `floor` commits and at least "
                     "`min_stars` stars; drop forks, archived repositories and .github/survival-optout.txt; order by stargazers_count, "
                     "then commits, then name; keep the hand-picked seeds, under the name listed and under the name GitHub now "
@@ -595,7 +735,8 @@ def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT,
         "seeds": list(seeds),
         "seeds_renamed": dict(sorted(seed_names.items(), key=lambda kv: kv[0].lower())),
         "repositories": rows_out,
-        "candidates": len(cands),
+        "candidates": n_sampled_candidates,
+        "search_counted": (len(cands) + len(retained)) if verify else 0,
         "retained": sorted((r["repo"] for r in discovered if r.get("retained")), key=str.lower),
         "previously_discovered": len(_previous),
         "repositories_sampled": len(repos),
@@ -607,8 +748,32 @@ def discover(client: Client, root: Path, floor: int = FLOOR, limit: int = LIMIT,
 
 def write_outputs(result: dict[str, Any], root: Path) -> None:
     text = result.pop("_list_text")
+    result.pop("_replace_list", None)
     (root / ".github" / "survival-repos.txt").write_text(text, encoding="utf-8")
     (root / ".github" / "survival-discovery.json").write_text(json.dumps(result, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def record_unfinished(result: dict[str, Any], root: Path) -> None:
+    """Leave the list file as it is. Say, in the discovery record, that this
+    run did not finish and did not replace it."""
+    path = root / ".github" / "survival-discovery.json"
+    try:
+        prev = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        prev = {"schema": SCHEMA}
+    if not isinstance(prev, dict):
+        prev = {"schema": SCHEMA}
+    run = result.get("run") or {}
+    prev["last_attempt"] = {
+        "at": result.get("discovered_at"),
+        "finished": False,
+        "reason": run.get("reason"),
+        "stage": run.get("stage"),
+        "search_requests": result.get("search_requests"),
+        "requests": result.get("requests"),
+        "list_replaced": False,
+    }
+    path.write_text(json.dumps(prev, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def summary(result: dict[str, Any]) -> str:
@@ -638,17 +803,27 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--verify-max", type=int, default=VERIFY_MAX, help=f"candidates counted repository-wide, most sampled first (default {VERIFY_MAX})")
     ap.add_argument("--no-verify", action="store_true", help="rank by sampled commits only (cheaper, noisier)")
     ap.add_argument("--pace", type=float, default=SEARCH_PACE_S, help=f"seconds between search requests (default {SEARCH_PACE_S})")
+    ap.add_argument("--deadline-minutes", type=float, default=90,
+                    help="stop after this many minutes without replacing the list (0 disables)")
     ap.add_argument("--dry-run", action="store_true", help="print the list and the summary; write nothing")
     args = ap.parse_args(argv)
 
     token = token_from_env()
     if not token:
         print("survival_discover: no GITHUB_TOKEN/GH_TOKEN; unauthenticated search allows 10 requests per minute", file=sys.stderr)
+    deadline_at = time.monotonic() + args.deadline_minutes * 60 if args.deadline_minutes > 0 else None
     client = Client(lambda url: urllib_fetch(url, token), pace_s=args.pace if token else 7.0)
+    client.deadline_at = deadline_at
     root = Path(args.root)
     result = discover(client, root, floor=args.floor, limit=args.limit, pages=args.pages, per_page=min(100, max(1, args.per_page)),
                       min_stars=args.min_stars,
                       candidate_min=args.candidate_min, verify_max=args.verify_max, verify=not args.no_verify)
+    if result.get("_replace_list") is False:
+        if not args.dry_run:
+            record_unfinished(result, root)
+        stage = (result.get("run") or {}).get("stage")
+        print(f"survival_discover: stopped at {stage}; the list was not replaced", file=sys.stderr)
+        return 2
     if args.dry_run:
         sys.stdout.write(result["_list_text"])
         print()
