@@ -1259,5 +1259,24 @@ class ReachTests(unittest.TestCase):
             s.close()
 
 
+class UnfinishedDiscoverySentenceTests(unittest.TestCase):
+    def test_an_unfinished_attempt_is_said_in_the_sentence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".github").mkdir()
+            (root / ".github" / "survival-discovery.json").write_text(json.dumps({
+                "schema": "causari.survival_discovery.v1",
+                "discovered_at": "2026-09-27T10:04:14Z",
+                "selection": {"floor": 5, "min_stars": 100},
+                "repositories": [{"repo": "a/one", "seed": True}, {"repo": "b/two", "seed": False}],
+                "last_attempt": {"finished": False, "list_replaced": False, "reason": "deadline"},
+            }), encoding="utf-8")
+            sentence = sr.selection_sentence(root)
+            self.assertIn("discovered 2026-09-27", sentence)
+            self.assertIn("The latest discovery run did not finish, and this list was not replaced.", sentence)
+            for word in FORBIDDEN:
+                self.assertNotIn(word, sentence)
+
+
 if __name__ == "__main__":
     unittest.main()

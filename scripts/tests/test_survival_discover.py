@@ -502,5 +502,45 @@ class ClientTests(unittest.TestCase):
             self.assertIn(needle, joined, needle)
 
 
+class StarGateTests(unittest.TestCase):
+    def test_repositories_under_the_star_floor_are_not_search_counted(self) -> None:
+        samples = {SIGNALS[CLAUDE]: commits("bot/graph-painter", 20) + commits("real/project", 12)}
+        details = {"bot/graph-painter": {"stars": 43}, "real/project": {"stars": 2400}}
+        s = Scratch()
+        try:
+            gh = FakeGitHub(samples, details)
+            j = run(gh, s, min_stars=100)
+            self.assertEqual(discovered(j), ["real/project"])
+            self.assertEqual(j["dropped"]["below_stars"], ["bot/graph-painter"])
+            self.assertEqual(j["search_counted"], 1)
+            count_urls = [u for u in gh.urls if "q=repo%3A" in u]
+            self.assertEqual(len(count_urls), 1)
+            self.assertIn("real", count_urls[0])
+            self.assertNotIn("graph-painter", count_urls[0])
+        finally:
+            s.close()
+
+    def test_deadline_leaves_the_list_and_records_the_attempt(self) -> None:
+        s = Scratch()
+        try:
+            before = s.list_text()
+            gh = FakeGitHub({SIGNALS[CLAUDE]: commits("real/project", 12)})
+            client = sd.Client(gh.fetch, sleep=gh.sleep, log=lambda _s: None)
+            client.deadline_at = time.monotonic() - 1
+            result = sd.discover(client, s.root, signals=SIGNALS, now=NOW, min_stars=100)
+            self.assertFalse(result["_replace_list"])
+            self.assertEqual(result["run"]["reason"], "deadline")
+            self.assertEqual(s.list_text(), before)
+            sd.record_unfinished(result, s.root)
+            self.assertEqual(s.list_text(), before)
+            attempt = s.json()["last_attempt"]
+            self.assertFalse(attempt["finished"])
+            self.assertFalse(attempt["list_replaced"])
+            self.assertEqual(attempt["reason"], "deadline")
+            self.assertTrue(attempt["stage"])
+        finally:
+            s.close()
+
+
 if __name__ == "__main__":
     unittest.main()
