@@ -520,6 +520,19 @@ class StarGateTests(unittest.TestCase):
         finally:
             s.close()
 
+    def test_a_long_rate_limit_sleep_stops_at_the_deadline(self) -> None:
+        sleeps: list[float] = []
+
+        def fetch(_url: str):
+            return 403, {"retry-after": "9999", "x-ratelimit-remaining": "0"}, b"{}"
+
+        client = sd.Client(fetch, sleep=lambda s: sleeps.append(s), log=lambda _s: None)
+        client.deadline_at = time.monotonic() + 0.4
+        status, data = client.get_json("https://api.github.com/search/commits?q=x", pace=True)
+        self.assertEqual((status, data), (0, None))
+        self.assertEqual(client.stopped_stage, "request")
+        self.assertLess(sum(sleeps), 2.0)
+
     def test_deadline_leaves_the_list_and_records_the_attempt(self) -> None:
         s = Scratch()
         try:

@@ -203,6 +203,22 @@ class Client:
             self.log(f"survival_discover: stopping at {stage}; the deadline passed and the list will not be replaced")
         return True
 
+    def bounded_sleep(self, seconds: float, stage: str) -> bool:
+        """Sleep `seconds`, but not past the deadline. True means the run
+        has stopped and the caller must not start another request."""
+        if self.deadline_at is not None:
+            remaining = self.deadline_at - time.monotonic()
+            if remaining <= 0 or seconds > remaining:
+                if remaining > 0:
+                    self.sleep(remaining)
+                    self.waited_s += remaining
+                if self.stopped_stage is None:
+                    self.stopped_stage = stage
+                    self.log(f"survival_discover: stopping at {stage}; the deadline passed and the list will not be replaced")
+                return True
+        self.sleep(seconds)
+        return False
+
     def wait_for(self, status: int, headers: dict[str, str]) -> float | None:
         """Seconds to sleep before retrying, from Retry-After or X-RateLimit-Reset;
         None when the response is not a rate limit. A 403 from the search API
@@ -221,21 +237,27 @@ class Client:
 
     def get_json(self, url: str, pace: bool = False, attempts: int = 4) -> tuple[int, Any]:
         for attempt in range(attempts):
+            if self.out_of_time("request"):
+                return 0, None
             if pace:
-                if self.search_requests:
-                    self.sleep(self.pace_s)
+                if self.search_requests and self.bounded_sleep(self.pace_s, "request"):
+                    return 0, None
                 self.search_requests += 1
             self.requests += 1
             status, headers, body = self.fetch(url)
+            if self.out_of_time("request"):
+                return 0, None
             wait = self.wait_for(status, headers)
             if wait is not None:
                 self.log(f"survival_discover: rate limited (HTTP {status}); sleeping {wait:.0f} s")
+                if self.bounded_sleep(wait, "request"):
+                    return 0, None
                 self.waited_s += wait
-                self.sleep(wait)
                 continue
             if status >= 500 or status == 0:
                 self.log(f"survival_discover: HTTP {status} for {url.split('?')[0]}; retry {attempt + 1}/{attempts}")
-                self.sleep(min(60.0, 5.0 * (attempt + 1)))
+                if self.bounded_sleep(min(60.0, 5.0 * (attempt + 1)), "request"):
+                    return 0, None
                 continue
             try:
                 return status, json.loads(body.decode("utf-8")) if body else None
@@ -324,13 +346,19 @@ def verify_counts(client: Client, cands: list[dict[str, Any]], signals: dict[str
         by_signal: dict[str, int] = {}
         ok = True
         for name in r["sampled_by_signal"]:
+            if client.out_of_time("count"):
+                break
             status, data = client.get_json(count_url(r["repo"], signals[name]), pace=True)
+            if client.stopped_stage:
+                break
             if status != 200 or not isinstance(data, dict) or not isinstance(data.get("total_count"), int):
                 ok = False
                 break
             by_signal[name] = data["total_count"]
             if data.get("incomplete_results"):
                 r["incomplete"] = True
+        if client.stopped_stage:
+            break
         if ok:
             r["by_signal"] = by_signal
             r["commits"] = sum(by_signal.values())
