@@ -5,10 +5,10 @@
  "url": "https://causari.dev/r/anthropics/anthropic-sdk-typescript/",
  "badge": "https://causari.dev/r/anthropics/anthropic-sdk-typescript/badge.svg",
  "report": {
-  "number": 5,
-  "id": "2026/05",
-  "date": "2026-10-12",
-  "url": "https://causari.dev/reports/survival/2026/05/"
+  "number": 6,
+  "id": "2026/06",
+  "date": "2026-10-19",
+  "url": "https://causari.dev/reports/survival/2026/06/"
  },
  "method": "v4",
  "tool": {
@@ -16,57 +16,57 @@
   "version": "0.4.1"
  },
  "verified": {
-  "commits": 61,
-  "introduced": 14883,
-  "surviving": 12391,
-  "survival_rate": 0.8325606396559834,
-  "capped_survival_rate": 0.849579941071794,
-  "median_survival": 0.9582772543741588,
-  "largest_commit_share": 0.36961634079150707
+  "commits": 70,
+  "introduced": 30926,
+  "surviving": 28224,
+  "survival_rate": 0.9126301493888638,
+  "capped_survival_rate": 0.8605608907016894,
+  "median_survival": 0.9638610182088443,
+  "largest_commit_share": 0.5004850287783742
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 1371,
-   "introduced": 200808,
-   "surviving": 148852,
-   "survival_rate": 0.7412652882355285,
-   "median_survival": 0.14285714285714285,
-   "capped_survival_rate": 0.5949320613689592,
-   "cap_lines": 585,
-   "largest_commit_share": 0.09168459423927333
+   "commits": 1402,
+   "introduced": 206945,
+   "surviving": 154347,
+   "survival_rate": 0.7458358501051003,
+   "median_survival": 0.17437776183102316,
+   "capped_survival_rate": 0.6028159385577354,
+   "cap_lines": 589,
+   "largest_commit_share": 0.08896566720626253
   },
   "by_age": [
    {
     "from_days": 0,
     "to_days": 30,
     "tagged": {
-     "commits": 23,
-     "introduced": 2386,
-     "surviving": 2052,
-     "survival_rate": 0.8600167644593462
+     "commits": 28,
+     "introduced": 17463,
+     "surviving": 16993,
+     "survival_rate": 0.9730859531581058
     },
     "untagged": {
-     "commits": 148,
-     "introduced": 46295,
-     "surviving": 42390,
-     "survival_rate": 0.9156496381898693
+     "commits": 151,
+     "introduced": 50699,
+     "surviving": 46962,
+     "survival_rate": 0.926290459377897
     }
    },
    {
     "from_days": 30,
     "to_days": 90,
     "tagged": {
-     "commits": 30,
-     "introduced": 6273,
-     "surviving": 5560,
-     "survival_rate": 0.8863382751474573
+     "commits": 34,
+     "introduced": 7239,
+     "surviving": 6466,
+     "survival_rate": 0.8932172952065203
     },
     "untagged": {
-     "commits": 116,
-     "introduced": 32760,
-     "surviving": 28802,
-     "survival_rate": 0.8791819291819292
+     "commits": 133,
+     "introduced": 31450,
+     "surviving": 27198,
+     "survival_rate": 0.8648012718600954
     }
    },
    {
@@ -79,10 +79,10 @@
      "survival_rate": 0.9038461538461539
     },
     "untagged": {
-     "commits": 98,
-     "introduced": 37271,
-     "surviving": 31932,
-     "survival_rate": 0.8567518982586998
+     "commits": 107,
+     "introduced": 39707,
+     "surviving": 34395,
+     "survival_rate": 0.8662200619538116
     }
    },
    {
@@ -91,14 +91,14 @@
     "tagged": {
      "commits": 1,
      "introduced": 5501,
-     "surviving": 4419,
-     "survival_rate": 0.8033084893655699
+     "surviving": 4402,
+     "survival_rate": 0.8002181421559716
     },
     "untagged": {
-     "commits": 82,
-     "introduced": 21924,
-     "surviving": 17182,
-     "survival_rate": 0.78370735267287
+     "commits": 76,
+     "introduced": 22455,
+     "surviving": 17616,
+     "survival_rate": 0.784502338009352
     }
    },
    {
@@ -107,14 +107,14 @@
     "tagged": {
      "commits": 3,
      "introduced": 619,
-     "surviving": 266,
-     "survival_rate": 0.4297253634894992
+     "surviving": 269,
+     "survival_rate": 0.4345718901453958
     },
     "untagged": {
-     "commits": 462,
-     "introduced": 38810,
-     "surviving": 22151,
-     "survival_rate": 0.5707549600618397
+     "commits": 467,
+     "introduced": 38862,
+     "surviving": 22052,
+     "survival_rate": 0.5674437754104267
     }
    },
    {
@@ -127,23 +127,23 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 465,
-     "introduced": 23748,
-     "surviving": 6395,
-     "survival_rate": 0.2692858345965976
+     "commits": 468,
+     "introduced": 23772,
+     "surviving": 6124,
+     "survival_rate": 0.25761399966346965
     }
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.8790853447280287,
-   "untagged_rate": 0.8892306592538711,
-   "gap": -0.010145314525842442,
+   "tagged_rate": 0.9496801878390414,
+   "untagged_rate": 0.9082708565748298,
+   "gap": 0.041409331264211646,
    "buckets_used": 2,
-   "tagged_lines_covered": 0.5818047436672714
+   "tagged_lines_covered": 0.7987453922266055
   },
   "oldest_surviving": {
    "date": "2023-01-30",
-   "age_days": 1348,
+   "age_days": 1354,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -152,7 +152,7 @@
   }
  },
  "probable_commits": 0,
- "total_commits": 1432,
+ "total_commits": 1472,
  "aggregated": true,
  "coverage": {
   "method": "v4",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 5,
+ "reports": 6,
  "reproduce": "re audit anthropics/anthropic-sdk-typescript --json",
- "bytes": "https://causari.dev/reports/survival/2026/05/repos/anthropics__anthropic-sdk-typescript.json",
+ "bytes": "https://causari.dev/reports/survival/2026/06/repos/anthropics__anthropic-sdk-typescript.json",
  "license": "CC-BY-4.0"
 }

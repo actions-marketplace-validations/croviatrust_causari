@@ -5,10 +5,10 @@
  "url": "https://causari.dev/r/stackblitz/bolt.new/",
  "badge": "https://causari.dev/r/stackblitz/bolt.new/badge.svg",
  "report": {
-  "number": 5,
-  "id": "2026/05",
-  "date": "2026-10-12",
-  "url": "https://causari.dev/reports/survival/2026/05/"
+  "number": 6,
+  "id": "2026/06",
+  "date": "2026-10-19",
+  "url": "https://causari.dev/reports/survival/2026/06/"
  },
  "method": "v4",
  "tool": {
@@ -160,8 +160,8 @@
   "sample_floor": 5,
   "small_sample": true
  },
- "reports": 4,
+ "reports": 5,
  "reproduce": "re audit stackblitz/bolt.new --json",
- "bytes": "https://causari.dev/reports/survival/2026/05/repos/stackblitz__bolt.new.json",
+ "bytes": "https://causari.dev/reports/survival/2026/06/repos/stackblitz__bolt.new.json",
  "license": "CC-BY-4.0"
 }

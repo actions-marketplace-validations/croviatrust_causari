@@ -5,10 +5,10 @@
  "url": "https://causari.dev/r/anthropics/claude-code/",
  "badge": "https://causari.dev/r/anthropics/claude-code/badge.svg",
  "report": {
-  "number": 5,
-  "id": "2026/05",
-  "date": "2026-10-12",
-  "url": "https://causari.dev/reports/survival/2026/05/"
+  "number": 6,
+  "id": "2026/06",
+  "date": "2026-10-19",
+  "url": "https://causari.dev/reports/survival/2026/06/"
  },
  "method": "v4",
  "tool": {
@@ -27,14 +27,14 @@
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 698,
-   "introduced": 81742,
-   "surviving": 67602,
-   "survival_rate": 0.8270167111154608,
-   "median_survival": 0.9444444444444444,
-   "capped_survival_rate": 0.7385732740775822,
-   "cap_lines": 302,
-   "largest_commit_share": 0.11500819652076044
+   "commits": 712,
+   "introduced": 83559,
+   "surviving": 68881,
+   "survival_rate": 0.8243396881245587,
+   "median_survival": 0.9375,
+   "capped_survival_rate": 0.7354862224986126,
+   "cap_lines": 304,
+   "largest_commit_share": 0.11250733014995393
   },
   "by_age": [
    {
@@ -47,10 +47,10 @@
      "survival_rate": 0.9356846473029046
     },
     "untagged": {
-     "commits": 101,
-     "introduced": 34728,
-     "surviving": 30579,
-     "survival_rate": 0.8805286800276434
+     "commits": 65,
+     "introduced": 17568,
+     "surviving": 15707,
+     "survival_rate": 0.8940687613843351
     }
    },
    {
@@ -63,10 +63,10 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 97,
-     "introduced": 26820,
-     "surviving": 20463,
-     "survival_rate": 0.7629753914988814
+     "commits": 138,
+     "introduced": 45212,
+     "surviving": 36337,
+     "survival_rate": 0.8037025568433159
     }
    },
    {
@@ -79,42 +79,42 @@
      "survival_rate": 0.0
     },
     "untagged": {
-     "commits": 105,
-     "introduced": 12441,
-     "surviving": 10277,
-     "survival_rate": 0.8260589984727916
+     "commits": 104,
+     "introduced": 12843,
+     "surviving": 10373,
+     "survival_rate": 0.8076773339562408
     }
    },
    {
     "from_days": 180,
     "to_days": 365,
     "tagged": {
-     "commits": 26,
-     "introduced": 27247,
-     "surviving": 26753,
-     "survival_rate": 0.9818695636216831
+     "commits": 25,
+     "introduced": 26305,
+     "surviving": 25845,
+     "survival_rate": 0.9825128302604068
     },
     "untagged": {
-     "commits": 233,
-     "introduced": 4647,
-     "surviving": 3761,
-     "survival_rate": 0.8093393587260598
+     "commits": 236,
+     "introduced": 4791,
+     "surviving": 3904,
+     "survival_rate": 0.8148611980797328
     }
    },
    {
     "from_days": 365,
     "to_days": 730,
     "tagged": {
-     "commits": 44,
-     "introduced": 4009,
-     "surviving": 2469,
-     "survival_rate": 0.6158643053130457
+     "commits": 45,
+     "introduced": 4951,
+     "surviving": 3377,
+     "survival_rate": 0.6820844273884064
     },
     "untagged": {
-     "commits": 162,
-     "introduced": 3106,
-     "surviving": 2522,
-     "survival_rate": 0.8119768190598841
+     "commits": 169,
+     "introduced": 3145,
+     "surviving": 2560,
+     "survival_rate": 0.8139904610492846
     }
    },
    {
@@ -136,14 +136,14 @@
   ],
   "age_matched": {
    "tagged_rate": 0.934936038817821,
-   "untagged_rate": 0.8107536517295781,
-   "gap": 0.12418238708824281,
+   "untagged_rate": 0.8159282793852678,
+   "gap": 0.11900775943255315,
    "buckets_used": 3,
    "tagged_lines_covered": 0.9999684930212042
   },
   "oldest_surviving": {
    "date": "2025-02-22",
-   "age_days": 596,
+   "age_days": 603,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -152,7 +152,7 @@
   }
  },
  "probable_commits": 0,
- "total_commits": 776,
+ "total_commits": 790,
  "aggregated": true,
  "coverage": {
   "method": "v4",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 4,
+ "reports": 5,
  "reproduce": "re audit anthropics/claude-code --json",
- "bytes": "https://causari.dev/reports/survival/2026/05/repos/anthropics__claude-code.json",
+ "bytes": "https://causari.dev/reports/survival/2026/06/repos/anthropics__claude-code.json",
  "license": "CC-BY-4.0"
 }

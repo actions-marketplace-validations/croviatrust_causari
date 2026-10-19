@@ -5,10 +5,10 @@
  "url": "https://causari.dev/r/pydantic/pydantic-ai/",
  "badge": "https://causari.dev/r/pydantic/pydantic-ai/badge.svg",
  "report": {
-  "number": 5,
-  "id": "2026/05",
-  "date": "2026-10-12",
-  "url": "https://causari.dev/reports/survival/2026/05/"
+  "number": 6,
+  "id": "2026/06",
+  "date": "2026-10-19",
+  "url": "https://causari.dev/reports/survival/2026/06/"
  },
  "method": "v4",
  "tool": {
@@ -16,89 +16,89 @@
   "version": "0.4.1"
  },
  "verified": {
-  "commits": 353,
-  "introduced": 688758,
-  "surviving": 584568,
-  "survival_rate": 0.84872770987778,
-  "capped_survival_rate": 0.7635069699663543,
-  "median_survival": 0.7567123287671234,
-  "largest_commit_share": 0.6311955723200311
+  "commits": 354,
+  "introduced": 689024,
+  "surviving": 584351,
+  "survival_rate": 0.8480851174995355,
+  "capped_survival_rate": 0.7617208546488456,
+  "median_survival": 0.75,
+  "largest_commit_share": 0.6309518971762957
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 3708,
-   "introduced": 1929796,
-   "surviving": 1544267,
-   "survival_rate": 0.8002229251174735,
-   "median_survival": 0.75,
-   "capped_survival_rate": 0.7472598383972497,
-   "cap_lines": 1903,
-   "largest_commit_share": 0.05609349382007217
+   "commits": 3960,
+   "introduced": 2075749,
+   "surviving": 1667215,
+   "survival_rate": 0.8031871868901298,
+   "median_survival": 0.7586206896551724,
+   "capped_survival_rate": 0.7547704497351276,
+   "cap_lines": 1974,
+   "largest_commit_share": 0.05214936873388835
   },
   "by_age": [
    {
     "from_days": 0,
     "to_days": 30,
     "tagged": {
-     "commits": 30,
-     "introduced": 7539,
-     "surviving": 6315,
-     "survival_rate": 0.8376442499005173
+     "commits": 26,
+     "introduced": 7246,
+     "surviving": 6249,
+     "survival_rate": 0.8624068451559481
     },
     "untagged": {
-     "commits": 812,
-     "introduced": 543826,
-     "surviving": 474659,
-     "survival_rate": 0.8728140986271344
+     "commits": 930,
+     "introduced": 636546,
+     "surviving": 555475,
+     "survival_rate": 0.8726392122486042
     }
    },
    {
     "from_days": 30,
     "to_days": 90,
     "tagged": {
-     "commits": 48,
-     "introduced": 57645,
-     "surviving": 41376,
-     "survival_rate": 0.7177725735102785
+     "commits": 40,
+     "introduced": 43429,
+     "surviving": 30751,
+     "survival_rate": 0.7080752492574086
     },
     "untagged": {
-     "commits": 693,
-     "introduced": 488635,
-     "surviving": 416603,
-     "survival_rate": 0.852585263028641
+     "commits": 777,
+     "introduced": 510555,
+     "surviving": 433899,
+     "survival_rate": 0.8498575080059935
     }
    },
    {
     "from_days": 90,
     "to_days": 180,
     "tagged": {
-     "commits": 94,
-     "introduced": 75206,
-     "surviving": 58368,
-     "survival_rate": 0.7761082892322421
+     "commits": 102,
+     "introduced": 85753,
+     "surviving": 65561,
+     "survival_rate": 0.7645330192529708
     },
     "untagged": {
-     "commits": 441,
-     "introduced": 237672,
-     "surviving": 175004,
-     "survival_rate": 0.7363256925510788
+     "commits": 468,
+     "introduced": 254897,
+     "surviving": 189589,
+     "survival_rate": 0.7437867060028168
     }
    },
    {
     "from_days": 180,
     "to_days": 365,
     "tagged": {
-     "commits": 174,
-     "introduced": 547565,
-     "surviving": 477795,
-     "survival_rate": 0.8725813373754714
+     "commits": 179,
+     "introduced": 551793,
+     "surviving": 481076,
+     "survival_rate": 0.8718414332911073
     },
     "untagged": {
-     "commits": 505,
-     "introduced": 344742,
-     "surviving": 288127,
-     "survival_rate": 0.8357757395385534
+     "commits": 509,
+     "introduced": 342904,
+     "surviving": 291025,
+     "survival_rate": 0.8487069267200149
     }
    },
    {
@@ -111,10 +111,10 @@
      "survival_rate": 0.8891656288916563
     },
     "untagged": {
-     "commits": 1241,
-     "introduced": 311954,
-     "surviving": 188567,
-     "survival_rate": 0.6044705309116087
+     "commits": 1248,
+     "introduced": 324715,
+     "surviving": 195086,
+     "survival_rate": 0.6007914632831868
     }
    },
    {
@@ -127,23 +127,23 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 16,
-     "introduced": 2967,
-     "surviving": 1307,
-     "survival_rate": 0.44051230198854063
+     "commits": 28,
+     "introduced": 6132,
+     "surviving": 2141,
+     "survival_rate": 0.34915198956294846
     }
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.84872770987778,
-   "untagged_rate": 0.8264593161423642,
-   "gap": 0.02226839373541578,
+   "tagged_rate": 0.8480851174995355,
+   "untagged_rate": 0.8356842774818277,
+   "gap": 0.012400840017707804,
    "buckets_used": 5,
    "tagged_lines_covered": 1.0
   },
   "oldest_surviving": {
    "date": "2024-06-14",
-   "age_days": 850,
+   "age_days": 857,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -152,7 +152,7 @@
   }
  },
  "probable_commits": 0,
- "total_commits": 4061,
+ "total_commits": 4314,
  "aggregated": true,
  "coverage": {
   "method": "v4",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 4,
+ "reports": 5,
  "reproduce": "re audit pydantic/pydantic-ai --json",
- "bytes": "https://causari.dev/reports/survival/2026/05/repos/pydantic__pydantic-ai.json",
+ "bytes": "https://causari.dev/reports/survival/2026/06/repos/pydantic__pydantic-ai.json",
  "license": "CC-BY-4.0"
 }

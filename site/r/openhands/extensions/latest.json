@@ -5,10 +5,10 @@
  "url": "https://causari.dev/r/openhands/extensions/",
  "badge": "https://causari.dev/r/openhands/extensions/badge.svg",
  "report": {
-  "number": 5,
-  "id": "2026/05",
-  "date": "2026-10-12",
-  "url": "https://causari.dev/reports/survival/2026/05/"
+  "number": 6,
+  "id": "2026/06",
+  "date": "2026-10-19",
+  "url": "https://causari.dev/reports/survival/2026/06/"
  },
  "method": "v4",
  "tool": {
@@ -18,49 +18,49 @@
  "verified": {
   "commits": 321,
   "introduced": 92214,
-  "surviving": 73616,
-  "survival_rate": 0.7983169583794217,
-  "capped_survival_rate": 0.792867274048698,
-  "median_survival": 0.8636363636363636,
+  "surviving": 73514,
+  "survival_rate": 0.7972108356648665,
+  "capped_survival_rate": 0.7916406293496459,
+  "median_survival": 0.8578431372549019,
   "largest_commit_share": 0.03368252109224196
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 80,
-   "introduced": 25373,
-   "surviving": 20637,
-   "survival_rate": 0.8133448941788516,
-   "median_survival": 0.9714251539042529,
-   "capped_survival_rate": 0.8307919854772948,
+   "commits": 83,
+   "introduced": 25692,
+   "surviving": 20940,
+   "survival_rate": 0.8150397010742644,
+   "median_survival": 0.9705882352941176,
+   "capped_survival_rate": 0.8323773478915191,
    "cap_lines": 2221,
-   "largest_commit_share": 0.1258818429038742
+   "largest_commit_share": 0.12431885411801338
   },
   "by_age": [
    {
     "from_days": 0,
     "to_days": 30,
     "tagged": {
-     "commits": 75,
-     "introduced": 25805,
-     "surviving": 23065,
-     "survival_rate": 0.8938190273202867
+     "commits": 60,
+     "introduced": 20108,
+     "surviving": 17772,
+     "survival_rate": 0.8838273324050129
     },
     "untagged": {
-     "commits": 18,
-     "introduced": 1926,
-     "surviving": 1774,
-     "survival_rate": 0.9210799584631361
+     "commits": 21,
+     "introduced": 2245,
+     "surviving": 2077,
+     "survival_rate": 0.9251670378619153
     }
    },
    {
     "from_days": 30,
     "to_days": 90,
     "tagged": {
-     "commits": 41,
-     "introduced": 10157,
-     "surviving": 8073,
-     "survival_rate": 0.7948213055035935
+     "commits": 55,
+     "introduced": 15780,
+     "surviving": 13234,
+     "survival_rate": 0.8386565272496831
     },
     "untagged": {
      "commits": 17,
@@ -73,10 +73,10 @@
     "from_days": 90,
     "to_days": 180,
     "tagged": {
-     "commits": 118,
-     "introduced": 28906,
-     "surviving": 23026,
-     "survival_rate": 0.7965820244931848
+     "commits": 114,
+     "introduced": 27895,
+     "surviving": 22572,
+     "survival_rate": 0.8091772719125291
     },
     "untagged": {
      "commits": 19,
@@ -89,10 +89,10 @@
     "from_days": 180,
     "to_days": 365,
     "tagged": {
-     "commits": 87,
-     "introduced": 27346,
-     "surviving": 19452,
-     "survival_rate": 0.7113288963650991
+     "commits": 92,
+     "introduced": 28431,
+     "surviving": 19936,
+     "survival_rate": 0.7012064296014914
     },
     "untagged": {
      "commits": 26,
@@ -135,15 +135,15 @@
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.7983169583794217,
-   "untagged_rate": 0.7480844733797926,
-   "gap": 0.05023248499962918,
+   "tagged_rate": 0.7972108356648665,
+   "untagged_rate": 0.752678291412816,
+   "gap": 0.044532544252050554,
    "buckets_used": 4,
    "tagged_lines_covered": 1.0
   },
   "oldest_surviving": {
    "date": "2025-11-24",
-   "age_days": 321,
+   "age_days": 327,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -152,7 +152,7 @@
   }
  },
  "probable_commits": 0,
- "total_commits": 401,
+ "total_commits": 404,
  "aggregated": true,
  "coverage": {
   "method": "v4",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 3,
+ "reports": 4,
  "reproduce": "re audit OpenHands/extensions --json",
- "bytes": "https://causari.dev/reports/survival/2026/05/repos/OpenHands__extensions.json",
+ "bytes": "https://causari.dev/reports/survival/2026/06/repos/OpenHands__extensions.json",
  "license": "CC-BY-4.0"
 }

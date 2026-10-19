@@ -5,10 +5,10 @@
  "url": "https://causari.dev/r/openai/codex/",
  "badge": "https://causari.dev/r/openai/codex/badge.svg",
  "report": {
-  "number": 5,
-  "id": "2026/05",
-  "date": "2026-10-12",
-  "url": "https://causari.dev/reports/survival/2026/05/"
+  "number": 6,
+  "id": "2026/06",
+  "date": "2026-10-19",
+  "url": "https://causari.dev/reports/survival/2026/06/"
  },
  "method": "v4",
  "tool": {
@@ -18,23 +18,23 @@
  "verified": {
   "commits": 364,
   "introduced": 183908,
-  "surviving": 108534,
-  "survival_rate": 0.5901537725384431,
-  "capped_survival_rate": 0.584001345506911,
-  "median_survival": 0.5799276684310601,
+  "surviving": 108340,
+  "survival_rate": 0.5890988972747243,
+  "capped_survival_rate": 0.5827880143036193,
+  "median_survival": 0.5802174656976176,
   "largest_commit_share": 0.06153620288405072
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 11758,
-   "introduced": 3798728,
-   "surviving": 2249399,
-   "survival_rate": 0.5921453181170118,
-   "median_survival": 0.625,
-   "capped_survival_rate": 0.6170087789283629,
-   "cap_lines": 1084,
-   "largest_commit_share": 0.035316558595403516
+   "commits": 11973,
+   "introduced": 3855572,
+   "surviving": 2293114,
+   "survival_rate": 0.5947532558074392,
+   "median_survival": 0.6302858844550328,
+   "capped_survival_rate": 0.6203192926279922,
+   "cap_lines": 1081,
+   "largest_commit_share": 0.03479587464583724
   },
   "by_age": [
    {
@@ -47,10 +47,10 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 1454,
-     "introduced": 497811,
-     "surviving": 403091,
-     "survival_rate": 0.8097269847391881
+     "commits": 1323,
+     "introduced": 408642,
+     "surviving": 336556,
+     "survival_rate": 0.8235962040123139
     }
    },
    {
@@ -63,42 +63,42 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 2489,
-     "introduced": 895131,
-     "surviving": 698223,
-     "survival_rate": 0.7800232591654183
+     "commits": 2605,
+     "introduced": 960482,
+     "surviving": 752417,
+     "survival_rate": 0.7833743891088016
     }
    },
    {
     "from_days": 90,
     "to_days": 180,
     "tagged": {
-     "commits": 157,
-     "introduced": 85505,
-     "surviving": 55112,
-     "survival_rate": 0.6445471025086252
+     "commits": 112,
+     "introduced": 56003,
+     "surviving": 35404,
+     "survival_rate": 0.6321804189061301
     },
     "untagged": {
-     "commits": 2646,
-     "introduced": 847741,
-     "surviving": 543419,
-     "survival_rate": 0.6410200757070851
+     "commits": 2625,
+     "introduced": 823341,
+     "surviving": 543504,
+     "survival_rate": 0.6601201689215039
     }
    },
    {
     "from_days": 180,
     "to_days": 365,
     "tagged": {
-     "commits": 203,
-     "introduced": 98151,
-     "surviving": 53373,
-     "survival_rate": 0.5437845768255035
+     "commits": 248,
+     "introduced": 127653,
+     "surviving": 72887,
+     "survival_rate": 0.5709775720116252
     },
     "untagged": {
-     "commits": 3612,
-     "introduced": 1261954,
-     "surviving": 550517,
-     "survival_rate": 0.43624173305841574
+     "commits": 3813,
+     "introduced": 1358298,
+     "surviving": 603283,
+     "survival_rate": 0.4441462771792346
     }
    },
    {
@@ -111,10 +111,10 @@
      "survival_rate": 0.19444444444444445
     },
     "untagged": {
-     "commits": 1557,
-     "introduced": 296091,
-     "surviving": 54149,
-     "survival_rate": 0.1828795876943237
+     "commits": 1607,
+     "introduced": 304809,
+     "surviving": 57354,
+     "survival_rate": 0.18816373532277592
     }
    },
    {
@@ -135,15 +135,15 @@
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.5906967373785773,
-   "untagged_rate": 0.5315806938774168,
-   "gap": 0.05911604350116051,
+   "tagged_rate": 0.5896404146883304,
+   "untagged_rate": 0.5100041084466167,
+   "gap": 0.0796363062417137,
    "buckets_used": 2,
    "tagged_lines_covered": 0.9986297496574374
   },
   "oldest_surviving": {
    "date": "2025-04-16",
-   "age_days": 543,
+   "age_days": 550,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -152,7 +152,7 @@
   }
  },
  "probable_commits": 0,
- "total_commits": 12122,
+ "total_commits": 12337,
  "aggregated": true,
  "coverage": {
   "method": "v4",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 5,
+ "reports": 6,
  "reproduce": "re audit openai/codex --json",
- "bytes": "https://causari.dev/reports/survival/2026/05/repos/openai__codex.json",
+ "bytes": "https://causari.dev/reports/survival/2026/06/repos/openai__codex.json",
  "license": "CC-BY-4.0"
 }

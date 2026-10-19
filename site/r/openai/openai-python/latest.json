@@ -5,10 +5,10 @@
  "url": "https://causari.dev/r/openai/openai-python/",
  "badge": "https://causari.dev/r/openai/openai-python/badge.svg",
  "report": {
-  "number": 5,
-  "id": "2026/05",
-  "date": "2026-10-12",
-  "url": "https://causari.dev/reports/survival/2026/05/"
+  "number": 6,
+  "id": "2026/06",
+  "date": "2026-10-19",
+  "url": "https://causari.dev/reports/survival/2026/06/"
  },
  "method": "v4",
  "tool": {
@@ -18,55 +18,55 @@
  "verified": {
   "commits": 3,
   "introduced": 63,
-  "surviving": 61,
-  "survival_rate": 0.9682539682539683,
-  "capped_survival_rate": 0.9682539682539683,
+  "surviving": 62,
+  "survival_rate": 0.9841269841269841,
+  "capped_survival_rate": 0.9841269841269841,
   "median_survival": 1.0,
   "largest_commit_share": 0.8095238095238095
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 1715,
-   "introduced": 611709,
-   "surviving": 422844,
-   "survival_rate": 0.6912502513450023,
+   "commits": 1746,
+   "introduced": 668327,
+   "surviving": 475414,
+   "survival_rate": 0.7113493843582558,
    "median_survival": 0.7272727272727273,
-   "capped_survival_rate": 0.6891410651817123,
-   "cap_lines": 1029,
-   "largest_commit_share": 0.126874052858467
+   "capped_survival_rate": 0.6945515511631376,
+   "cap_lines": 1193,
+   "largest_commit_share": 0.11612578872318491
   },
   "by_age": [
    {
     "from_days": 0,
     "to_days": 30,
     "tagged": {
-     "commits": 2,
-     "introduced": 12,
-     "surviving": 12,
+     "commits": 1,
+     "introduced": 10,
+     "surviving": 10,
      "survival_rate": 1.0
     },
     "untagged": {
-     "commits": 173,
-     "introduced": 57989,
-     "surviving": 42225,
-     "survival_rate": 0.7281553398058253
+     "commits": 155,
+     "introduced": 101296,
+     "surviving": 82545,
+     "survival_rate": 0.8148890380666561
     }
    },
    {
     "from_days": 30,
     "to_days": 90,
     "tagged": {
-     "commits": 1,
-     "introduced": 51,
-     "surviving": 49,
-     "survival_rate": 0.9607843137254902
+     "commits": 2,
+     "introduced": 53,
+     "surviving": 52,
+     "survival_rate": 0.9811320754716981
     },
     "untagged": {
-     "commits": 147,
-     "introduced": 224984,
-     "surviving": 176777,
-     "survival_rate": 0.7857314297905629
+     "commits": 193,
+     "introduced": 236741,
+     "surviving": 187734,
+     "survival_rate": 0.7929931866470109
     }
    },
    {
@@ -79,10 +79,10 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 106,
-     "introduced": 79932,
-     "surviving": 59709,
-     "survival_rate": 0.746997447830656
+     "commits": 108,
+     "introduced": 79598,
+     "surviving": 59051,
+     "survival_rate": 0.7418653735018468
     }
    },
    {
@@ -95,10 +95,10 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 159,
-     "introduced": 23321,
-     "surviving": 17571,
-     "survival_rate": 0.7534411045838515
+     "commits": 153,
+     "introduced": 24686,
+     "surviving": 19025,
+     "survival_rate": 0.7706797375030382
     }
    },
    {
@@ -111,10 +111,10 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 469,
-     "introduced": 89307,
-     "surviving": 66697,
-     "survival_rate": 0.7468283561199011
+     "commits": 474,
+     "introduced": 89431,
+     "surviving": 66836,
+     "survival_rate": 0.7473471167715893
     }
    },
    {
@@ -127,17 +127,17 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 661,
-     "introduced": 136176,
-     "surviving": 59865,
-     "survival_rate": 0.43961491011632003
+     "commits": 663,
+     "introduced": 136575,
+     "surviving": 60223,
+     "survival_rate": 0.4409518579535054
     }
    }
   ],
   "age_matched": null,
   "oldest_surviving": {
    "date": "2020-10-25",
-   "age_days": 2177,
+   "age_days": 2184,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -146,7 +146,7 @@
   }
  },
  "probable_commits": 0,
- "total_commits": 1718,
+ "total_commits": 1749,
  "aggregated": false,
  "coverage": {
   "method": "v4",
@@ -160,8 +160,8 @@
   "sample_floor": 5,
   "small_sample": true
  },
- "reports": 4,
+ "reports": 5,
  "reproduce": "re audit openai/openai-python --json",
- "bytes": "https://causari.dev/reports/survival/2026/05/repos/openai__openai-python.json",
+ "bytes": "https://causari.dev/reports/survival/2026/06/repos/openai__openai-python.json",
  "license": "CC-BY-4.0"
 }

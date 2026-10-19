@@ -5,10 +5,10 @@
  "url": "https://causari.dev/r/nvidia-nemo/switchyard/",
  "badge": "https://causari.dev/r/nvidia-nemo/switchyard/badge.svg",
  "report": {
-  "number": 5,
-  "id": "2026/05",
-  "date": "2026-10-12",
-  "url": "https://causari.dev/reports/survival/2026/05/"
+  "number": 6,
+  "id": "2026/06",
+  "date": "2026-10-19",
+  "url": "https://causari.dev/reports/survival/2026/06/"
  },
  "method": "v4",
  "tool": {
@@ -16,57 +16,57 @@
   "version": "0.4.1"
  },
  "verified": {
-  "commits": 26,
-  "introduced": 15177,
-  "surviving": 10057,
-  "survival_rate": 0.6626474270277394,
-  "capped_survival_rate": 0.6695337868586122,
-  "median_survival": 0.7711111111111111,
-  "largest_commit_share": 0.20801212360809118
+  "commits": 27,
+  "introduced": 15667,
+  "surviving": 10426,
+  "survival_rate": 0.6654752026552626,
+  "capped_survival_rate": 0.67205780534391,
+  "median_survival": 0.7555555555555555,
+  "largest_commit_share": 0.20150635092870364
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 515,
-   "introduced": 347978,
-   "surviving": 178816,
-   "survival_rate": 0.5138715665932904,
-   "median_survival": 0.8,
-   "capped_survival_rate": 0.6161618593057457,
-   "cap_lines": 1080,
-   "largest_commit_share": 0.39905971067136425
+   "commits": 556,
+   "introduced": 358975,
+   "surviving": 187842,
+   "survival_rate": 0.5232732084406992,
+   "median_survival": 0.8132530120481928,
+   "capped_survival_rate": 0.6325379084801909,
+   "cap_lines": 1087,
+   "largest_commit_share": 0.38683473779511107
   },
   "by_age": [
    {
     "from_days": 0,
     "to_days": 30,
     "tagged": {
-     "commits": 7,
-     "introduced": 1190,
-     "surviving": 996,
-     "survival_rate": 0.8369747899159664
+     "commits": 6,
+     "introduced": 1497,
+     "surviving": 1334,
+     "survival_rate": 0.8911155644622578
     },
     "untagged": {
-     "commits": 162,
-     "introduced": 29834,
-     "surviving": 26529,
-     "survival_rate": 0.8892203526178186
+     "commits": 164,
+     "introduced": 33073,
+     "surviving": 29067,
+     "survival_rate": 0.8788740059867566
     }
    },
    {
     "from_days": 30,
     "to_days": 90,
     "tagged": {
-     "commits": 19,
-     "introduced": 13987,
-     "surviving": 9061,
-     "survival_rate": 0.6478158289840567
+     "commits": 21,
+     "introduced": 14170,
+     "surviving": 9092,
+     "survival_rate": 0.6416372618207481
     },
     "untagged": {
-     "commits": 334,
-     "introduced": 170830,
-     "surviving": 125546,
-     "survival_rate": 0.7349177544927706
+     "commits": 355,
+     "introduced": 167267,
+     "surviving": 129860,
+     "survival_rate": 0.7763635385341998
     }
    },
    {
@@ -79,10 +79,10 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 19,
-     "introduced": 147314,
-     "surviving": 26741,
-     "survival_rate": 0.18152381986776545
+     "commits": 37,
+     "introduced": 158635,
+     "surviving": 28915,
+     "survival_rate": 0.18227377312698964
     }
    },
    {
@@ -135,15 +135,15 @@
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.6626474270277394,
-   "untagged_rate": 0.7470163307442569,
-   "gap": -0.08436890371651751,
+   "tagged_rate": 0.6654752026552626,
+   "untagged_rate": 0.786158532456232,
+   "gap": -0.12068332980096941,
    "buckets_used": 2,
    "tagged_lines_covered": 1.0
   },
   "oldest_surviving": {
    "date": "2026-06-30",
-   "age_days": 104,
+   "age_days": 108,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -152,7 +152,7 @@
   }
  },
  "probable_commits": 0,
- "total_commits": 541,
+ "total_commits": 583,
  "aggregated": true,
  "coverage": {
   "method": "v4",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 3,
+ "reports": 4,
  "reproduce": "re audit NVIDIA-NeMo/Switchyard --json",
- "bytes": "https://causari.dev/reports/survival/2026/05/repos/NVIDIA-NeMo__Switchyard.json",
+ "bytes": "https://causari.dev/reports/survival/2026/06/repos/NVIDIA-NeMo__Switchyard.json",
  "license": "CC-BY-4.0"
 }

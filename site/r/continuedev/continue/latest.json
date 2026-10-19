@@ -5,10 +5,10 @@
  "url": "https://causari.dev/r/continuedev/continue/",
  "badge": "https://causari.dev/r/continuedev/continue/badge.svg",
  "report": {
-  "number": 5,
-  "id": "2026/05",
-  "date": "2026-10-12",
-  "url": "https://causari.dev/reports/survival/2026/05/"
+  "number": 6,
+  "id": "2026/06",
+  "date": "2026-10-19",
+  "url": "https://causari.dev/reports/survival/2026/06/"
  },
  "method": "v4",
  "tool": {
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 5,
+ "reports": 6,
  "reproduce": "re audit continuedev/continue --json",
- "bytes": "https://causari.dev/reports/survival/2026/05/repos/continuedev__continue.json",
+ "bytes": "https://causari.dev/reports/survival/2026/06/repos/continuedev__continue.json",
  "license": "CC-BY-4.0"
 }

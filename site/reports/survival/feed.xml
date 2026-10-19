@@ -5,10 +5,20 @@
   <link rel="self" type="application/atom+xml" href="https://causari.dev/reports/survival/feed.xml"/>
   <link rel="alternate" type="text/html" href="https://causari.dev/reports/survival/"/>
   <id>https://causari.dev/reports/survival/</id>
-  <updated>2026-10-12T13:11:26Z</updated>
+  <updated>2026-10-19T10:47:21Z</updated>
   <author><name>Crovia Trust</name><uri>https://croviatrust.com</uri></author>
   <rights>CC-BY-4.0 Crovia Trust</rights>
   <icon>https://causari.dev/assets/favicon.svg</icon>
+  <entry>
+    <title>Survival Report #6 · 2026-10-19</title>
+    <link rel="alternate" type="text/html" href="https://causari.dev/reports/survival/2026/06/"/>
+    <link rel="enclosure" type="image/png" href="https://causari.dev/reports/survival/2026/06/card.png"/>
+    <link rel="related" type="application/json" href="https://causari.dev/reports/survival/2026/06/report.json"/>
+    <id>https://causari.dev/reports/survival/2026/06/</id>
+    <published>2026-10-19T00:00:00Z</published>
+    <updated>2026-10-19T10:47:21Z</updated>
+    <summary>20,346,193 of 36,935,340 lines introduced by 76,205 AI-tagged commits in 59 open-source repositories are still at HEAD (55.1 %). 95 % interval over the sampled repositories: 40.4 % to 75.2 %. Counts, not grades. CC-BY-4.0.</summary>
+  </entry>
   <entry>
     <title>Survival Report #5 · 2026-10-12</title>
     <link rel="alternate" type="text/html" href="https://causari.dev/reports/survival/2026/05/"/>

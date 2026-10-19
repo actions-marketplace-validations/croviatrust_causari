@@ -5,10 +5,10 @@
  "url": "https://causari.dev/r/danny-avila/librechat/",
  "badge": "https://causari.dev/r/danny-avila/librechat/badge.svg",
  "report": {
-  "number": 5,
-  "id": "2026/05",
-  "date": "2026-10-12",
-  "url": "https://causari.dev/reports/survival/2026/05/"
+  "number": 6,
+  "id": "2026/06",
+  "date": "2026-10-19",
+  "url": "https://causari.dev/reports/survival/2026/06/"
  },
  "method": "v4",
  "tool": {
@@ -18,87 +18,87 @@
  "verified": {
   "commits": 90,
   "introduced": 84535,
-  "surviving": 78512,
-  "survival_rate": 0.9287514047435973,
-  "capped_survival_rate": 0.9010567950398882,
+  "surviving": 78320,
+  "survival_rate": 0.9264801561483409,
+  "capped_survival_rate": 0.8979477746702115,
   "median_survival": 0.8628237066218643,
   "largest_commit_share": 0.24372153545868575
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 5924,
-   "introduced": 2585392,
-   "surviving": 1814152,
-   "survival_rate": 0.7016932055177706,
-   "median_survival": 0.5575346784363178,
-   "capped_survival_rate": 0.7358718434951258,
-   "cap_lines": 1707,
-   "largest_commit_share": 0.06133305897132814
+   "commits": 6117,
+   "introduced": 2698492,
+   "surviving": 1877305,
+   "survival_rate": 0.6956867020543326,
+   "median_survival": 0.5576923076923077,
+   "capped_survival_rate": 0.7299361601811813,
+   "cap_lines": 1738,
+   "largest_commit_share": 0.05876244954589452
   },
   "by_age": [
    {
     "from_days": 0,
     "to_days": 30,
     "tagged": {
-     "commits": 10,
-     "introduced": 5405,
-     "surviving": 4855,
-     "survival_rate": 0.8982423681776133
+     "commits": 3,
+     "introduced": 129,
+     "surviving": 91,
+     "survival_rate": 0.7054263565891473
     },
     "untagged": {
-     "commits": 692,
-     "introduced": 614840,
-     "surviving": 547506,
-     "survival_rate": 0.8904853295166222
+     "commits": 676,
+     "introduced": 544724,
+     "surviving": 471999,
+     "survival_rate": 0.8664920216476601
     }
    },
    {
     "from_days": 30,
     "to_days": 90,
     "tagged": {
-     "commits": 39,
-     "introduced": 64086,
-     "surviving": 60808,
-     "survival_rate": 0.9488499828355648
+     "commits": 43,
+     "introduced": 68588,
+     "surviving": 64878,
+     "survival_rate": 0.9459089053478743
     },
     "untagged": {
-     "commits": 710,
-     "introduced": 607242,
-     "surviving": 536345,
-     "survival_rate": 0.883247535578896
+     "commits": 867,
+     "introduced": 759233,
+     "surviving": 667077,
+     "survival_rate": 0.8786196068927457
     }
    },
    {
     "from_days": 90,
     "to_days": 180,
     "tagged": {
-     "commits": 14,
-     "introduced": 7731,
-     "surviving": 7360,
-     "survival_rate": 0.9520113827447937
+     "commits": 16,
+     "introduced": 8502,
+     "surviving": 7899,
+     "survival_rate": 0.929075511644319
     },
     "untagged": {
-     "commits": 662,
-     "introduced": 297389,
-     "surviving": 253611,
-     "survival_rate": 0.8527921342080574
+     "commits": 671,
+     "introduced": 319562,
+     "surviving": 273116,
+     "survival_rate": 0.8546573121960683
     }
    },
    {
     "from_days": 180,
     "to_days": 365,
     "tagged": {
-     "commits": 18,
-     "introduced": 5844,
+     "commits": 19,
+     "introduced": 5847,
      "surviving": 5032,
-     "survival_rate": 0.8610540725530459
+     "survival_rate": 0.8606122798016077
     },
     "untagged": {
-     "commits": 764,
-     "introduced": 262428,
-     "surviving": 205548,
-     "survival_rate": 0.7832548356120536
+     "commits": 783,
+     "introduced": 267702,
+     "surviving": 204212,
+     "survival_rate": 0.7628332997138609
     }
    },
    {
@@ -107,14 +107,14 @@
     "tagged": {
      "commits": 9,
      "introduced": 1469,
-     "surviving": 457,
-     "survival_rate": 0.31109598366235536
+     "surviving": 420,
+     "survival_rate": 0.2859087814840027
     },
     "untagged": {
-     "commits": 1024,
-     "introduced": 270102,
-     "surviving": 174119,
-     "survival_rate": 0.6446416538937142
+     "commits": 1037,
+     "introduced": 273360,
+     "surviving": 172648,
+     "survival_rate": 0.6315774070822359
     }
    },
    {
@@ -127,23 +127,23 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 2072,
-     "introduced": 533391,
-     "surviving": 97023,
-     "survival_rate": 0.18189845722931208
+     "commits": 2083,
+     "introduced": 533911,
+     "surviving": 88253,
+     "survival_rate": 0.16529533948541986
     }
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.9287514047435973,
-   "untagged_rate": 0.8698660981794012,
-   "gap": 0.058885306564196105,
-   "buckets_used": 5,
-   "tagged_lines_covered": 1.0
+   "tagged_rate": 0.9268179987204701,
+   "untagged_rate": 0.8638856429671036,
+   "gap": 0.06293235575336653,
+   "buckets_used": 4,
+   "tagged_lines_covered": 0.9984740048500621
   },
   "oldest_surviving": {
    "date": "2022-10-20",
-   "age_days": 1446,
+   "age_days": 1457,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -152,7 +152,7 @@
   }
  },
  "probable_commits": 2,
- "total_commits": 6016,
+ "total_commits": 6209,
  "aggregated": true,
  "coverage": {
   "method": "v4",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 4,
+ "reports": 5,
  "reproduce": "re audit danny-avila/LibreChat --json",
- "bytes": "https://causari.dev/reports/survival/2026/05/repos/danny-avila__LibreChat.json",
+ "bytes": "https://causari.dev/reports/survival/2026/06/repos/danny-avila__LibreChat.json",
  "license": "CC-BY-4.0"
 }
