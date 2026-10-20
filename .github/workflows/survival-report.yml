@@ -416,6 +416,24 @@ jobs:
             echo "PUSH_FAILED=1" >> "$GITHUB_ENV"
           fi
 
+      # The same bytes, as a dataset: three JSONL tables plus the raw report
+      # tree, under CroviaResearch/causari-survival. Built from the report tree
+      # that was just pushed (with its DOI when Zenodo wrote one back).
+      - name: publish the dataset on Hugging Face
+        if: ${{ (github.event_name == 'schedule' || inputs.deposit || inputs.deposit_only) && env.PUSH_FAILED != '1' }}
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/survival_dataset.py build /tmp/hf-dataset
+          if [ -z "${HF_TOKEN:-}" ]; then
+            echo "::notice title=Hugging Face publish skipped::HF_TOKEN is not set. Add it under Settings → Secrets (write token for the CroviaResearch org) to publish the dataset each week."
+            python3 scripts/survival_dataset.py push --dry-run /tmp/hf-dataset
+            exit 0
+          fi
+          python3 -m pip install --quiet "huggingface_hub>=0.25"
+          python3 scripts/survival_dataset.py push /tmp/hf-dataset
+
       # Whatever happened to the pushes, the bytes are not lost.
       - name: upload the report tree
         if: ${{ always() }}

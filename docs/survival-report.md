@@ -191,6 +191,13 @@ Mondays 05:17 UTC or on demand:
    and applied by hand. The `push-check` workflow (manual) proves the secret
    works without touching `main`: token identity, admin permission,
    `enforce_admins` off, one push to a throwaway branch, deleted.
+7. `python3 scripts/survival_dataset.py build /tmp/hf-dataset`, then, if
+   `HF_TOKEN` is set, `python3 scripts/survival_dataset.py push /tmp/hf-dataset`:
+   the whole report tree as a dataset at
+   `huggingface.co/datasets/CroviaResearch/causari-survival` (three JSONL
+   tables derived from the reports, the raw bytes unchanged under `raw/`, the
+   card rendered from `docs/survival-dataset.md`). Without the token the step
+   builds and prints a dry run.
 6. If `ZENODO_TOKEN` is set: `python3 scripts/zenodo_deposit.py <report dir>`
    publishes the record, writes the DOI into `report.json`, re-renders the page
    and the archive, and commits again. Without the secret the step prints a

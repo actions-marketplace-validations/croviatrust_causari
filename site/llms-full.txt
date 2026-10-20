@@ -133,6 +133,7 @@ Offline single-axis comparison of two audit JSON receipts or `.seal.json` bundle
 - Offline Seal Verifier: https://causari.dev/verify/
 - Weekly Survival Report Archive: https://causari.dev/reports/survival/
 - Latest Report JSON: https://causari.dev/reports/survival/latest.json
+- Survival Report as a dataset (Hugging Face, JSONL + raw report bytes, CC-BY-4.0): https://huggingface.co/datasets/CroviaResearch/causari-survival
 - Atom Feed: https://causari.dev/reports/survival/feed.xml
 - Measured Repositories Index: https://causari.dev/r/
 - FAQ (Schema.org FAQPage): https://causari.dev/faq

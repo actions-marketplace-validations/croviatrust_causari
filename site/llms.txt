@@ -115,8 +115,10 @@ then `coverage.shallow` is true.
 
 Machine-readable outputs: `re audit --json`, `re audit --summary`,
 `audit.seal.json` (`causari.audit-seal.v1`), `re audit --diff` (`causari.audit_diff.v1`),
-https://causari.dev/reports/survival/latest.json, and
-`latest.json` beside each https://causari.dev/r/<owner>/<repo>/ page.
+https://causari.dev/reports/survival/latest.json,
+`latest.json` beside each https://causari.dev/r/<owner>/<repo>/ page, and the
+same reports as a dataset (JSONL tables plus the raw report bytes, CC-BY-4.0):
+https://huggingface.co/datasets/CroviaResearch/causari-survival .
 Event schema is `causari.event.v0.2`. Audit method and the detection table
 are https://causari.dev/method. Full machine-readable specification:
 https://causari.dev/llms-full.txt ; agent discovery card:

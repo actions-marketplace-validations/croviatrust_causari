@@ -66,6 +66,7 @@
     "facts": "https://causari.dev/facts",
     "compare": "https://causari.dev/compare",
     "survival_report_latest_json": "https://causari.dev/reports/survival/latest.json",
+    "survival_report_dataset": "https://huggingface.co/datasets/CroviaResearch/causari-survival",
     "survival_report_atom_feed": "https://causari.dev/reports/survival/feed.xml"
   }
 }

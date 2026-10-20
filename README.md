@@ -109,14 +109,12 @@ Everyone argues about how much code AI writes. Nobody can check the numbers.
 `re audit` reads plain git history — `Co-Authored-By` trailers, bot authors,
 agent markers — finds the commits whose metadata matched, and asks `git blame`
 how many of their lines are still at HEAD. Metadata matched is not proof a
-model wrote the line. No model, no estimate, no survey. `--json` stores the counts, `repository.head`, hgs.h 
-.T
-stred
-It does not store `refs/notes/ai`. That ref is not part of the commit, and
-changing it can change the counts while the stored SHA stays the same. A
+model wrote the line. No model, no estimate, no survey. `--json` stores the counts, `repository.head`, `repository.root_commits`, the method, the blame and numstat flags (`coverage.blame_flags`, `coverage.numstat_flags`), `coverage.ignore_revs_sha256` and `coverage.notes_oid` (the target OID of `refs/notes/ai` when present). It does not store the note payloads of `refs/notes/ai`: that ref is not part of the commit object, and changing it changes `coverage.notes_oid` and can change the counts while the commit SHA stays the same. A
 repository that has moved has a different commit.
 
+- `--json` the exact bytes behind any published row (the published rows themselves: [causari.dev/reports/survival](https://causari.dev/reports/survival/), also as a dataset at [CroviaResearch/causari-survival](https://huggingface.co/datasets/CroviaResearch/causari-survival))
 - `--summary` Markdown for CI; `--badge` / `--card` one-colour SVGs
+- `--diff <before> <after>` compare two audit JSONs or `.seal.json` bundles along one axis (`repository_diff`, `method_diff`, `indeterminate_method_diff`, `metadata_diff`, or `identical_inputs`), refusing multi-axis diffs and unrelated repositories
 - `--save` append a snapshot to track your own trend
 
 **Compared with what**: since method v3 every audit puts the repository's

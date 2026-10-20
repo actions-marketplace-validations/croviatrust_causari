@@ -95,6 +95,7 @@
       "site/.well-known/agent.json",
       "site/README.md",
       "docs/survival-report.md",
+      "docs/survival-dataset.md",
       "site/verify/index.html",
       "packaging/README.md",
       "packaging/npm/README.md",

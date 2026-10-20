@@ -69,7 +69,11 @@
         "name": "Causari Survival Report",
         "description": "Weekly, numbered, citable: for each measured open-source repository, commits carrying machine-readable AI authorship metadata, lines they introduced, and lines git blame still attributes to them at HEAD. Counts and intervals; unranked; method public.",
         "url": "https://causari.dev/reports/survival/",
-        "distribution": { "@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": "https://causari.dev/reports/survival/latest.json" },
+        "sameAs": ["https://huggingface.co/datasets/CroviaResearch/causari-survival"],
+        "distribution": [
+          { "@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": "https://causari.dev/reports/survival/latest.json" },
+          { "@type": "DataDownload", "encodingFormat": "application/jsonl", "contentUrl": "https://huggingface.co/datasets/CroviaResearch/causari-survival/resolve/main/data/repositories.jsonl" }
+        ],
         "license": "https://creativecommons.org/licenses/by/4.0/",
         "creator": { "@id": "https://croviatrust.com/#org" }
       },
