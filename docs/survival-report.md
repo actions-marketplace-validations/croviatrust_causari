@@ -278,3 +278,70 @@ full clones of ten repositories from the measured list. The retired
 `survival-data.json` of 2026-08-25 was method v1 (blame without `-w -M -C`,
 no cap, no coverage block) and was therefore not relabelled as Report #1;
 `survival_report.py from-existing` refuses such data by design.
+
+## Method v5: Exact Measurement Inputs and Structural Limits
+
+A Method v5 receipt (`re audit --json` / `re audit --seal`) is determined by
+the following inputs, all recorded in `repository` and `coverage`:
+
+| Input | Field in receipt | How Method v5 reads it |
+|---|---|---|
+| Commit graph and tree at `HEAD` | `repository.head`, `repository.root_commits` | `git --no-replace-objects` on every invocation; `.git/refs/replace/*` is ignored so local replacement refs cannot alter history or blame without changing `HEAD`. |
+| Method version | `method`, `coverage.method` | `"v5"` |
+| Blame flags & `HEAD` tree enumeration | `coverage.blame_flags` | `["-w", "-M", "-C"]` over regular-file blobs (`100644`/`100755`) enumerated directly from `git ls-tree -r -z HEAD` with `core.quotepath=false` (never from `.git/index`, so staged `git rm --cached` and `--bare` clones match `HEAD`). On Unix, raw non-UTF-8 path bytes are passed via `OsStrExt::from_bytes`; on Windows, non-UTF-8 paths in `HEAD` are refused with an explicit error rather than replaced with `U+FFFD` (which would falsify survival to `0%`). Any `git blame` failure on a `HEAD` blob is propagated as an error, never counted as `0` surviving lines. |
+| Numstat flags | `coverage.numstat_flags` | `["-M", "-z"]` on `git log --no-merges --numstat -M -z` so pure file renames do not count existing lines as newly introduced on the rename commit, and NUL-delimited paths preserve literal `" => "` or non-ASCII filenames without heuristic splitting. |
+| Committed blame ignore list | `coverage.ignore_revs_file`, `coverage.ignore_revs_sha256` | Read exclusively from `HEAD:.git-blame-ignore-revs` (`git cat-file -p`); untracked or dirty worktree copies are ignored. Every listed SHA must resolve to a commit in the repository. Bound in `crovia.seal.v1` `generator.params`. |
+| External `git-ai` notes ref | `coverage.notes_oid` | `git rev-parse --verify --quiet refs/notes/ai` (40-hex OID or `null`). Bound in `crovia.seal.v1` `generator.params` because `refs/notes/ai` lives outside the commit object. |
+| Shallow boundary | `coverage.shallow` | Refused by default (exit 2); allowed only with `--allow-shallow`. |
+
+### Structural limits that Method v5 states and does not claim to solve
+
+1. **Formal definition of `surviving`, copy detection (`-C`), and `copy_capped_lines`**:
+   - For each non-merge commit $c$, `introduced` is the number of added lines in
+     non-generated tracked paths from `git log --no-merges --numstat -M`, and
+     `owned_at_head` is the number of lines at `HEAD` in non-generated tracked
+     paths attributed to $c$ by `git blame --line-porcelain -w -M -C`.
+   - `surviving` is defined as $\text{surviving}(c) = \min(\text{owned\_at\_head}(c),\; \text{introduced}(c))$.
+   - `coverage.copy_capped_lines` is defined as $\sum_{c \in \text{VERIFIED}} \max(0,\; \text{owned\_at\_head}(c) - \text{introduced}(c))$.
+   - **Critical interpretation rule**: `copy_capped_lines == 0` means **only**
+     that no `VERIFIED` commit exceeded its `introduced` count at `HEAD`. It must
+     **never** be interpreted as absence of copied or duplicated lines: when
+     `owned_at_head <= introduced`, lines copied into a second file modified in
+     the same commit (`-C`) can compensate for deleted lines of the same commit.
+     `surviving` is therefore a **per-commit capped attribution count at `HEAD`**,
+     not a count of distinct original lines retained.
+2. **Committer timestamps in `baseline.by_age`**: age buckets (`0-30 d`, `30-90 d`, …)
+   measure `HEAD.committed_at - commit.committed_at`. A history rewrite (`git rebase`,
+   `git filter-repo`) that resets committer dates changes `HEAD` and shifts age
+   buckets even when tree contents are unchanged.
+3. **Evidence Diff (`re audit --diff <BEFORE> <AFTER>`)**: separates
+   `repository_diff` (different `HEAD`, same method and flags, non-empty
+   `shared_root_commits`), `method_diff` (same `HEAD`, different method or flags),
+   and `metadata_diff` (same `HEAD` and method, different `notes_oid` or
+   `ignore_revs_sha256`).
+   - **Offline commit-set relation (`commit_set_relation`)**: because `--diff`
+     operates offline on two receipts without querying a Git repository, it
+     reports `commit_set_relation` (`same_head`, `subset_forward`,
+     `subset_reverse`, `same_commit_set`, `diverged`, `unknown`) computed over
+     the serialized `--no-merges` commit sets $B$ and $A$. It does **not** claim
+     to prove Git DAG ancestry (`git merge-base --is-ancestor`).
+   - **Provenance tripartition (`provenance`)**: distinguishes (a) cryptographic
+     validity (`before_signature_valid`, `after_signature_valid`), (b) issuer key
+     concordance (`status`: `unsealed`, `partially_sealed`, `sealed_same_issuer`,
+     `sealed_different_issuers`, plus `before_pubkey_hex` / `after_pubkey_hex`),
+     and (c) issuer trust (`issuer_trust: "unverified_offline"` — a valid
+     Ed25519 signature proves the holder of `pubkey_hex` signed those bytes, not
+     that the issuer is trusted without an external trust root). Commit lists in
+     a diff are set differences ($B \setminus A$ and $A \setminus B$), not a
+     causal attribution.
+   - **Single-axis rule and missing-field semantics (`metadata_status`)**:
+     `metadata_status` is `"unchanged"` only when both receipts explicitly
+     record `coverage.notes_oid` and `coverage.ignore_revs_sha256` (or both
+     record `ignore_revs_file == false`) and the values are identical;
+     `"changed"` when any recorded metadata field differs; and `"indeterminate"`
+     when a field is absent on at least one side (such as an authentic Method v4
+     receipt, which did not record `coverage.notes_oid`). A missing field is
+     **never** treated as proof that external metadata stayed unchanged. When
+     `HEAD` is identical, method/flags differ, and
+     `metadata_status == "indeterminate"`, `kind` is reported as
+     `"indeterminate_method_diff"` rather than a pure `"method_diff"`.

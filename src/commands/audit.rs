@@ -11,8 +11,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::audit::{
-    AgeBucket, AuditOptions, Baseline, CAP_CEILING_LINES, IGNORE_REVS_FILE, METHOD_VERSION,
-    ShallowCloneRefused, SurvivalReport, SurvivalStat, audit_repo,
+    AgeBucket, AuditOptions, Baseline, CAP_CEILING_LINES, CommitRow, EvidenceClass,
+    IGNORE_REVS_FILE, METHOD_VERSION, ShallowCloneRefused, SurvivalReport, SurvivalStat,
+    audit_repo,
 };
 use crate::audit_seal::{self, AuditBinding};
 use crate::cli::AuditArgs;
@@ -119,10 +120,16 @@ fn resolve_target(target: Option<&str>) -> Result<(PathBuf, Option<TempClone>)> 
 fn report_json(dir: &Path, report: &SurvivalReport) -> Result<serde_json::Value> {
     let mut value = serde_json::to_value(report)?;
     value["method"] = serde_json::json!(METHOD_VERSION);
-    value["repository"] = serde_json::json!({
+    let roots = crate::audit::root_commits(dir)?;
+    let mut repo_obj = serde_json::json!({
         "head": crate::audit::head_commit(dir)?,
         "origin": audit_seal::repo_label(dir),
+        "root_commits": roots,
     });
+    if let Some(root) = roots.first() {
+        repo_obj["root_commit"] = serde_json::json!(root);
+    }
+    value["repository"] = repo_obj;
     Ok(value)
 }
 
@@ -177,6 +184,20 @@ fn seal_audit(
         allow_shallow: args.allow_shallow,
         shallow: report.coverage.shallow,
         repo: audit_seal::repo_label(dir),
+        notes_oid: Some(
+            report
+                .coverage
+                .notes_oid
+                .clone()
+                .unwrap_or_else(|| "none".to_string()),
+        ),
+        ignore_revs_sha256: Some(
+            report
+                .coverage
+                .ignore_revs_sha256
+                .clone()
+                .unwrap_or_else(|| "none".to_string()),
+        ),
     };
     let repo = issuer_repo(dir, is_temp_clone)?;
     let mut issuer = SealIssuer::load_or_create(&repo, None)?;
@@ -192,6 +213,10 @@ fn seal_audit(
 }
 
 pub fn run(args: AuditArgs) -> Result<()> {
+    if args.diff.len() == 2 {
+        return run_diff(&args.diff[0], &args.diff[1], args.json, args.summary);
+    }
+
     let (dir, tmp_clone) = resolve_target(args.target.as_deref())?;
     let opts = AuditOptions {
         allow_shallow: args.allow_shallow,
@@ -348,6 +373,503 @@ pub fn run(args: AuditArgs) -> Result<()> {
         );
     }
 
+    Ok(())
+}
+
+struct LoadedReceipt {
+    audit: serde_json::Value,
+    sealed: bool,
+    seal_id: Option<String>,
+    issuer_id: Option<String>,
+    pubkey_hex: Option<String>,
+}
+
+/// Load a receipt from a plain `re audit --json` file or from a signed
+/// `re audit --seal` bundle (which is verified first).
+fn load_receipt(path: &Path) -> Result<LoadedReceipt> {
+    let raw = std::fs::read_to_string(path)
+        .with_context(|| format!("cannot read receipt {}", path.display()))?;
+    let val: serde_json::Value = serde_json::from_str(&raw)
+        .with_context(|| format!("{} is not valid JSON", path.display()))?;
+    if audit_seal::is_bundle(&val) {
+        let verified = audit_seal::verify_bundle(&val)
+            .with_context(|| format!("invalid audit seal bundle {}", path.display()))?;
+        Ok(LoadedReceipt {
+            audit: verified.audit,
+            sealed: true,
+            seal_id: Some(verified.seal_id),
+            issuer_id: Some(verified.issuer_id),
+            pubkey_hex: Some(verified.pubkey_hex),
+        })
+    } else {
+        Ok(LoadedReceipt {
+            audit: val,
+            sealed: false,
+            seal_id: None,
+            issuer_id: None,
+            pubkey_hex: None,
+        })
+    }
+}
+
+fn extract_root_commits(receipt: &serde_json::Value) -> Vec<String> {
+    if let Some(arr) = receipt["repository"]["root_commits"].as_array() {
+        let mut out: Vec<String> = arr
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect();
+        out.sort();
+        out.dedup();
+        if !out.is_empty() {
+            return out;
+        }
+    }
+    if let Some(r) = receipt["repository"]["root_commit"].as_str() {
+        return vec![r.to_string()];
+    }
+    Vec::new()
+}
+
+/// Deterministic Evidence Diff between two receipts (`re audit --diff A B`).
+///
+/// Enforces the single-axis rule:
+/// - **Repository diff** (`repository_diff`): same `method`, `blame_flags`,
+///   and `numstat_flags`, different `HEAD` on a repository that shares at
+///   least one root commit.
+/// - **Method diff** (`method_diff`): same `HEAD` and same external metadata,
+///   different `method` or blame/numstat flags.
+/// - **Metadata diff** (`metadata_diff`): same `HEAD` and same `method`/flags,
+///   different `notes_oid` (`refs/notes/ai`) or `ignore_revs_sha256`.
+/// - **Identical inputs** (`identical_inputs`): same `HEAD`, `method`, flags,
+///   and metadata.
+/// - **Refused** (exit 2): more than one axis varies at once, root commit
+///   sets are disjoint (unrelated repositories), or either receipt is shallow.
+fn run_diff(before_path: &Path, after_path: &Path, as_json: bool, summary: bool) -> Result<()> {
+    let before_loaded = load_receipt(before_path).map_err(|e| exit_with(2, e))?;
+    let after_loaded = load_receipt(after_path).map_err(|e| exit_with(2, e))?;
+    let before = &before_loaded.audit;
+    let after = &after_loaded.audit;
+
+    let b_head = before["repository"]["head"].as_str().ok_or_else(|| {
+        exit_with(
+            2,
+            anyhow::anyhow!("{} misses repository.head", before_path.display()),
+        )
+    })?;
+    let a_head = after["repository"]["head"].as_str().ok_or_else(|| {
+        exit_with(
+            2,
+            anyhow::anyhow!("{} misses repository.head", after_path.display()),
+        )
+    })?;
+    let b_method = before["coverage"]["method"]
+        .as_str()
+        .or_else(|| before["method"].as_str())
+        .ok_or_else(|| {
+            exit_with(
+                2,
+                anyhow::anyhow!("{} misses coverage.method", before_path.display()),
+            )
+        })?;
+    let a_method = after["coverage"]["method"]
+        .as_str()
+        .or_else(|| after["method"].as_str())
+        .ok_or_else(|| {
+            exit_with(
+                2,
+                anyhow::anyhow!("{} misses coverage.method", after_path.display()),
+            )
+        })?;
+
+    if before["coverage"]["shallow"].as_bool() == Some(true)
+        || after["coverage"]["shallow"].as_bool() == Some(true)
+    {
+        return Err(exit_with(
+            2,
+            anyhow::anyhow!(
+                "refusing to diff shallow receipts: truncated history makes commit sets incomparable"
+            ),
+        ));
+    }
+
+    let b_roots = extract_root_commits(before);
+    let a_roots = extract_root_commits(after);
+    let shared_roots: Vec<String> = b_roots
+        .iter()
+        .filter(|r| a_roots.contains(r))
+        .cloned()
+        .collect();
+    if !b_roots.is_empty() && !a_roots.is_empty() && shared_roots.is_empty() {
+        return Err(exit_with(
+            2,
+            anyhow::anyhow!(
+                "refusing to diff unrelated repositories: root_commits {:?} and {:?} share no common root",
+                b_roots,
+                a_roots
+            ),
+        ));
+    }
+
+    let b_flags = &before["coverage"]["blame_flags"];
+    let a_flags = &after["coverage"]["blame_flags"];
+    let b_nflags = &before["coverage"]["numstat_flags"];
+    let a_nflags = &after["coverage"]["numstat_flags"];
+    let nflags_changed = if b_method == "v5" && a_method == "v5" {
+        b_nflags != a_nflags
+    } else {
+        !b_nflags.is_null() && !a_nflags.is_null() && b_nflags != a_nflags
+    };
+    let method_or_flags_changed = b_method != a_method || b_flags != a_flags || nflags_changed;
+
+    let b_notes = &before["coverage"]["notes_oid"];
+    let a_notes = &after["coverage"]["notes_oid"];
+    let b_ir_sha = &before["coverage"]["ignore_revs_sha256"];
+    let a_ir_sha = &after["coverage"]["ignore_revs_sha256"];
+    let b_ir_flag = before["coverage"]["ignore_revs_file"].as_bool();
+    let a_ir_flag = after["coverage"]["ignore_revs_file"].as_bool();
+    let notes_present_both = before["coverage"].get("notes_oid").is_some()
+        && after["coverage"].get("notes_oid").is_some();
+    let ir_sha_present_both = before["coverage"].get("ignore_revs_sha256").is_some()
+        && after["coverage"].get("ignore_revs_sha256").is_some();
+    let metadata_changed = (notes_present_both && b_notes != a_notes)
+        || (ir_sha_present_both && b_ir_sha != a_ir_sha)
+        || (b_ir_flag != a_ir_flag);
+    let metadata_fully_determined = notes_present_both
+        && (ir_sha_present_both || (b_ir_flag == Some(false) && a_ir_flag == Some(false)));
+    let metadata_status = if metadata_changed {
+        "changed"
+    } else if metadata_fully_determined {
+        "unchanged"
+    } else {
+        "indeterminate"
+    };
+
+    if b_head != a_head && method_or_flags_changed {
+        return Err(exit_with(
+            2,
+            anyhow::anyhow!(
+                "refusing to diff across two axes at once: HEAD changed ({} -> {}) AND method/flags changed ({b_method} -> {a_method}). \
+                 Re-audit both commits under the same method for a repository diff, or audit the same commit under both methods for a method diff.",
+                &b_head[..b_head.len().min(12)],
+                &a_head[..a_head.len().min(12)]
+            ),
+        ));
+    }
+    if method_or_flags_changed && metadata_changed {
+        return Err(exit_with(
+            2,
+            anyhow::anyhow!(
+                "refusing to diff across two axes at once: method/flags changed ({b_method} -> {a_method}) AND external metadata (notes_oid / ignore_revs) changed on the same commit."
+            ),
+        ));
+    }
+
+    let kind = if b_head != a_head {
+        "repository_diff"
+    } else if method_or_flags_changed {
+        if metadata_status == "unchanged" {
+            "method_diff"
+        } else {
+            "indeterminate_method_diff"
+        }
+    } else if metadata_changed {
+        "metadata_diff"
+    } else if metadata_status == "indeterminate" {
+        "indeterminate_metadata"
+    } else {
+        "identical_inputs"
+    };
+
+    let provenance_status = match (before_loaded.sealed, after_loaded.sealed) {
+        (true, true) => {
+            if before_loaded.pubkey_hex == after_loaded.pubkey_hex {
+                "sealed_same_issuer"
+            } else {
+                "sealed_different_issuers"
+            }
+        }
+        (true, false) | (false, true) => "partially_sealed",
+        (false, false) => "unsealed",
+    };
+
+    let b_commits: Vec<CommitRow> = before
+        .get("commits")
+        .cloned()
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(|e| {
+            exit_with(
+                2,
+                anyhow::anyhow!("invalid commits[] in {}: {e}", before_path.display()),
+            )
+        })?
+        .unwrap_or_default();
+    let a_commits: Vec<CommitRow> = after
+        .get("commits")
+        .cloned()
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(|e| {
+            exit_with(
+                2,
+                anyhow::anyhow!("invalid commits[] in {}: {e}", after_path.display()),
+            )
+        })?
+        .unwrap_or_default();
+    let has_commit_rows = before.get("commits").is_some() && after.get("commits").is_some();
+
+    let mut b_map: std::collections::BTreeMap<&str, &CommitRow> = std::collections::BTreeMap::new();
+    for c in &b_commits {
+        b_map.insert(c.hash.as_str(), c);
+    }
+    let mut a_map: std::collections::BTreeMap<&str, &CommitRow> = std::collections::BTreeMap::new();
+    for c in &a_commits {
+        a_map.insert(c.hash.as_str(), c);
+    }
+
+    let commit_set_relation = if b_head == a_head {
+        "same_head"
+    } else if !has_commit_rows {
+        "unknown"
+    } else {
+        let b_subset_of_a = !b_map.is_empty() && b_map.keys().all(|k| a_map.contains_key(k));
+        let a_subset_of_b = !a_map.is_empty() && a_map.keys().all(|k| b_map.contains_key(k));
+        match (b_subset_of_a, a_subset_of_b) {
+            (true, false) => "subset_forward",
+            (false, true) => "subset_reverse",
+            (true, true) => "same_commit_set",
+            (false, false) => "diverged",
+        }
+    };
+
+    let mut added_verified = Vec::new();
+    let mut removed_verified = Vec::new();
+    let mut survival_changed = Vec::new();
+    let mut class_changed = Vec::new();
+
+    for c in &a_commits {
+        match b_map.get(c.hash.as_str()) {
+            None => {
+                if c.class == EvidenceClass::Verified {
+                    added_verified.push(serde_json::json!({
+                        "hash": c.hash,
+                        "agent": c.agent,
+                        "introduced": c.introduced,
+                        "surviving": c.surviving,
+                    }));
+                }
+            }
+            Some(prev) => {
+                if prev.class != c.class || prev.agent != c.agent {
+                    class_changed.push(serde_json::json!({
+                        "hash": c.hash,
+                        "before_class": prev.class,
+                        "after_class": c.class,
+                        "before_agent": prev.agent,
+                        "after_agent": c.agent,
+                        "introduced": c.introduced,
+                        "surviving": c.surviving,
+                    }));
+                }
+                if (prev.class == EvidenceClass::Verified || c.class == EvidenceClass::Verified)
+                    && prev.surviving != c.surviving
+                {
+                    survival_changed.push(serde_json::json!({
+                        "hash": c.hash,
+                        "agent": c.agent.as_ref().or(prev.agent.as_ref()),
+                        "introduced": c.introduced,
+                        "before_surviving": prev.surviving,
+                        "after_surviving": c.surviving,
+                        "delta_surviving": c.surviving as i64 - prev.surviving as i64,
+                    }));
+                }
+            }
+        }
+    }
+    for prev in &b_commits {
+        if !a_map.contains_key(prev.hash.as_str()) && prev.class == EvidenceClass::Verified {
+            removed_verified.push(serde_json::json!({
+                "hash": prev.hash,
+                "agent": prev.agent,
+                "introduced": prev.introduced,
+                "before_surviving": prev.surviving,
+            }));
+        }
+    }
+
+    let b_v = &before["verified"];
+    let a_v = &after["verified"];
+    let b_rate = b_v["survival_rate"].as_f64();
+    let a_rate = a_v["survival_rate"].as_f64();
+    let delta_rate = match (b_rate, a_rate) {
+        (Some(br), Some(ar)) => Some(ar - br),
+        _ => None,
+    };
+
+    let diff_value = serde_json::json!({
+        "schema": "causari.audit_diff.v1",
+        "kind": kind,
+        "metadata_status": metadata_status,
+        "commit_set_relation": commit_set_relation,
+        "shared_root_commits": shared_roots,
+        "provenance": {
+            "status": provenance_status,
+            "before_sealed": before_loaded.sealed,
+            "after_sealed": after_loaded.sealed,
+            "before_signature_valid": before_loaded.sealed,
+            "after_signature_valid": after_loaded.sealed,
+            "before_issuer_id": before_loaded.issuer_id,
+            "after_issuer_id": after_loaded.issuer_id,
+            "before_pubkey_hex": before_loaded.pubkey_hex,
+            "after_pubkey_hex": after_loaded.pubkey_hex,
+            "before_seal_id": before_loaded.seal_id,
+            "after_seal_id": after_loaded.seal_id,
+            "issuer_trust": "unverified_offline",
+        },
+        "before": {
+            "head": b_head,
+            "method": b_method,
+            "root_commit": b_roots.first(),
+            "root_commits": b_roots,
+            "sealed": before_loaded.sealed,
+            "notes_oid": b_notes,
+            "ignore_revs_sha256": b_ir_sha,
+            "verified": {
+                "commits": b_v["commits"],
+                "introduced": b_v["introduced"],
+                "surviving": b_v["surviving"],
+                "survival_rate": b_rate,
+            }
+        },
+        "after": {
+            "head": a_head,
+            "method": a_method,
+            "root_commit": a_roots.first(),
+            "root_commits": a_roots,
+            "sealed": after_loaded.sealed,
+            "notes_oid": a_notes,
+            "ignore_revs_sha256": a_ir_sha,
+            "verified": {
+                "commits": a_v["commits"],
+                "introduced": a_v["introduced"],
+                "surviving": a_v["surviving"],
+                "survival_rate": a_rate,
+            }
+        },
+        "delta": {
+            "verified_commits": a_v["commits"].as_i64().unwrap_or(0) - b_v["commits"].as_i64().unwrap_or(0),
+            "verified_introduced": a_v["introduced"].as_i64().unwrap_or(0) - b_v["introduced"].as_i64().unwrap_or(0),
+            "verified_surviving": a_v["surviving"].as_i64().unwrap_or(0) - b_v["surviving"].as_i64().unwrap_or(0),
+            "survival_rate": delta_rate,
+        },
+        "commit_sets_available": has_commit_rows,
+        "added_verified_commits": added_verified,
+        "removed_verified_commits": removed_verified,
+        "survival_changed_commits": survival_changed,
+        "class_changed_commits": class_changed,
+    });
+
+    if as_json {
+        println!("{}", serde_json::to_string_pretty(&diff_value)?);
+        return Ok(());
+    }
+
+    let rate_delta_str = match delta_rate {
+        Some(d) => format!("{:+.1} percentage points", d * 100.0),
+        None => "absent on at least one side".to_string(),
+    };
+    if summary {
+        println!("## ∵ causari · evidence diff ({kind})");
+        println!();
+        println!(
+            "- **Provenance**: `{provenance_status}` (issuer trust: `unverified_offline`) · **Metadata status**: `{metadata_status}` · **Commit-set relation**: `{commit_set_relation}`"
+        );
+        println!(
+            "- **Before**: `{}` (method `{}`, {} AI-tagged commits, {}/{} lines, {})",
+            &b_head[..b_head.len().min(12)],
+            b_method,
+            b_v["commits"],
+            b_v["surviving"],
+            b_v["introduced"],
+            pct(b_rate)
+        );
+        println!(
+            "- **After**: `{}` (method `{}`, {} AI-tagged commits, {}/{} lines, {})",
+            &a_head[..a_head.len().min(12)],
+            a_method,
+            a_v["commits"],
+            a_v["surviving"],
+            a_v["introduced"],
+            pct(a_rate)
+        );
+        println!(
+            "- **Delta**: {:+} commits, {:+} introduced, {:+} surviving ({rate_delta_str})",
+            diff_value["delta"]["verified_commits"]
+                .as_i64()
+                .unwrap_or(0),
+            diff_value["delta"]["verified_introduced"]
+                .as_i64()
+                .unwrap_or(0),
+            diff_value["delta"]["verified_surviving"]
+                .as_i64()
+                .unwrap_or(0),
+        );
+        if has_commit_rows {
+            println!(
+                "- **Commit sets** (set difference B \\ A and A \\ B): {} in after only, {} in before only, {} with survival change, {} reclassified.",
+                added_verified.len(),
+                removed_verified.len(),
+                survival_changed.len(),
+                class_changed.len(),
+            );
+        }
+        return Ok(());
+    }
+
+    println!(
+        "{} ({} · {} · {})",
+        "∵ causari · evidence diff".bold(),
+        kind.cyan(),
+        provenance_status,
+        commit_set_relation
+    );
+    println!(
+        "  before  {}  method {}  ({}/{} lines, {})",
+        &b_head[..b_head.len().min(12)],
+        b_method,
+        b_v["surviving"],
+        b_v["introduced"],
+        pct(b_rate)
+    );
+    println!(
+        "  after   {}  method {}  ({}/{} lines, {})",
+        &a_head[..a_head.len().min(12)],
+        a_method,
+        a_v["surviving"],
+        a_v["introduced"],
+        pct(a_rate)
+    );
+    println!(
+        "  delta   {:+} commits · {:+} introduced · {:+} surviving ({rate_delta_str})",
+        diff_value["delta"]["verified_commits"]
+            .as_i64()
+            .unwrap_or(0),
+        diff_value["delta"]["verified_introduced"]
+            .as_i64()
+            .unwrap_or(0),
+        diff_value["delta"]["verified_surviving"]
+            .as_i64()
+            .unwrap_or(0),
+    );
+    if has_commit_rows {
+        println!(
+            "  sets    {} in after only · {} in before only · {} survival changed · {} reclassified",
+            added_verified.len(),
+            removed_verified.len(),
+            survival_changed.len(),
+            class_changed.len(),
+        );
+    }
     Ok(())
 }
 
@@ -726,7 +1248,7 @@ fn print_summary(report: &SurvivalReport, head: Option<&str>) {
          `absent` means no introduced lines are included in the measurement (JSON null), not a measured zero and not a claim that the commits introduced nothing. \
          An unavailable age-matched gap is not a gap of zero. \
          Method {}: [causari.dev/method](https://causari.dev/method). \
-         `--json` stores the commit, method, blame flags and counts. It does not store `refs/notes/ai`. \
+         `--json` and `--seal` record `coverage.notes_oid` (`refs/notes/ai` OID), not the raw note bodies. \
          {}</sub>",
         report.coverage.blame_flags.join(" "),
         CAP_CEILING_LINES,

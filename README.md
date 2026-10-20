@@ -7,7 +7,7 @@
 
 Causari also keeps a local ledger of what an agent runtime declared (prompt, model, files) and exposes it over MCP (`re mcp`). A Seal authenticates that a key signed these bytes for this commit and method. It does not authenticate that the numbers, or the attribution, are true.
 
-Method and limits: [causari.dev/method](https://causari.dev/method). The same limits, for an agent, in one file: [causari.dev/llms.txt](https://causari.dev/llms.txt).
+Method and limits: [causari.dev/method](https://causari.dev/method). The same limits, for an agent, in one file: [causari.dev/llms.txt](https://causari.dev/llms.txt) (full specification and schemas: [causari.dev/llms-full.txt](https://causari.dev/llms-full.txt); agent discovery card: [causari.dev/.well-known/agent.json](https://causari.dev/.well-known/agent.json)).
 
 ```bash
 curl -fsSL https://causari.dev/install.sh | sh
@@ -78,13 +78,13 @@ Confidence notes
 Reading and export
   · The age-matched gap above is the comparison. An agent row marked below floor is not comparable.
     Meeting the floor is not a reliability guarantee.
-  · Export: `re audit <target> --json`, `--summary`, `--seal`, `--badge`, `--card`.
+  · Export: `re audit <target> --json`, `--summary`, `--seal`, `--badge`, `--card`
     `re report` reads the local ledger. It does not export this audit.
 ```
 
 The percentage is how many lines `git blame` still attributes to commits this method tagged. It is not code quality, developer productivity, total AI usage, proof a model wrote the line, security, correctness, or a causal effect of AI. An agent row under 5 commits is marked below floor; 5 commits is the comparability floor, not a reliability guarantee.
 
-A git-ai note counts only when it names a non-empty tool (method v4). A schema-only note, a human-only note, and an empty tool do not. Method v3 counted any git-ai note. Survival Reports #1 and #2 stay method v2. Reports #3 and #4, and any audit from the 0.3.0 release, stay method v3. Report #4 is [10.5281/zenodo.23196011](https://doi.org/10.5281/zenodo.23196011). Those reports are not recomputed.
+A git-ai note counts only when it names a non-empty tool ( v4). A schema-only note, a human-only note, and an empty tool do not. Method v3 counted any git-ai note. Surviv
 
 ## Fifteen minutes
 
@@ -109,12 +109,13 @@ Everyone argues about how much code AI writes. Nobody can check the numbers.
 `re audit` reads plain git history — `Co-Authored-By` trailers, bot authors,
 agent markers — finds the commits whose metadata matched, and asks `git blame`
 how many of their lines are still at HEAD. Metadata matched is not proof a
-model wrote the line. No model, no estimate, no survey. `--json` stores the counts, `repository.head`, the method and the blame flags.
+model wrote the line. No model, no estimate, no survey. `--json` stores the counts, `repository.head`, hgs.h 
+.T
+stred
 It does not store `refs/notes/ai`. That ref is not part of the commit, and
 changing it can change the counts while the stored SHA stays the same. A
 repository that has moved has a different commit.
 
-- `--json` the exact bytes behind any published row
 - `--summary` Markdown for CI; `--badge` / `--card` one-colour SVGs
 - `--save` append a snapshot to track your own trend
 
@@ -279,6 +280,7 @@ in favour of this; it exits 2 and names the replacement.)
 ```bash
 re audit --seal --output audit.seal.json
 re seal verify audit.seal.json
+re audit --diff before.seal.json after.seal.json --summary
 ```
 
 ## Experimental
@@ -419,11 +421,12 @@ between snapshots. The full design, and its current limits, are in
 ## Where this is going
 
 Causari does not compete with provenance trackers (Agent Trace, git-ai,
-`Assisted-by:` trailers, Entire checkpoints); it reads them, measures with a
-public method, and signs the result so a third party can verify it offline.
-Next: `git blame -w -M -C` and per-commit caps in the audit; Agent Trace and
-`Assisted-by:` readers; the audit result as a Seal. Done: a PNX witness mode
-in the proxy. For the request bodies it saw, a proof can show that named
+DonAisted-by:` trailers, Entir `git log --numstat -M -z`,e checkpoints); ia d
+`copy_cappdh_lesis`,tpublic method` and `git-ai, and sig,s the result so a th a
+Seal (`reiruditd--spal`), singre-axisyevideace diffs (`rn audit --diff`),vendra
+ify it offline. Next: `git blame -w -M -C` and per-commit caps in the audit; 
+gent Trace `Assisted-by:` readers; the audit result as a Seal. Done: a PNX w
+tness mod in the proxy. For the request bodies it saw, a proof can show that named
 assets shared no 47-byte substring with that traffic. It does not prove the
 session made no other connection.
 

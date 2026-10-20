@@ -194,6 +194,25 @@ fn handle_tools_list() -> Result<Value, String> {
                     "readOnlyHint": true,
                     "openWorldHint": false
                 }
+            },
+            {
+                "name": "causari_audit",
+                "description": "Run `re audit --json` (method v5, git metadata only, no ledger \
+                    required) on a local git repository and return the full Evidence Receipt \
+                    JSON: per-commit rows with `owned_at_head`, `verified` (metadata matched, not \
+                    authorship proved), `baseline` (untagged lines and age-matched gap), and \
+                    `coverage` (`ignore_revs_sha256`, `notes_oid`, `copy_capped_lines`, `below_floor`).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string", "description": "Local repository path to audit (defaults to current working directory)." },
+                        "allow_shallow": { "type": "boolean", "description": "Allow auditing a shallow clone (marks coverage.shallow = true)." }
+                    }
+                },
+                "annotations": {
+                    "readOnlyHint": true,
+                    "openWorldHint": false
+                }
             }
         ]
     }))
@@ -210,6 +229,7 @@ fn handle_tools_call(params: &Value) -> Result<Value, String> {
         "causari_record" => tool_record(&args).map_err(|e| e.to_string())?,
         "causari_recall" => tool_recall(&args).map_err(|e| e.to_string())?,
         "causari_why" => tool_why(&args).map_err(|e| e.to_string())?,
+        "causari_audit" => tool_audit(&args).map_err(|e| e.to_string())?,
         other => return Err(format!("unknown tool '{}'", other)),
     };
 
@@ -494,6 +514,31 @@ fn tool_why(args: &Value) -> Result<String> {
     }
 }
 
+fn tool_audit(args: &Value) -> Result<String> {
+    let dir = match args.get("path").and_then(|v| v.as_str()) {
+        Some(p) if !p.trim().is_empty() => PathBuf::from(p),
+        _ => std::env::current_dir().context("cannot determine current directory")?,
+    };
+    let allow_shallow = args
+        .get("allow_shallow")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let report = crate::audit::audit_repo(&dir, &crate::audit::AuditOptions { allow_shallow })?;
+    let mut val = serde_json::to_value(&report)?;
+    val["method"] = json!(crate::audit::METHOD_VERSION);
+    let roots = crate::audit::root_commits(&dir)?;
+    let mut repo_obj = json!({
+        "head": crate::audit::head_commit(&dir)?,
+        "origin": crate::audit_seal::repo_label(&dir),
+        "root_commits": roots,
+    });
+    if let Some(root) = roots.first() {
+        repo_obj["root_commit"] = json!(root);
+    }
+    val["repository"] = repo_obj;
+    Ok(serde_json::to_string_pretty(&val)?)
+}
+
 fn print_install_snippet() -> Result<()> {
     let raw_exe = std::env::current_exe()
         .map(|p| p.display().to_string())
@@ -605,6 +650,13 @@ mod wording_tests {
         assert_eq!(why["annotations"]["readOnlyHint"], true);
         assert_eq!(why["annotations"]["openWorldHint"], false);
         assert!(why["annotations"].get("destructiveHint").is_none());
+
+        let audit = tool("causari_audit");
+        let audit_desc = audit["description"].as_str().unwrap();
+        assert!(audit_desc.contains("method v5"));
+        assert!(audit_desc.contains("metadata matched, not authorship proved"));
+        assert_eq!(audit["annotations"]["readOnlyHint"], true);
+        assert_eq!(audit["annotations"]["openWorldHint"], false);
     }
 
     #[test]

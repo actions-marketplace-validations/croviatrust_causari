@@ -1,0 +1,145 @@
+# Causari — Full Technical Specification for AI Agents & Retrieval Systems (llms-full.txt)
+
+> AI-written code has no author. It has causes. Causari records them.
+> Causari measures how many lines from AI-tagged commits are still alive in any git repository (counts, not grades), and keeps a local ledger of what an agent runtime declared (prompt, model, reads, writes).
+> Apache-2.0, local-first, no telemetry, verifiable offline.
+
+## 1. Canonical Identity & Disambiguation
+
+- **Product**: Causari by Crovia Trust (`https://causari.dev`, `https://github.com/croviatrust/causari`)
+- **Binaries**: `causari` and short alias `re` (installed together in every release archive)
+- **Packages**:
+  - crates.io: `causari` (`cargo install causari --locked`)
+  - npm: `causari` (`npx causari audit`)
+  - PyPI: `causari` (`pipx run causari audit`)
+  - Homebrew: `croviatrust/tap/causari`
+  - Scoop: `croviatrust/scoop-bucket` (`causari`)
+  - MCP Registry: `io.github.croviatrust/causari`
+  - GitHub Action: `croviatrust/causari@v1`
+- **Disambiguation**: Not related to `causari.ai`, the GitHub organisation `causari`, or the npm scope `@causari` (a causal knowledge graph by another team).
+- **Parent Ecosystem**: Crovia Trust (`https://croviatrust.com`) — one grammar in three tenses:
+  1. **TACET** (`crovia.tacet.v1`): verifiable silence and omission observations on public model cards and disclosures.
+  2. **PNX** (`crovia.pnx.v1`): Proof of Non-Exfiltration over witnessed proxy traffic (salted winnowing k-gram 32, window 16, minimum match 47 bytes, plus PNX §4a reach records).
+  3. **Causari** (`causari.audit.v1`, `causari.audit-seal.v1`, `causari.audit_diff.v1`, `causari.event.v0.2`): AI-tagged git code survival measurement and local agent event ledger.
+
+---
+
+## 2. Epistemic & Evidence Invariants (Mandatory for AI Summarisation)
+
+When citing or summarising Causari outputs, do not collapse distinct evidence classes:
+
+1. **`AI-tagged (metadata matched)` is not `AI-written`**:
+   - In `re audit --json`, the field `verified` means a deterministic git metadata rule matched (a `Co-Authored-By` trailer naming a known agent, a known bot author identity, a qualifying `AI-*` / `Assisted-by:` trailer, or a `refs/notes/ai` git-ai note naming a non-empty tool).
+   - It is **not** a cryptographic proof that a model wrote the line, and a person can forge git metadata.
+2. **`UNKNOWN` / `untagged` is not `human`**:
+   - Commits without machine-readable AI metadata form the `baseline.untagged` cohort.
+   - That cohort contains human-written code, inline completions (GitHub Copilot, Cursor Tab, Windsurf, Continue, Zed AI, JetBrains AI), and untagged agent commits alike. Never describe `UNKNOWN` or `untagged` as "human-written".
+3. **Survival is a count, not a grade**:
+   - Survival is the share of lines introduced by metadata-matched commits that `git blame -w -M -C --line-porcelain HEAD` still attributes to those commits at `HEAD`, capped per commit at `introduced`.
+   - It does **not** measure code quality, developer productivity, total AI usage, authorship, security, correctness, or a causal effect of AI.
+4. **Signed is not true**:
+   - An audit seal (`audit.seal.json`, `causari.audit-seal.v1` wrapping `crovia.seal.v1`) proves that the holder of `issuer.pubkey.key_hex` signed those exact audit JSON bytes for that commit, method version, and coverage parameters, and that no byte was altered since.
+   - Offline verification (`re seal verify` or `https://causari.dev/verify`) has no external PKI (`issuer_trust: "unverified_offline"`). To check whether the numbers themselves hold, rerun `re audit` on the commit and compare the bytes.
+5. **Ledger classes (`declared`, `correlated`, `observed`)**:
+   - `declared`: recorded by an IDE/CLI hook (`re hook claude-code`, `re hook cursor`), MCP (`causari_record`), or `re record`. Declared is what the runtime stated, not proven authorship.
+   - `correlated`: matched heuristically by `re proxy` + `re watch` between captured completions and file diffs. A score, not a fact.
+   - `observed`: a file change was seen without a matched completion or hook declaration.
+6. **Skills (`re skill`)**:
+   - Ed25519 detects later edits to a skill file; it does not certify the content. `verified` on a skill is a declared signal frozen at distill (caller-supplied exit code 0 or declared write paths still at the tip), not an observed success. `proven` is not awarded, and a legacy recall count is not an execution and not a cryptographic proof.
+
+---
+
+## 3. Method v5 Specification (`re audit`)
+
+### 3.1 Commit Classification (`git log --no-merges`)
+- Reads commit metadata via NUL-delimited raw framing (`--no-replace-objects` is enforced on every git invocation so `refs/replace/*` cannot spoof commit parents, messages, or blobs).
+- **VERIFIED** rules (evaluated in order):
+  1. `refs/notes/ai` git-ai note naming a non-empty `tool` in `sessions` or `prompts` (since Method v4; Method v3 counted any parseable note).
+  2. Provenance trailers: `Drafted-With`, `Executed-By`, `AI-Model`, `AI-Agent`, `AI-Tool`, `Assisted-by`, `AI-Assisted: yes`, and the `AI-*` trailer family with a positive value.
+  3. `Co-Authored-By` naming a known agent identity (`Claude`, `Copilot`, `aider`, `Codex`, `ChatGPT`, `OpenHands`; `Devin`, `Jules`, `Gemini`, and `Cursor` require a bot identity or vendor domain so human developers with those given names are not misclassified).
+  4. Author identity matching a known agent bot (`aider`, `noreply@anthropic.com`, `devin-ai`, `openhands`, `cursoragent`, `google-labs-jules`).
+- **PROBABLE** rules:
+  - Commit message contains `(aider)` or `Generated with Claude Code`. Never summed with `VERIFIED`.
+- **UNKNOWN**:
+  - Every other non-merge commit. Enters `baseline.untagged`.
+
+### 3.2 Introduced Lines (`git log --no-merges --numstat -M -z`)
+- Counts lines added in text files only, excluding lockfiles, vendored directories (`vendor/`, `third_party/`, `node_modules/`, `dist/`, `build/`, etc.) and generated suffixes (`.min.js`, `.pb.go`, `.generated.ts`, etc.).
+- Uses `-M -z` so pure file renames introduce `0` lines (matching `git blame -M`), and NUL-delimited path tokens prevent filenames containing literal `=>` or non-ASCII bytes from being misparsed.
+
+### 3.3 Surviving Lines at `HEAD` (`git ls-tree -r -z HEAD` + `git blame -w -M -C --line-porcelain HEAD`)
+- Enumerates regular file blobs (`100644` and `100755` only; symlinks `120000` and gitlink submodules `160000` are skipped) directly from the `HEAD` tree via `git ls-tree -r -z HEAD`.
+- Staging-index mutations (`git rm --cached`, staged edits), dirty working-tree files, and bare repositories produce identical results for the same `HEAD`.
+- Reads `.git-blame-ignore-revs` exclusively from the committed blob `HEAD:.git-blame-ignore-revs`, validates every revision entry, and records its digest in `coverage.ignore_revs_sha256` (`sha256:<64-hex>`). An untracked or modified worktree `.git-blame-ignore-revs` is ignored.
+- Propagates any `git blame` failure as an explicit error rather than silently recording 0 surviving lines.
+- For each commit $c$, `owned_at_head` is the raw number of lines at `HEAD` blamed to $c$, and `surviving = min(owned_at_head, introduced)`.
+- `coverage.copy_capped_lines` reports $\sum_{c \in \text{VERIFIED}} \max(0, \text{owned\_at\_head}(c) - \text{introduced}(c))$, making `git blame -C` cross-file copy inflation transparent.
+
+### 3.4 Baseline & Age-Matched Gap (since Method v3)
+- Six line-age buckets measured from commit committer timestamp to `HEAD` committer timestamp: `0-30`, `30-90`, `90-180`, `180-365`, `365-730`, and `730+` days.
+- `window.comparable` is `true` iff both `tagged.commits >= 5` and `untagged.commits >= 5` in that window.
+- `baseline.age_matched` standardises untagged survival to the AI-tagged line-age distribution across comparable windows: `gap = tagged_rate - untagged_rate` (in ratio units; printed in percentage points).
+
+---
+
+## 4. Machine-Readable Schemas
+
+### 4.1 `re audit --json` (`causari.audit.v1`, Method v5)
+Key top-level fields:
+- `method`: `"v5"`
+- `total_commits`: integer count of non-merge commits reachable from `HEAD`
+- `verified`: `{ commits, introduced, surviving, survival_rate, capped_survival_rate, cap_lines, median_survival, largest_commit_share, below_floor }`
+- `probable`: same structure as `verified`
+- `by_agent`: map of `<agent_id> -> SurvivalStats`
+- `baseline`: `{ untagged, by_age, age_matched, oldest_surviving }`
+- `commits`: array of `{ hash, class, agent, introduced, owned_at_head, surviving }`
+- `coverage`:
+  - `method`: `"v5"`
+  - `blame_flags`: `["-w", "-M", "-C"]`
+  - `numstat_flags`: `["-M", "-z"]`
+  - `ignore_revs_file`: boolean
+  - `ignore_revs_sha256`: `"sha256:..."` or `null`
+  - `notes_oid`: 40-hex OID of `refs/notes/ai` or `null`
+  - `shallow`: boolean
+  - `sample_floor`: `5`
+  - `small_sample`: boolean (`verified.commits < 5`)
+  - `copy_capped_lines`: integer
+- `repository`: `{ head, root_commit, root_commits, origin }`
+
+### 4.2 `re audit --seal` (`causari.audit-seal.v1`)
+Wraps a `crovia.seal.v1` Ed25519 signature over:
+- `subject.input`: CSC-1 canonical JSON `{ "commit": "<40-hex>", "method": "v5", "options": { "allow_shallow": false }, "type": "causari.audit.input.v1" }`
+- `subject.output`: exact UTF-8 bytes of `re audit --json`
+- `seal.generator.params`: binds `commit`, `method`, `repo`, `subject_type`, `coverage.shallow`, `coverage.notes_oid` (`"none"` when null), and `coverage.ignore_revs_sha256` (`"none"` when null).
+
+### 4.3 `re audit --diff <before> <after>` (`causari.audit_diff.v1`)
+Offline single-axis comparison of two audit JSON receipts or `.seal.json` bundles:
+- Refuses unrelated repositories (when `root_commits` are non-empty and share no common root) with exit code `2`.
+- Refuses multi-axis changes (`HEAD` changed AND method/flags changed, or same `HEAD` where method/flags changed AND recorded external metadata changed) with exit code `2`.
+- `metadata_status`:
+  - `"unchanged"`: both receipts explicitly record `coverage.notes_oid` and `coverage.ignore_revs_sha256` (or both have `ignore_revs_file: false`) and they are identical.
+  - `"changed"`: at least one recorded metadata field differs.
+  - `"indeterminate"`: a metadata field is absent on at least one side (e.g., an authentic Method v4 receipt, which did not record `coverage.notes_oid`). Missing fields are never treated as proof that metadata stayed unchanged.
+- `kind`: `"repository_diff"` | `"method_diff"` | `"indeterminate_method_diff"` | `"metadata_diff"` | `"indeterminate_metadata"` | `"identical_inputs"`.
+- `commit_set_relation`: `"same_head"` | `"subset_forward"` | `"subset_reverse"` | `"same_commit_set"` | `"diverged"` | `"unknown"` (computed over serialized `--no-merges` commit sets, not a Git DAG ancestry proof).
+- `provenance`: `{ status, before_sealed, after_sealed, before_signature_valid, after_signature_valid, before_issuer_id, after_issuer_id, before_pubkey_hex, after_pubkey_hex, before_seal_id, after_seal_id, issuer_trust: "unverified_offline" }`.
+
+---
+
+## 5. Canonical URLs
+
+- Home: https://causari.dev/
+- Method v5 Specification: https://causari.dev/method
+- Offline Seal Verifier: https://causari.dev/verify/
+- Weekly Survival Report Archive: https://causari.dev/reports/survival/
+- Latest Report JSON: https://causari.dev/reports/survival/latest.json
+- Atom Feed: https://causari.dev/reports/survival/feed.xml
+- Measured Repositories Index: https://causari.dev/r/
+- FAQ (Schema.org FAQPage): https://causari.dev/faq
+- Verifiable Facts: https://causari.dev/facts
+- Instrument Comparison: https://causari.dev/compare
+- Concise Agent Guide: https://causari.dev/llms.txt
+- Full Agent Specification: https://causari.dev/llms-full.txt
+- Agent Discovery Card: https://causari.dev/.well-known/agent.json
+- Source Repository: https://github.com/croviatrust/causari
+- Crovia Trust Registry: https://croviatrust.com/registry/

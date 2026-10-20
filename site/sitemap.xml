@@ -6,7 +6,9 @@
   <url><loc>https://causari.dev/faq</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://causari.dev/facts</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
   <url><loc>https://causari.dev/compare</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://causari.dev/llms.txt</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://causari.dev/llms.txt</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://causari.dev/llms-full.txt</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://causari.dev/.well-known/agent.json</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
   <!-- survival-report: begin (managed by scripts/survival_report.py) -->
   <url><loc>https://causari.dev/reports/survival/</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
   <url><loc>https://causari.dev/reports/survival/2026/06/</loc><lastmod>2026-10-19</lastmod><changefreq>yearly</changefreq><priority>0.6</priority></url>

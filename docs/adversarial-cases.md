@@ -7,7 +7,7 @@ human. A metadata match is not authorship.
 
 These are the regression tests. They are not a claim that Causari wins.
 
-## Audit, method v4
+## Audit, method v4 and v5
 
 | Case | Evidence present | Evidence absent | Conclusion | Limit |
 |---|---|---|---|---|
@@ -21,8 +21,15 @@ These are the regression tests. They are not a claim that Causari wins.
 | `Co-Authored-By: Claude` on a hand-written commit | the trailer | — | VERIFIED metadata | a person can write the trailer |
 | `AI-Assisted: no` | the negative value | — | UNKNOWN | `AI-Assisted: yes` is generic `ai` |
 | Malformed note | the word `schema_version`, not JSON | a parseable tool | UNKNOWN | fail closed |
-| Note added and removed | `refs/notes/ai` | a new commit object | SHA unchanged; class follows the note | the note is not in the commit |
+| Note added and removed | `refs/notes/ai` | a new commit object | SHA unchanged; class follows the note; `coverage.notes_oid` records the note ref | the note is not in the commit; v5 binds `notes_oid` in the seal and classifies the change as `metadata_diff` |
 | Two tools, keys `a` and `z` | both tools | a conflict field | the tool on the lexicographically first key | not a proof of which tool wrote the lines; sessions are read before prompts |
+| `.git/refs/replace/<sha>` substituting a commit | a replacement ref in `.git/refs/replace/` | a change to `HEAD` | ignored (`git --no-replace-objects`) | without `--no-replace-objects`, git would read the replacement while `HEAD` stayed unchanged |
+| Untracked or dirty `.git-blame-ignore-revs` | worktree file not in `HEAD` | `HEAD:.git-blame-ignore-revs` | ignored; only `HEAD:.git-blame-ignore-revs` is read and hashed in `coverage.ignore_revs_sha256` | a committed `.git-blame-ignore-revs` at `HEAD` still skips the revisions it lists |
+| Non-ASCII or space path (`modèle.py`, `算法 テスト.py`) | regular blob path at `HEAD` | — | blamed via `ls-tree -r -z HEAD` with `core.quotepath=false` | v4 skipped non-ASCII paths under default `core.quotepath` |
+| Uncommitted `git rm --cached` or `--bare` clone | `HEAD` tree unchanged | `.git/index` entries | `ls-tree -r -z HEAD` reads the `HEAD` tree directly; numbers match a clean checkout | v4 `ls-files` read `.git/index`, yielding `0%` survival on `--bare` repos or after `git rm --cached` |
+| Pure file rename (`git mv a.py b.py`) | rename commit | content change | `0` introduced lines (`git log --numstat -M`) | v4 without `-M` counted the file size as newly introduced on the rename commit |
+| Copy across files (`git blame -C`) | lines copied to a second file | per-line origin tracking in `numstat` | `owned_at_head` records raw blame; `surviving = min(owned_at_head, introduced)`; excess in `coverage.copy_capped_lines` | when `owned_at_head <= introduced`, copied lines can still offset deleted lines within the same commit |
+| Multi-root merge (`--allow-unrelated-histories`) | multiple `--max-parents=0` commits | single root | `repository.root_commits` stores the sorted set; `re audit --diff` requires a non-empty intersection | unrelated repositories with disjoint root sets are refused |
 
 Tests: `schema_only_git_ai_note_is_not_ai`, `human_only_git_ai_note_is_not_ai`, `named_tool_git_ai_note_is_ai_metadata`, `empty_or_blank_tool_is_not_ai_and_does_not_hide_a_later_tool`, `schema_only_note_does_not_hide_an_independent_trailer`, `malformed_or_unschematized_git_ai_note_is_not_ai`, `competing_git_ai_tools_follow_session_key_order`, `note_mutation_does_not_change_commit_sha`, `named_tool_range_classifies_the_whole_commit`, `human_authors_named_like_agents_are_unknown`, `fake_trailer_is_verified_metadata`, `negative_disclosure_trailers_are_not_ai`.
 

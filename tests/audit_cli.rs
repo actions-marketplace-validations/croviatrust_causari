@@ -89,7 +89,7 @@ fn json_report_carries_compat_fields_and_method_extras() {
             "by_agent.claude-code.{key} missing"
         );
     }
-    assert_eq!(v["coverage"]["method"], "v4");
+    assert_eq!(v["coverage"]["method"], "v5");
     assert_eq!(
         v["coverage"]["blame_flags"],
         serde_json::json!(["-w", "-M", "-C"])
@@ -97,7 +97,18 @@ fn json_report_carries_compat_fields_and_method_extras() {
     assert_eq!(v["coverage"]["shallow"], false);
     assert_eq!(v["coverage"]["sample_floor"], 5);
     assert_eq!(v["coverage"]["small_sample"], true);
-    assert_eq!(v["method"], "v4");
+    assert_eq!(v["coverage"]["copy_capped_lines"], 0);
+    assert!(v["coverage"]["ignore_revs_sha256"].is_null());
+    assert!(v["coverage"]["notes_oid"].is_null());
+    assert!(v["coverage"].get("skipped_files").is_none());
+    assert_eq!(v["method"], "v5");
+    assert_eq!(v["by_agent"]["claude-code"]["below_floor"], true);
+    assert_eq!(v["commits"].as_array().map(Vec::len), Some(2));
+    assert_eq!(v["commits"][1]["class"], "verified");
+    assert_eq!(v["commits"][1]["agent"], "claude-code");
+    assert_eq!(v["commits"][1]["introduced"], 2);
+    assert_eq!(v["commits"][1]["owned_at_head"], 2);
+    assert_eq!(v["commits"][1]["surviving"], 2);
 
     // Method v3: the same repository's untagged lines are the baseline. The
     // scaffold commit is the one untagged commit; its line stands at HEAD.
@@ -141,14 +152,14 @@ fn human_readable_outputs_name_the_method_version_and_no_verdict() {
         .lines()
         .find(|l| l.starts_with("<sub>"))
         .expect("summary ends with a <sub> footer");
-    assert!(sub.contains("Method v4"), "{sub}");
+    assert!(sub.contains("Method v5"), "{sub}");
     assert!(text.contains("untagged lines"), "{text}");
     assert!(text.contains("capped") && text.contains("median"), "{text}");
 
     let terminal = re(temp.path(), &["audit"]);
     assert!(terminal.status.success());
     let text = String::from_utf8_lossy(&terminal.stdout).into_owned() + &text;
-    assert!(text.contains("method v4"), "{text}");
+    assert!(text.contains("method v5"), "{text}");
     assert!(text.contains("Baseline: untagged lines"), "{text}");
     // Hard rule of the project: audit output measures, it does not grade.
     for verdict in ["healthy", "churn", "waste", "🟢", "🟡", "🔴"] {
@@ -164,7 +175,8 @@ fn shallow_clone_is_refused_unless_allowed() {
     let origin = repo_with_history();
     let clones = tempfile::tempdir().unwrap();
     let clone = clones.path().join("shallow");
-    let url = format!("file://{}", origin.path().display());
+    let raw_origin = origin.path().to_string_lossy().replace('\\', "/");
+    let url = format!("file:///{}", raw_origin.trim_start_matches('/'));
     git(
         clones.path(),
         &["clone", "-q", "--depth", "1", &url, clone.to_str().unwrap()],
@@ -187,7 +199,7 @@ fn shallow_clone_is_refused_unless_allowed() {
     );
     let v = json(&allowed);
     assert_eq!(v["coverage"]["shallow"], true);
-    assert_eq!(v["coverage"]["method"], "v4");
+    assert_eq!(v["coverage"]["method"], "v5");
 }
 
 fn commit_file(dir: &Path, name: &str, body: &str, message: &str) {
@@ -298,7 +310,7 @@ fn audit_reading_export_and_unavailable_age_match() {
         text.contains(head),
         "terminal names the measured commit:\n{text}"
     );
-    assert_eq!(exported["coverage"]["method"], "v4");
+    assert_eq!(exported["coverage"]["method"], "v5");
     assert_eq!(
         exported["coverage"]["blame_flags"],
         serde_json::json!(["-w", "-M", "-C"])
@@ -458,7 +470,14 @@ const DAY: i64 = 86_400;
 fn git_at(dir: &Path, args: &[&str], unix: i64) {
     let when = unix.to_string();
     let status = Command::new("git")
-        .args(["-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false"])
+        .args([
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "tag.gpgsign=false",
+            "-c",
+            "core.fsmonitor=false",
+        ])
         .args(args)
         .current_dir(dir)
         .env("GIT_AUTHOR_NAME", "Tarik")
@@ -816,7 +835,7 @@ fn absent_rate_measured_zero_and_unavailable_age_gap_stay_distinct() {
     assert!(absent_json["verified"]["survival_rate"].is_null());
     assert!(absent_json["baseline"]["age_matched"].is_null());
     assert_eq!(absent_json["baseline"]["untagged"]["introduced"], 1);
-    assert_eq!(absent_json["coverage"]["method"], "v4");
+    assert_eq!(absent_json["coverage"]["method"], "v5");
 
     let absent_text = String::from_utf8_lossy(&re(absent.path(), &["audit"]).stdout).into_owned();
     assert!(absent_text.contains("Rate absent:"), "{absent_text}");
@@ -857,7 +876,7 @@ fn absent_rate_measured_zero_and_unavailable_age_gap_stay_distinct() {
     assert_eq!(zero_json["verified"]["surviving"], 0);
     assert_eq!(zero_json["verified"]["survival_rate"], 0.0);
     assert!(zero_json["baseline"]["age_matched"].is_null());
-    assert_eq!(zero_json["coverage"]["method"], "v4");
+    assert_eq!(zero_json["coverage"]["method"], "v5");
 
     let zero_text = String::from_utf8_lossy(&re(zero.path(), &["audit"]).stdout).into_owned();
     assert!(zero_text.contains("0.0%"), "{zero_text}");
@@ -878,4 +897,368 @@ fn absent_rate_measured_zero_and_unavailable_age_gap_stay_distinct() {
         !zero_text.contains("No AI-tagged lines are included in the measurement"),
         "{zero_text}"
     );
+}
+
+#[test]
+fn audit_diff_separates_repository_evolution_and_method_upgrades_and_refuses_two_axes() {
+    let temp = repo_with_history();
+    let dir = temp.path();
+
+    let r1_bytes = re(dir, &["audit", "--json"]).stdout;
+    let r1_path = dir.join("r1.json");
+    fs::write(&r1_path, &r1_bytes).unwrap();
+
+    // Trim one AI line and add a new AI commit -> repository diff under v5.
+    fs::write(dir.join("auth.py"), "def refresh(user):\n").unwrap();
+    git(dir, &["add", "auth.py"]);
+    git(dir, &["commit", "-q", "-m", "trim auth"]);
+    commit_file(
+        dir,
+        "extra.py",
+        "x = 1\ny = 2\nz = 3\n",
+        "add extra\n\nCo-Authored-By: Claude <noreply@anthropic.com>",
+    );
+
+    let r2_bytes = re(dir, &["audit", "--json"]).stdout;
+    let r2_path = dir.join("r2.json");
+    fs::write(&r2_path, &r2_bytes).unwrap();
+
+    let diff_out = re(
+        dir,
+        &[
+            "audit",
+            "--diff",
+            r1_path.to_str().unwrap(),
+            r2_path.to_str().unwrap(),
+            "--json",
+        ],
+    );
+    let d = json(&diff_out);
+    assert_eq!(d["schema"], "causari.audit_diff.v1");
+    assert_eq!(d["kind"], "repository_diff");
+    assert_eq!(d["commit_set_relation"], "subset_forward");
+    assert_eq!(d["provenance"]["status"], "unsealed");
+    assert_eq!(d["provenance"]["before_signature_valid"], false);
+    assert_eq!(d["provenance"]["after_signature_valid"], false);
+    assert_eq!(d["provenance"]["issuer_trust"], "unverified_offline");
+    assert_eq!(d["delta"]["verified_commits"], 1);
+    assert_eq!(d["delta"]["verified_introduced"], 3);
+    assert_eq!(d["delta"]["verified_surviving"], 2);
+    assert_eq!(
+        d["added_verified_commits"].as_array().map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(
+        d["survival_changed_commits"].as_array().map(Vec::len),
+        Some(1)
+    );
+    assert_eq!(d["survival_changed_commits"][0]["delta_surviving"], -1);
+
+    // Reverse diff: after -> before reports commit_set_relation == "subset_reverse".
+    let rev_diff = json(&re(
+        dir,
+        &[
+            "audit",
+            "--diff",
+            r2_path.to_str().unwrap(),
+            r1_path.to_str().unwrap(),
+            "--json",
+        ],
+    ));
+    assert_eq!(rev_diff["kind"], "repository_diff");
+    assert_eq!(rev_diff["commit_set_relation"], "subset_reverse");
+
+    // Build an authentic Method v4 receipt for the exact same HEAD, matching the
+    // exact v4 baseline JSON schema (no `commits`, no `repository.root_commits` or
+    // `root_commit`, and no `coverage.notes_oid`, `ignore_revs_sha256`,
+    // `numstat_flags`, or `copy_capped_lines`).
+    let r2_val: serde_json::Value = serde_json::from_slice(&r2_bytes).unwrap();
+    let r2_v4 = serde_json::json!({
+        "baseline": {
+            "age_matched": r2_val["baseline"]["age_matched"],
+            "by_age": r2_val["baseline"]["by_age"],
+            "untagged": r2_val["baseline"]["untagged"],
+        },
+        "by_agent": r2_val["by_agent"],
+        "coverage": {
+            "blame_flags": ["-w", "-M", "-C"],
+            "ignore_revs_file": false,
+            "method": "v4",
+            "sample_floor": 5,
+            "shallow": false,
+            "small_sample": true,
+        },
+        "method": "v4",
+        "probable": r2_val["probable"],
+        "repository": {
+            "head": r2_val["repository"]["head"],
+            "origin": r2_val["repository"]["origin"],
+        },
+        "unknown_commits": r2_val["unknown_commits"],
+        "verified": r2_val["verified"],
+    });
+    assert!(r2_v4["coverage"].get("notes_oid").is_none());
+    assert!(r2_v4["coverage"].get("ignore_revs_sha256").is_none());
+    assert!(r2_v4.get("commits").is_none());
+    let r2_v4_path = dir.join("r2_v4.json");
+    fs::write(&r2_v4_path, serde_json::to_vec_pretty(&r2_v4).unwrap()).unwrap();
+
+    // Authentic v4 vs v5 on the same HEAD: because v4 did not record `coverage.notes_oid`,
+    // `re audit --diff` must NEVER claim a pure `method_diff`; it reports
+    // `kind = "indeterminate_method_diff"` and `metadata_status = "indeterminate"`.
+    let mdiff_v4_v5 = json(&re(
+        dir,
+        &[
+            "audit",
+            "--diff",
+            r2_v4_path.to_str().unwrap(),
+            r2_path.to_str().unwrap(),
+            "--json",
+        ],
+    ));
+    assert_eq!(mdiff_v4_v5["kind"], "indeterminate_method_diff");
+    assert_eq!(mdiff_v4_v5["metadata_status"], "indeterminate");
+    assert_eq!(mdiff_v4_v5["commit_set_relation"], "same_head");
+    assert_eq!(mdiff_v4_v5["commit_sets_available"], false);
+
+    // Pure `method_diff` is reported ONLY when both receipts explicitly record
+    // external metadata (`notes_oid` and `ignore_revs_sha256`) and prove it
+    // stayed unchanged while method/flags varied.
+    let mut r2_alt_flags = r2_val.clone();
+    r2_alt_flags["coverage"]["blame_flags"] = serde_json::json!(["-w", "-M"]);
+    let r2_alt_flags_path = dir.join("r2_alt_flags.json");
+    fs::write(
+        &r2_alt_flags_path,
+        serde_json::to_vec_pretty(&r2_alt_flags).unwrap(),
+    )
+    .unwrap();
+    let pure_mdiff = json(&re(
+        dir,
+        &[
+            "audit",
+            "--diff",
+            r2_alt_flags_path.to_str().unwrap(),
+            r2_path.to_str().unwrap(),
+            "--json",
+        ],
+    ));
+    assert_eq!(pure_mdiff["kind"], "method_diff");
+    assert_eq!(pure_mdiff["metadata_status"], "unchanged");
+    assert_eq!(pure_mdiff["commit_set_relation"], "same_head");
+
+    // Same HEAD and same method, git-ai note added -> metadata_diff.
+    let note_payload =
+        r#"{"schema_version":"git-ai/3.0.0","prompts":{"p1":{"agent_id":{"tool":"cursor"}}}}"#;
+    git(
+        dir,
+        &["notes", "--ref=ai", "add", "-m", note_payload, "HEAD"],
+    );
+    let r2_noted_bytes = re(dir, &["audit", "--json"]).stdout;
+    let r2_noted_path = dir.join("r2_noted.json");
+    fs::write(&r2_noted_path, &r2_noted_bytes).unwrap();
+    git(dir, &["update-ref", "-d", "refs/notes/ai"]);
+
+    let meta_diff = json(&re(
+        dir,
+        &[
+            "audit",
+            "--diff",
+            r2_path.to_str().unwrap(),
+            r2_noted_path.to_str().unwrap(),
+            "--json",
+        ],
+    ));
+    assert_eq!(meta_diff["kind"], "metadata_diff");
+    assert_eq!(meta_diff["commit_set_relation"], "same_head");
+    assert!(meta_diff["before"]["notes_oid"].is_null());
+    assert!(meta_diff["after"]["notes_oid"].is_string());
+
+    // Sealed provenance: same issuer, partially sealed, and different issuers.
+    let s1_path = dir.join("s1.seal.json");
+    assert!(
+        re(dir, &["audit", "--seal", "-o", s1_path.to_str().unwrap()])
+            .status
+            .success()
+    );
+    let partial_diff = json(&re(
+        dir,
+        &[
+            "audit",
+            "--diff",
+            s1_path.to_str().unwrap(),
+            r2_path.to_str().unwrap(),
+            "--json",
+        ],
+    ));
+    assert_eq!(partial_diff["provenance"]["status"], "partially_sealed");
+    assert_eq!(partial_diff["provenance"]["before_signature_valid"], true);
+    assert_eq!(partial_diff["provenance"]["after_signature_valid"], false);
+
+    let s2_path = dir.join("s2.seal.json");
+    assert!(
+        re(dir, &["audit", "--seal", "-o", s2_path.to_str().unwrap()])
+            .status
+            .success()
+    );
+    let same_issuer_diff = json(&re(
+        dir,
+        &[
+            "audit",
+            "--diff",
+            s1_path.to_str().unwrap(),
+            s2_path.to_str().unwrap(),
+            "--json",
+        ],
+    ));
+    assert_eq!(same_issuer_diff["kind"], "identical_inputs");
+    assert_eq!(
+        same_issuer_diff["provenance"]["status"],
+        "sealed_same_issuer"
+    );
+    assert_eq!(
+        same_issuer_diff["provenance"]["before_signature_valid"],
+        true
+    );
+    assert_eq!(
+        same_issuer_diff["provenance"]["after_signature_valid"],
+        true
+    );
+    assert_eq!(
+        same_issuer_diff["provenance"]["issuer_trust"],
+        "unverified_offline"
+    );
+
+    // Clone to a second directory (which mints a different issuer key) and seal there.
+    let clone_tmp = tempfile::tempdir().unwrap();
+    let clone_dir = clone_tmp.path().join("clone");
+    git(
+        clone_tmp.path(),
+        &[
+            "clone",
+            "-q",
+            dir.to_str().unwrap(),
+            clone_dir.to_str().unwrap(),
+        ],
+    );
+    let s_other_path = clone_dir.join("other.seal.json");
+    assert!(
+        re(
+            &clone_dir,
+            &["audit", "--seal", "-o", s_other_path.to_str().unwrap()]
+        )
+        .status
+        .success()
+    );
+    let diff_issuer = json(&re(
+        dir,
+        &[
+            "audit",
+            "--diff",
+            s1_path.to_str().unwrap(),
+            s_other_path.to_str().unwrap(),
+            "--json",
+        ],
+    ));
+    assert_eq!(
+        diff_issuer["provenance"]["status"],
+        "sealed_different_issuers"
+    );
+    assert_ne!(
+        diff_issuer["provenance"]["before_pubkey_hex"],
+        diff_issuer["provenance"]["after_pubkey_hex"]
+    );
+
+    // Multi-root merge (--allow-unrelated-histories): shares original root -> allowed.
+    git(dir, &["checkout", "-q", "--orphan", "second_root"]);
+    git(dir, &["rm", "-rf", "-q", "."]);
+    commit_file(
+        dir,
+        "orphan.py",
+        "o = 1\n",
+        "orphan root\n\nCo-Authored-By: Claude <noreply@anthropic.com>",
+    );
+    git(dir, &["checkout", "-q", "main"]);
+    git(
+        dir,
+        &[
+            "merge",
+            "-q",
+            "--allow-unrelated-histories",
+            "-m",
+            "merge second root",
+            "second_root",
+        ],
+    );
+    let r_multi_path = dir.join("r_multi.json");
+    fs::write(&r_multi_path, re(dir, &["audit", "--json"]).stdout).unwrap();
+    let multi_diff = json(&re(
+        dir,
+        &[
+            "audit",
+            "--diff",
+            r2_path.to_str().unwrap(),
+            r_multi_path.to_str().unwrap(),
+            "--json",
+        ],
+    ));
+    assert_eq!(multi_diff["kind"], "repository_diff");
+    assert_eq!(multi_diff["commit_set_relation"], "subset_forward");
+    assert_eq!(
+        multi_diff["after"]["root_commits"].as_array().map(Vec::len),
+        Some(2)
+    );
+    assert_eq!(
+        multi_diff["shared_root_commits"].as_array().map(Vec::len),
+        Some(1)
+    );
+
+    // Different HEAD AND different method -> refused with exit code 2.
+    let refused = re(
+        dir,
+        &[
+            "audit",
+            "--diff",
+            r1_path.to_str().unwrap(),
+            r2_v4_path.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(refused.status.code(), Some(2));
+    let err = String::from_utf8_lossy(&refused.stderr);
+    assert!(err.contains("two axes"), "{err}");
+
+    // Same HEAD, different flags/method AND different metadata (`notes_oid`) -> refused with exit code 2.
+    let refused_meta = re(
+        dir,
+        &[
+            "audit",
+            "--diff",
+            r2_alt_flags_path.to_str().unwrap(),
+            r2_noted_path.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(refused_meta.status.code(), Some(2));
+    let err_meta = String::from_utf8_lossy(&refused_meta.stderr);
+    assert!(err_meta.contains("two axes"), "{err_meta}");
+
+    // Authentic v4 (`ignore_revs_file: false`) vs v5 where `ignore_revs_file: true` ->
+    // observable metadata changed AND method changed -> refused with exit code 2.
+    let mut r2_ir = r2_val.clone();
+    r2_ir["coverage"]["ignore_revs_file"] = serde_json::json!(true);
+    r2_ir["coverage"]["ignore_revs_sha256"] = serde_json::json!(
+        "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    );
+    let r2_ir_path = dir.join("r2_ir.json");
+    fs::write(&r2_ir_path, serde_json::to_vec_pretty(&r2_ir).unwrap()).unwrap();
+    let refused_v4_ir = re(
+        dir,
+        &[
+            "audit",
+            "--diff",
+            r2_v4_path.to_str().unwrap(),
+            r2_ir_path.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(refused_v4_ir.status.code(), Some(2));
+    let err_v4_ir = String::from_utf8_lossy(&refused_v4_ir.stderr);
+    assert!(err_v4_ir.contains("two axes"), "{err_v4_ir}");
 }

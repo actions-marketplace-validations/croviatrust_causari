@@ -24,6 +24,20 @@
 
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
   <link rel="stylesheet" href="/styles.css?v=c96ecf026d" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "@id": "https://causari.dev/verify/",
+    "url": "https://causari.dev/verify/",
+    "name": "Causari Offline Audit Seal Verifier",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Web Browser (WebCrypto Ed25519)",
+    "description": "Offline browser verifier for causari.audit-seal.v1 and crovia.seal.v1 receipts. Recomputes CSC-1 canonical digests, SHA-256 subject hashes, Ed25519 signatures, and Method v5 coverage bindings with zero network requests.",
+    "isAccessibleForFree": true,
+    "publisher": { "@id": "https://croviatrust.com/#org" }
+  }
+  </script>
 </head>
 <body>
 
@@ -118,7 +132,7 @@ re seal verify audit.seal.json   <span class="dim"># the same checks, offline</s
       </div>
       <div class="proof">
         <h3>What fails, and how</h3>
-        <p>Verification is fail-closed. A bundle with a field the signer did not sign, an audit JSON whose hash or length differs from the seal, a commit or method that disagrees between the input, the signed parameters and the audit JSON, a wrong signature, a chain with a gap or a broken link: each is rejected at the step that catches it, and the steps are listed so you can see which one. "Unreadable" means the text is not a seal at all (not JSON, or JSON with a duplicate key); "invalid" means it is a seal that does not verify.</p>
+        <p>Verification is fail-closed. A bundle with a field the signer did not sign, an audit JSON whose hash or length differs from the seal, a commit or method that disagrees between the input, the signed parameters and the audit JSON, a Method v5 seal whose signed <code translate="no">coverage.notes_oid</code> or <code translate="no">coverage.ignore_revs_sha256</code> parameters were stripped or altered, a wrong signature, a chain with a gap or a broken link: each is rejected at the step that catches it, and the steps are listed so you can see which one. "Unreadable" means the text is not a seal at all (not JSON, or JSON with a duplicate key); "invalid" means it is a seal that does not verify.</p>
 <pre translate="no"><code translate="no">re seal verify audit.seal.json; echo $?
 <span class="dim"># 0 valid · 1 invalid · 2 unreadable</span></code></pre>
       </div>

@@ -143,6 +143,31 @@ await expect("bundle, compact JSON", JSON.stringify(bundle), { valid: true, kind
   b.subject.audit_json = b.subject.audit_json.replace('"shallow": false', '"shallow": true');
   await expect("shallow flag altered in audit JSON", show(b), { valid: false, kind: "audit", reason: "numbers were altered" });
 }
+// Signed coverage.notes_oid altered in params: signature catches it.
+{
+  const b = clone();
+  b.seal.generator.params["coverage.notes_oid"] = "a".repeat(40);
+  await expect("notes_oid swapped in signed params", show(b), { valid: false, kind: "audit", reason: "signature" });
+}
+// Signed coverage.ignore_revs_sha256 altered in params: signature catches it.
+{
+  const b = clone();
+  b.seal.generator.params["coverage.ignore_revs_sha256"] = "sha256:" + "b".repeat(64);
+  await expect("ignore_revs_sha256 swapped in signed params", show(b), { valid: false, kind: "audit", reason: "signature" });
+}
+// Validly re-signed v5 bundle with coverage.notes_oid and coverage.ignore_revs_sha256 stripped: rejected by both CLI and browser.
+{
+  const b = clone();
+  delete b.seal.generator.params["coverage.notes_oid"];
+  delete b.seal.generator.params["coverage.ignore_revs_sha256"];
+  const kp = await webcrypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const rawPub = new Uint8Array(await webcrypto.subtle.exportKey("raw", kp.publicKey));
+  b.seal.issuer.pubkey.key_hex = [...rawPub].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const payload = await ctx.payloadOf(b.seal);
+  const sigBytes = new Uint8Array(await webcrypto.subtle.sign({ name: "Ed25519" }, kp.privateKey, payload));
+  b.seal.signature.sig_hex = [...sigBytes].map((x) => x.toString(16).padStart(2, "0")).join("");
+  await expect("validly re-signed v5 bundle with stripped coverage params", show(b), { valid: false, kind: "audit", reason: "notes_oid" });
+}
 // Duplicate key: JSON.parse would keep the second audit_json; the page refuses.
 {
   const dup = bundleText.replace(/"audit_json": /, '"audit_json": "{}", "audit_json": ');

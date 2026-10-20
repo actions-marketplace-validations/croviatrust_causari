@@ -548,7 +548,8 @@ fn coauthor_is_vendor_identity(rest: &str) -> bool {
 }
 
 /// Evidence class of a detection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum EvidenceClass {
     Verified,
     Probable,
@@ -674,7 +675,13 @@ pub fn parse_blame_owners(porcelain: &str) -> Vec<String> {
 /// is AI evidence only when it names a non-empty tool. Method v3 counted any
 /// parseable note, including a schema-only or human-only note, as VERIFIED
 /// agent `ai`. Reports published under v3 stay v3.
-pub const METHOD_VERSION: &str = "v4";
+/// v5 binds `.git-blame-ignore-revs` to the tree at `HEAD` (with its SHA-256
+/// recorded in `coverage.ignore_revs_sha256` instead of reading an untracked
+/// worktree file), disables `core.quotepath` with NUL-delimited `ls-files -z`
+/// so non-ASCII paths are blamed rather than silently skipped, serializes
+/// `below_floor`, `comparable`, `notes_oid` and `skipped_files`, and emits
+/// per-commit rows (`commits`) with `owned_at_head` before the clamp.
+pub const METHOD_VERSION: &str = "v5";
 
 /// Below this many VERIFIED commits a ratio is reported but flagged: one
 /// commit can dominate it.
@@ -778,6 +785,12 @@ impl SurvivalStat {
     pub fn dominated_by_one_commit(&self) -> bool {
         self.largest_commit_share().is_some_and(|s| s >= 0.5)
     }
+
+    /// Fewer commits than [`SAMPLE_FLOOR`]: the ratio is reported with its
+    /// flag so machine consumers do not treat a 1-commit row as comparable.
+    pub fn below_floor(&self) -> bool {
+        self.commits < SAMPLE_FLOOR
+    }
 }
 
 /// The serialized shape of a `SurvivalStat`: sums plus derived figures, so
@@ -792,6 +805,7 @@ struct SurvivalStatView {
     capped_survival_rate: Option<f64>,
     cap_lines: Option<u64>,
     largest_commit_share: Option<f64>,
+    below_floor: bool,
 }
 
 impl serde::Serialize for SurvivalStat {
@@ -805,6 +819,7 @@ impl serde::Serialize for SurvivalStat {
             capped_survival_rate: self.capped_survival_rate(),
             cap_lines: self.cap_lines(),
             largest_commit_share: self.largest_commit_share(),
+            below_floor: self.below_floor(),
         }
         .serialize(serializer)
     }
@@ -816,8 +831,24 @@ impl serde::Serialize for SurvivalStat {
 pub struct Coverage {
     pub method: &'static str,
     pub blame_flags: Vec<&'static str>,
-    /// A usable `.git-blame-ignore-revs` was passed to blame.
+    pub numstat_flags: Vec<&'static str>,
+    /// A usable `.git-blame-ignore-revs` at `HEAD` was passed to blame.
     pub ignore_revs_file: bool,
+    /// `sha256:<hex>` of the `HEAD:.git-blame-ignore-revs` content actually
+    /// applied to `git blame`, or `None` when none was used.
+    pub ignore_revs_sha256: Option<String>,
+    /// Target object of `refs/notes/ai` when present, or `None` when absent.
+    pub notes_oid: Option<String>,
+    /// Sum of `owned_at_head - surviving` across VERIFIED commits where
+    /// `git blame -w -M -C` attributed more lines at `HEAD` than the commit
+    /// originally introduced (`surviving = min(owned_at_head, introduced)`).
+    /// `copy_capped_lines == 0` means ONLY that no VERIFIED commit exceeded its
+    /// `introduced` count at `HEAD`; it must NEVER be interpreted as absence of
+    /// copied/duplicated lines, because when `owned_at_head <= introduced`,
+    /// copied lines (`-C`) can still compensate for deleted lines of the same
+    /// commit. `surviving` is a capped attribution count, not a count of
+    /// distinct original lines retained.
+    pub copy_capped_lines: u64,
     /// The repository is a shallow clone: introduced counts are truncated
     /// and blame stops at the shallow boundary.
     pub shallow: bool,
@@ -831,7 +862,11 @@ impl Default for Coverage {
         Coverage {
             method: METHOD_VERSION,
             blame_flags: BLAME_FLAGS.to_vec(),
+            numstat_flags: NUMSTAT_FLAGS.to_vec(),
             ignore_revs_file: false,
+            ignore_revs_sha256: None,
+            notes_oid: None,
+            copy_capped_lines: 0,
             shallow: false,
             sample_floor: SAMPLE_FLOOR,
             small_sample: true,
@@ -848,13 +883,35 @@ pub const AGE_EDGES_DAYS: [u64; 5] = [30, 90, 180, 365, 730];
 /// One row of the by-age table: VERIFIED lines and untagged lines that
 /// entered the repository in one age window. A window is a bucket of commit
 /// age, not a single timestamp.
-#[derive(Debug, Default, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct AgeBucket {
     pub from_days: u64,
     /// `None` for the open-ended last bucket.
     pub to_days: Option<u64>,
     pub tagged: SurvivalStat,
     pub untagged: SurvivalStat,
+}
+
+#[derive(serde::Serialize)]
+struct AgeBucketView<'a> {
+    from_days: u64,
+    to_days: Option<u64>,
+    tagged: &'a SurvivalStat,
+    untagged: &'a SurvivalStat,
+    comparable: bool,
+}
+
+impl serde::Serialize for AgeBucket {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        AgeBucketView {
+            from_days: self.from_days,
+            to_days: self.to_days,
+            tagged: &self.tagged,
+            untagged: &self.untagged,
+            comparable: self.comparable(),
+        }
+        .serialize(serializer)
+    }
 }
 
 impl AgeBucket {
@@ -984,6 +1041,25 @@ pub fn ymd(ts: i64) -> String {
         .unwrap_or_else(|| ts.to_string())
 }
 
+/// Per-commit row of a v5 receipt: everything needed to recompute the
+/// aggregates or diff two receipts without trusting the summary figures.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct CommitRow {
+    pub hash: String,
+    pub committed_at: i64,
+    pub class: EvidenceClass,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<String>,
+    pub introduced: u64,
+    /// Lines at `HEAD` attributed to this commit by `git blame` before the
+    /// `min(introduced)` clamp (exposes `-C` copy inflation).
+    pub owned_at_head: u64,
+    /// Clamped surviving lines (`owned_at_head.min(introduced)`).
+    pub surviving: u64,
+}
+
 /// The full audit result.
 #[derive(Debug, Default, serde::Serialize)]
 pub struct SurvivalReport {
@@ -994,6 +1070,9 @@ pub struct SurvivalReport {
     pub by_agent: BTreeMap<String, SurvivalStat>,
     pub baseline: Baseline,
     pub coverage: Coverage,
+    /// Per-commit breakdown (oldest first), enabling third-party
+    /// recomputation of every aggregate and deterministic receipt diffs.
+    pub commits: Vec<CommitRow>,
 }
 
 /// Pure aggregation: given per-commit introduced counts, detections, the
@@ -1007,6 +1086,7 @@ pub fn compute_survival(
 ) -> SurvivalReport {
     let mut report = SurvivalReport {
         total_commits: commits.len() as u64,
+        commits: Vec::with_capacity(commits.len()),
         ..Default::default()
     };
     let mut by_age = Baseline::empty_buckets();
@@ -1025,13 +1105,26 @@ pub fn compute_survival(
     for (meta, introduced) in commits {
         let det = detections.get(&meta.hash);
         let class = classify(det);
-        let surviving = surviving_by_hash
+        let owned_at_head = surviving_by_hash
             .get(meta.hash.as_str())
             .copied()
-            .unwrap_or(0)
-            // A commit can only "survive" up to what it introduced; blame can
-            // attribute context/moved lines, so clamp to stay honest.
-            .min(*introduced);
+            .unwrap_or(0);
+        // A commit can only "survive" up to what it introduced; blame can
+        // attribute context/moved/copied lines, so clamp to stay honest.
+        let surviving = owned_at_head.min(*introduced);
+        if class == EvidenceClass::Verified && owned_at_head > *introduced {
+            report.coverage.copy_capped_lines += owned_at_head - *introduced;
+        }
+        report.commits.push(CommitRow {
+            hash: meta.hash.clone(),
+            committed_at: meta.committed_at,
+            class,
+            agent: det.map(|d| d.agent.clone()),
+            evidence: det.map(|d| d.evidence.clone()).unwrap_or_default(),
+            introduced: *introduced,
+            owned_at_head,
+            surviving,
+        });
         // Committer clocks can run ahead of HEAD's; such a line is simply new.
         let age_days = if meta.committed_at > 0 {
             Some(((head_committed_at - meta.committed_at).max(0) / 86_400) as u64)
@@ -1107,8 +1200,9 @@ pub fn compute_survival(
 // Git plumbing: the only external dependency of the Group-0 engine.
 // ---------------------------------------------------------------------------
 
-fn git(dir: &Path, args: &[&str]) -> Result<String> {
+fn git_bytes(dir: &Path, args: &[&str]) -> Result<Vec<u8>> {
     let out = Command::new("git")
+        .args(["--no-replace-objects", "-c", "core.quotepath=false"])
         .args(args)
         .current_dir(dir)
         .output()
@@ -1120,41 +1214,80 @@ fn git(dir: &Path, args: &[&str]) -> Result<String> {
             String::from_utf8_lossy(&out.stderr).trim()
         ));
     }
+    Ok(out.stdout)
+}
+
+fn git_with_path(dir: &Path, args: &[&str], path_arg: &std::ffi::OsStr) -> Result<String> {
+    let out = Command::new("git")
+        .args(["--no-replace-objects", "-c", "core.quotepath=false"])
+        .args(args)
+        .arg(path_arg)
+        .current_dir(dir)
+        .output()
+        .with_context(|| format!("failed to run git {:?} {:?}", args, path_arg))?;
+    if !out.status.success() {
+        return Err(anyhow::anyhow!(
+            "git {:?} {:?} failed: {}",
+            args,
+            path_arg,
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
-/// Read all commits (oldest first) with hash, author, email and full message.
-pub fn read_commits(dir: &Path) -> Result<Vec<CommitMeta>> {
-    let raw = git(
-        dir,
-        &[
-            "log",
-            "--reverse",
-            "--no-merges",
-            "--notes=ai",
-            "--pretty=format:%x00%H%x1f%ct%x1f%an%x1f%ae%x1f%B%x1f%N",
-        ],
-    )?;
+fn git(dir: &Path, args: &[&str]) -> Result<String> {
+    let stdout = git_bytes(dir, args)?;
+    Ok(String::from_utf8_lossy(&stdout).into_owned())
+}
+
+#[cfg(unix)]
+fn raw_git_path_to_os_string(raw: &[u8]) -> Result<std::ffi::OsString> {
+    use std::os::unix::ffi::OsStrExt;
+    Ok(std::ffi::OsStr::from_bytes(raw).to_os_string())
+}
+
+#[cfg(not(unix))]
+fn raw_git_path_to_os_string(raw: &[u8]) -> Result<std::ffi::OsString> {
+    match std::str::from_utf8(raw) {
+        Ok(s) => Ok(std::ffi::OsString::from(s)),
+        Err(_) => anyhow::bail!(
+            "HEAD tree contains non-UTF-8 path {:?}; refusing to substitute U+FFFD on Windows (which would falsify git blame to 0% survival). Run the audit in a Unix/WSL environment.",
+            String::from_utf8_lossy(raw)
+        ),
+    }
+}
+
+/// Parse raw output of `read_commits` (`\0COMMIT\0<hash>\0<ct>\0<an>\0<ae>\0<B>\0NOTE\0<N>\0END\0`).
+/// Separating fields with NUL-framed markers (`\0NOTE\0` and `\0END\0`) guarantees
+/// that arbitrary `0x1F` unit separators, tabs, or newlines inside commit messages
+/// or notes never shift field boundaries.
+pub fn parse_read_commits_raw(raw: &str) -> Result<Vec<CommitMeta>> {
     let mut commits = Vec::new();
-    for record in raw.split('\u{0}') {
-        if record.trim().is_empty() {
+    for chunk in raw.split("\0COMMIT\0") {
+        if chunk.trim().is_empty() {
             continue;
         }
-        let mut fields = record.splitn(6, '\u{1f}');
-        let hash = fields.next().unwrap_or("").trim().to_string();
-        let committed_at = fields
-            .next()
-            .unwrap_or("")
-            .trim()
-            .parse::<i64>()
-            .unwrap_or(0);
-        let author_name = fields.next().unwrap_or("").to_string();
-        let author_email = fields.next().unwrap_or("").to_string();
-        let message = fields.next().unwrap_or("").to_string();
-        let notes = fields.next().unwrap_or("").trim().to_string();
+        let body = chunk.split_once("\0END\0").map(|(b, _)| b).unwrap_or(chunk);
+        let mut head_fields = body.splitn(5, '\0');
+        let hash = head_fields.next().unwrap_or("").trim().to_string();
         if hash.is_empty() {
             continue;
         }
+        if hash.len() != 40 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+            anyhow::bail!("git log returned malformed commit hash {hash:?}");
+        }
+        let ct_raw = head_fields.next().unwrap_or("").trim();
+        let committed_at = ct_raw
+            .parse::<i64>()
+            .with_context(|| format!("git log returned invalid timestamp {ct_raw:?} for {hash}"))?;
+        let author_name = head_fields.next().unwrap_or("").to_string();
+        let author_email = head_fields.next().unwrap_or("").to_string();
+        let rest = head_fields.next().unwrap_or("");
+        let (message, notes) = match rest.rsplit_once("\0NOTE\0") {
+            Some((m, n)) => (m.to_string(), n.trim().to_string()),
+            None => (rest.to_string(), String::new()),
+        };
         commits.push(CommitMeta {
             hash,
             author_name,
@@ -1167,27 +1300,96 @@ pub fn read_commits(dir: &Path) -> Result<Vec<CommitMeta>> {
     Ok(commits)
 }
 
-/// Parse the output of `git log --numstat --format=%x00%H` into per-commit
-/// added-line counts. One git traversal replaces one `git show` per commit.
+/// Read all commits (oldest first) with hash, author, email and full message.
+pub fn read_commits(dir: &Path) -> Result<Vec<CommitMeta>> {
+    let raw = git(
+        dir,
+        &[
+            "log",
+            "--reverse",
+            "--no-merges",
+            "--notes=ai",
+            "--pretty=format:%x00COMMIT%x00%H%x00%ct%x00%an%x00%ae%x00%B%x00NOTE%x00%N%x00END%x00",
+        ],
+    )?;
+    parse_read_commits_raw(&raw)
+}
+
+/// Parse the output of `git log --no-merges --numstat -M -z --format=%x00%H`
+/// (as well as newline-delimited numstat fixtures) into per-commit added-line
+/// counts. With `-z`, normal entries are `added\tdeleted\tpath\0` (so literal
+/// `" => "` in a filename is preserved verbatim) and renames are
+/// `added\tdeleted\t\0old_path\0new_path\0` (so `new_path` is classified
+/// directly without heuristic splitting).
 pub fn parse_log_numstat(raw: &str) -> HashMap<String, u64> {
+    fn is_commit_sha(s: &str) -> bool {
+        s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit())
+    }
+
     let mut map = HashMap::new();
-    for record in raw.split('\u{0}') {
-        let record = record.trim_start_matches('\n');
-        if record.trim().is_empty() {
+    let mut current_hash: Option<String> = None;
+    let mut tokens = raw.split('\u{0}');
+
+    while let Some(raw_tok) = tokens.next() {
+        let tok = raw_tok.trim_start_matches('\n');
+        if tok.trim().is_empty() {
             continue;
         }
-        let (hash, rest) = record.split_once('\n').unwrap_or((record, ""));
-        let hash = hash.trim();
-        if hash.len() == 40 && hash.chars().all(|c| c.is_ascii_hexdigit()) {
-            map.insert(hash.to_string(), parse_numstat_added(rest));
+        let trimmed = tok.trim();
+        if is_commit_sha(trimmed) {
+            current_hash = Some(trimmed.to_string());
+            map.entry(trimmed.to_string()).or_insert(0);
+            continue;
+        }
+        if let Some((first_line, rest)) = tok.split_once('\n') {
+            let h = first_line.trim();
+            if is_commit_sha(h) {
+                current_hash = Some(h.to_string());
+                map.insert(h.to_string(), parse_numstat_added(rest));
+                continue;
+            }
+        }
+        let Some(ref commit) = current_hash else {
+            continue;
+        };
+        let mut cols = tok.splitn(3, '\t');
+        if let (Some(a), Some(_d), Some(p)) = (cols.next(), cols.next(), cols.next()) {
+            let dest_path = if p.is_empty() {
+                let _old_path = tokens.next().unwrap_or("");
+                tokens.next().unwrap_or("")
+            } else {
+                p
+            };
+            if is_generated_path(dest_path) {
+                continue;
+            }
+            if let Ok(n) = a.trim().parse::<u64>() {
+                *map.entry(commit.clone()).or_insert(0) += n;
+            }
         }
     }
     map
 }
 
+/// Flags passed to `git log --numstat` in method v5: `-M` detects renames so
+/// renaming an existing file does not count its entire body as newly
+/// introduced lines on the rename commit; `-z` NUL-delimits paths so filenames
+/// containing literal `" => "` or non-ASCII characters are never misparsed.
+pub const NUMSTAT_FLAGS: [&str; 2] = ["-M", "-z"];
+
 /// Added-line counts for every non-merge commit, in a single git call.
 pub fn lines_added_all(dir: &Path) -> Result<HashMap<String, u64>> {
-    let raw = git(dir, &["log", "--no-merges", "--numstat", "--format=%x00%H"])?;
+    let raw = git(
+        dir,
+        &[
+            "log",
+            "--no-merges",
+            "--numstat",
+            "-M",
+            "-z",
+            "--format=%x00%H",
+        ],
+    )?;
     Ok(parse_log_numstat(&raw))
 }
 
@@ -1199,20 +1401,24 @@ pub fn lines_added_all(dir: &Path) -> Result<HashMap<String, u64>> {
 pub const BLAME_FLAGS: [&str; 3] = ["-w", "-M", "-C"];
 
 /// Conventional name of the revision list that `git blame` should skip
-/// (mass reformats, renames-only commits). Honoured when present at the
-/// repository root, as GitHub's blame view does.
+/// (mass reformats, renames-only commits). Honoured when committed at the
+/// repository root at `HEAD`, as GitHub's blame view does.
 pub const IGNORE_REVS_FILE: &str = ".git-blame-ignore-revs";
 
-/// The repository's `.git-blame-ignore-revs`, when present and usable.
-///
-/// `git blame` dies on any entry it cannot resolve to a commit. Because a
-/// per-file blame failure is tolerated (binary files), that would silently
-/// turn every line of the repository into "no owner" and report 0 %
-/// survival. A file with an unresolvable entry is therefore skipped with a
-/// warning rather than passed through.
-pub fn ignore_revs_file(dir: &Path) -> Option<std::path::PathBuf> {
-    let path = dir.join(IGNORE_REVS_FILE);
-    let text = std::fs::read_to_string(&path).ok()?;
+/// Verified `.git-blame-ignore-revs` content read from `HEAD` (never from an
+/// untracked worktree file) materialised into a temporary file for `git blame`.
+pub struct IgnoreRevsAtHead {
+    pub path: std::path::PathBuf,
+    pub sha256: String,
+}
+
+impl Drop for IgnoreRevsAtHead {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+fn validate_ignore_revs_text(dir: &Path, text: &str) -> bool {
     let revs: Vec<&str> = text
         .lines()
         .map(|l| l.split('#').next().unwrap_or("").trim())
@@ -1236,14 +1442,63 @@ pub fn ignore_revs_file(dir: &Path) -> Option<std::path::PathBuf> {
                 "warning: {IGNORE_REVS_FILE} lists '{rev}', which is not a commit here; \
                  the file is ignored for this audit"
             );
-            return None;
+            return false;
         }
     }
-    Some(path)
+    true
 }
 
-/// Blame every tracked text file at HEAD, returning the owning commit of each
-/// surviving line. `ignore_revs` is the resolved [`ignore_revs_file`].
+/// Read `HEAD:.git-blame-ignore-revs`, validate every listed revision, and
+/// write the committed bytes to a temporary file so `git blame` uses the
+/// exact tree at `HEAD` even when the worktree is dirty or has an untracked
+/// `.git-blame-ignore-revs`.
+pub fn ignore_revs_at_head(dir: &Path) -> Option<IgnoreRevsAtHead> {
+    let spec = format!("HEAD:{IGNORE_REVS_FILE}");
+    let text = git(dir, &["cat-file", "-p", &spec]).ok()?;
+    if !validate_ignore_revs_text(dir, &text) {
+        return None;
+    }
+    let sha256 = format!("sha256:{}", crate::seal::sha256_hex(text.as_bytes()));
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+    let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let tmp = std::env::temp_dir().join(format!(
+        "causari-ignore-revs-{}-{seq}.txt",
+        std::process::id()
+    ));
+    std::fs::write(&tmp, text.as_bytes()).ok()?;
+    Some(IgnoreRevsAtHead { path: tmp, sha256 })
+}
+
+/// Extract regular-file blob paths (`100644` / `100755`) from the raw NUL-delimited
+/// output of `git ls-tree -r -z HEAD`, excluding generated paths, symlinks (`120000`),
+/// and gitlink submodules (`160000`).
+fn head_tree_blob_paths(raw_ls_tree: &[u8]) -> Result<Vec<std::ffi::OsString>> {
+    let mut list = Vec::new();
+    for entry in raw_ls_tree.split(|&b| b == 0) {
+        if entry.is_empty() {
+            continue;
+        }
+        let Some(tab_pos) = entry.iter().position(|&b| b == b'\t') else {
+            anyhow::bail!("malformed git ls-tree entry (missing tab separator)");
+        };
+        let meta = &entry[..tab_pos];
+        let raw_path = &entry[tab_pos + 1..];
+        if !(meta.starts_with(b"100644 blob ") || meta.starts_with(b"100755 blob ")) {
+            continue;
+        }
+        let lossy_path = String::from_utf8_lossy(raw_path);
+        if is_generated_path(&lossy_path) {
+            continue;
+        }
+        list.push(raw_git_path_to_os_string(raw_path)?);
+    }
+    Ok(list)
+}
+
+/// Blame every regular text/blob file in the `HEAD` tree (via `ls-tree -r -z HEAD`
+/// so staging-index mutations, bare repositories, and non-ASCII paths never distort
+/// the measurement) and propagate any `git blame` failure as an explicit error
+/// rather than silently recording 0 surviving lines.
 pub fn blame_head(dir: &Path, ignore_revs: Option<&Path>) -> Result<Vec<String>> {
     let mut base_args: Vec<&str> = vec!["blame"];
     base_args.extend(BLAME_FLAGS);
@@ -1254,13 +1509,8 @@ pub fn blame_head(dir: &Path, ignore_revs: Option<&Path>) -> Result<Vec<String>>
     }
     base_args.extend(["HEAD", "--"]);
 
-    let files = git(dir, &["ls-files"])?;
-    let list: Vec<&str> = files
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .filter(|l| !is_generated_path(l))
-        .collect();
+    let raw_tree = git_bytes(dir, &["ls-tree", "-r", "-z", "HEAD"])?;
+    let list = head_tree_blob_paths(&raw_tree)?;
     let total = list.len();
     // Blame is embarrassingly parallel across files: each worker pulls the
     // next index from a shared atomic cursor and runs its own git subprocess.
@@ -1271,36 +1521,38 @@ pub fn blame_head(dir: &Path, ignore_revs: Option<&Path>) -> Result<Vec<String>>
         .clamp(2, 16);
     let cursor = AtomicUsize::new(0);
     let done = AtomicUsize::new(0);
-    let owners: Vec<String> = std::thread::scope(|s| {
+    let worker_results: Vec<Result<Vec<String>>> = std::thread::scope(|s| {
         let mut handles = Vec::new();
         for _ in 0..threads {
-            handles.push(s.spawn(|| {
+            handles.push(s.spawn(|| -> Result<Vec<String>> {
                 let mut local: Vec<String> = Vec::new();
                 loop {
                     let i = cursor.fetch_add(1, Ordering::Relaxed);
                     if i >= total {
                         break;
                     }
-                    // Skip files git cannot blame (e.g. binary): tolerate
-                    // per-file errors.
-                    let mut args = base_args.clone();
-                    args.push(list[i]);
-                    if let Ok(porcelain) = git(dir, &args) {
-                        local.extend(parse_blame_owners(&porcelain));
-                    }
+                    let porcelain = git_with_path(dir, &base_args, &list[i])?;
+                    local.extend(parse_blame_owners(&porcelain));
                     let d = done.fetch_add(1, Ordering::Relaxed) + 1;
                     if total > 200 && d % 200 == 0 {
                         eprintln!("  blaming files at HEAD: {d}/{total}");
                     }
                 }
-                local
+                Ok(local)
             }));
         }
         handles
             .into_iter()
-            .flat_map(|h| h.join().unwrap_or_default())
+            .map(|h| {
+                h.join()
+                    .map_err(|_| anyhow::anyhow!("git blame worker thread panicked"))?
+            })
             .collect()
     });
+    let mut owners = Vec::new();
+    for res in worker_results {
+        owners.extend(res?);
+    }
     Ok(owners)
 }
 
@@ -1327,6 +1579,37 @@ pub fn head_commit(dir: &Path) -> Result<String> {
         anyhow::bail!("git rev-parse HEAD returned {hash:?}, not a commit hash");
     }
     Ok(hash)
+}
+
+/// All root commits (`--max-parents=0`) reachable from `HEAD`, sorted
+/// lexicographically so a repository that merged an unrelated history keeps
+/// a deterministic root set and shares at least one root with its pre-merge
+/// history.
+pub fn root_commits(dir: &Path) -> Result<Vec<String>> {
+    let raw = git(dir, &["rev-list", "--max-parents=0", "HEAD"])?;
+    let mut set = std::collections::BTreeSet::new();
+    for line in raw.lines() {
+        let h = line.trim();
+        if h.is_empty() {
+            continue;
+        }
+        if h.len() != 40 || !h.chars().all(|c| c.is_ascii_hexdigit()) {
+            anyhow::bail!("git rev-list --max-parents=0 returned malformed commit hash {h:?}");
+        }
+        set.insert(h.to_string());
+    }
+    Ok(set.into_iter().collect())
+}
+
+/// Target object of `refs/notes/ai` when present in this repository.
+pub fn notes_ai_oid(dir: &Path) -> Option<String> {
+    let raw = git(dir, &["rev-parse", "--verify", "--quiet", "refs/notes/ai"]).ok()?;
+    let oid = raw.trim();
+    if oid.len() == 40 && oid.chars().all(|c| c.is_ascii_hexdigit()) {
+        Some(oid.to_string())
+    } else {
+        None
+    }
 }
 
 /// Committer timestamp of HEAD: the moment the measured tree came to be,
@@ -1395,10 +1678,12 @@ pub fn audit_repo(dir: &Path, opts: &AuditOptions) -> Result<SurvivalReport> {
         .collect();
     let head_committed_at = head_committed_at(dir)?;
 
-    let ignore_revs = ignore_revs_file(dir);
-    let head_owners = blame_head(dir, ignore_revs.as_deref())?;
+    let ignore_revs = ignore_revs_at_head(dir);
+    let head_owners = blame_head(dir, ignore_revs.as_ref().map(|ir| ir.path.as_path()))?;
     let mut report = compute_survival(&with_intro, &detections, &head_owners, head_committed_at);
     report.coverage.ignore_revs_file = ignore_revs.is_some();
+    report.coverage.ignore_revs_sha256 = ignore_revs.as_ref().map(|ir| ir.sha256.clone());
+    report.coverage.notes_oid = notes_ai_oid(dir);
     report.coverage.shallow = shallow;
     Ok(report)
 }
@@ -2384,16 +2669,17 @@ mod tests {
         detections.insert(c.hash.clone(), detection("claude-code", 1.0));
         let owners = vec![c.hash.clone()];
         let report = compute_survival(&[(c, 3)], &detections, &owners, 0);
-        assert_eq!(report.coverage.method, "v4");
+        assert_eq!(report.coverage.method, "v5");
         assert_eq!(report.coverage.blame_flags, vec!["-w", "-M", "-C"]);
         assert_eq!(report.coverage.sample_floor, 5);
         assert!(report.coverage.small_sample);
         assert!(!report.coverage.shallow);
 
         let v = serde_json::to_value(&report).unwrap();
-        assert_eq!(v["coverage"]["method"], "v4");
+        assert_eq!(v["coverage"]["method"], "v5");
         assert_eq!(v["verified"]["survival_rate"], 1.0 / 3.0);
         assert_eq!(v["by_agent"]["claude-code"]["median_survival"], 1.0 / 3.0);
+        assert_eq!(v["by_agent"]["claude-code"]["below_floor"], true);
     }
 
     // -- end-to-end on a real synthetic git repo -------------------------------
@@ -2408,6 +2694,10 @@ mod tests {
                 "commit.gpgsign=false",
                 "-c",
                 "tag.gpgsign=false",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "protocol.file.allow=always",
                 "-c",
                 "trace2.eventTarget=",
             ])
@@ -2546,7 +2836,7 @@ mod tests {
     }
 
     #[test]
-    fn blame_ignore_revs_file_is_honoured() {
+    fn blame_ignore_revs_file_is_honoured_when_committed_at_head_and_ignored_when_untracked() {
         let tmp = synthetic_repo();
         let dir = tmp.path();
 
@@ -2561,18 +2851,66 @@ mod tests {
 
         let without = audit_repo(dir, &AuditOptions::default()).unwrap();
         assert_eq!(without.verified.surviving, 1);
+        assert!(!without.coverage.ignore_revs_file);
+        assert!(without.coverage.ignore_revs_sha256.is_none());
 
-        std::fs::write(
-            dir.join(IGNORE_REVS_FILE),
-            format!("# formatter passes\n{reformat}\n"),
-        )
-        .unwrap();
-        assert!(ignore_revs_file(dir).is_some());
+        // An untracked worktree `.git-blame-ignore-revs` is not part of HEAD
+        // and must NOT alter the audit of HEAD.
+        let body = format!("# formatter passes\n{reformat}\n");
+        std::fs::write(dir.join(IGNORE_REVS_FILE), &body).unwrap();
+        assert!(ignore_revs_at_head(dir).is_none());
+        let untracked = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(untracked.verified.surviving, 1);
+        assert!(!untracked.coverage.ignore_revs_file);
+        assert!(untracked.coverage.ignore_revs_sha256.is_none());
+
+        // Once committed at HEAD, it is honoured and its SHA-256 is recorded.
+        commit_all(dir, "commit ignore-revs");
+        assert!(ignore_revs_at_head(dir).is_some());
         let with = audit_repo(dir, &AuditOptions::default()).unwrap();
         assert_eq!(with.verified.introduced, 2);
         assert_eq!(with.verified.surviving, 2);
         assert!(with.coverage.ignore_revs_file);
-        assert!(!without.coverage.ignore_revs_file);
+        assert!(
+            with.coverage
+                .ignore_revs_sha256
+                .as_deref()
+                .is_some_and(|h| h.starts_with("sha256:"))
+        );
+    }
+
+    #[test]
+    fn non_ascii_filenames_are_blamed_and_not_silently_skipped() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+
+        std::fs::write(
+            dir.join("modèle_éàü.py"),
+            "def calculer(x):\n    return x + 1\n",
+        )
+        .unwrap();
+        commit_all(dir, &format!("add non-ascii module{CLAUDE_TRAILER}"));
+
+        let report = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(report.verified.commits, 1);
+        assert_eq!(report.verified.introduced, 2);
+        assert_eq!(report.verified.surviving, 2);
+        assert_eq!(report.verified.survival_rate(), Some(1.0));
+    }
+
+    #[test]
+    fn per_commit_rows_record_owned_at_head_before_clamp() {
+        let c = meta(&"a".repeat(40), "x", "x@x", "m");
+        let mut detections = HashMap::new();
+        detections.insert(c.hash.clone(), detection("claude-code", 1.0));
+        let commits = vec![(c.clone(), 4u64)];
+        let owners: Vec<String> = std::iter::repeat_n(c.hash.clone(), 9).collect();
+
+        let report = compute_survival(&commits, &detections, &owners, 0);
+        assert_eq!(report.commits.len(), 1);
+        assert_eq!(report.commits[0].introduced, 4);
+        assert_eq!(report.commits[0].owned_at_head, 9);
+        assert_eq!(report.commits[0].surviving, 4);
     }
 
     #[test]
@@ -2584,12 +2922,15 @@ mod tests {
             format!("{}\n{}\n", head_hash(dir), "0".repeat(40)),
         )
         .unwrap();
-        assert!(ignore_revs_file(dir).is_none());
+        assert!(ignore_revs_at_head(dir).is_none());
         // The audit still runs and still attributes lines (the ignore file
-        // itself is part of this commit's introduced lines).
+        // itself is part of this commit's introduced lines, and even once
+        // committed at HEAD it is rejected by validate_ignore_revs_text).
         std::fs::write(dir.join("x.py"), "x = 1\n").unwrap();
         commit_all(dir, &format!("add x{CLAUDE_TRAILER}"));
+        assert!(ignore_revs_at_head(dir).is_none());
         let report = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert!(!report.coverage.ignore_revs_file);
         assert!(report.verified.introduced > 0);
         assert_eq!(report.verified.surviving, report.verified.introduced);
     }
@@ -2893,7 +3234,8 @@ mod tests {
         let shallow = tempfile::tempdir().unwrap();
         let repo = shallow.path().join("repo");
         // `--depth` is ignored for a local path. `file://` is a real shallow clone.
-        let url = format!("file://{}", dir.display());
+        let raw_dir = dir.to_string_lossy().replace('\\', "/");
+        let url = format!("file:///{}", raw_dir.trim_start_matches('/'));
         run_git(
             shallow.path(),
             &["clone", "-q", "--depth", "1", &url, "repo"],
@@ -2908,5 +3250,328 @@ mod tests {
         )
         .unwrap();
         assert!(report.coverage.shallow);
+    }
+
+    #[test]
+    fn git_replace_ref_cannot_spoof_ai_trailer_or_blame_without_changing_head() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+        let orig_head = head_commit(dir).unwrap();
+
+        let tree_out = Command::new("git")
+            .args(["rev-parse", "HEAD^{tree}"])
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        let tree = String::from_utf8_lossy(&tree_out.stdout).trim().to_string();
+
+        let fake_out = Command::new("git")
+            .args([
+                "commit-tree",
+                &tree,
+                "-m",
+                &format!("spoofed AI commit{CLAUDE_TRAILER}"),
+            ])
+            .env("GIT_AUTHOR_NAME", "Tarik")
+            .env("GIT_AUTHOR_EMAIL", "tarik@example.com")
+            .env("GIT_COMMITTER_NAME", "Tarik")
+            .env("GIT_COMMITTER_EMAIL", "tarik@example.com")
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        let fake_commit = String::from_utf8_lossy(&fake_out.stdout).trim().to_string();
+
+        run_git(dir, &["replace", &orig_head, &fake_commit]);
+        assert_eq!(head_commit(dir).unwrap(), orig_head);
+
+        let report = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(
+            report.verified.commits, 0,
+            "git --no-replace-objects must ignore .git/refs/replace/*"
+        );
+    }
+
+    #[test]
+    fn pure_file_rename_does_not_inflate_introduced_lines() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+        let body: String = (0..50).map(|i| format!("line_{i} = {i}\n")).collect();
+        std::fs::write(dir.join("module_a.py"), &body).unwrap();
+        commit_all(dir, &format!("add module_a{CLAUDE_TRAILER}"));
+
+        run_git(dir, &["mv", "module_a.py", "module_b.py"]);
+        run_git(dir, &["commit", "-q", "-m", "human rename only"]);
+
+        let report = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(report.verified.introduced, 50);
+        assert_eq!(report.verified.surviving, 50);
+        // Scaffold commit has 1 line; the pure rename commit must introduce 0 lines.
+        assert_eq!(report.baseline.untagged.commits, 2);
+        assert_eq!(report.baseline.untagged.introduced, 1);
+        assert_eq!(report.baseline.untagged.surviving, 1);
+    }
+
+    #[test]
+    fn copy_detection_caps_at_introduced_and_records_excess_in_coverage() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+        let body: String = (0..10)
+            .map(|i| format!("def credential_rotation_step_{i}(user, issuer): return {i}\n"))
+            .collect();
+        std::fs::write(dir.join("orig.py"), &body).unwrap();
+        commit_all(dir, &format!("add orig{CLAUDE_TRAILER}"));
+
+        // Case 1: copying into a new file without touching `orig.py` is NOT
+        // followed by single `-C` (which inspects only files modified in the
+        // same commit).
+        std::fs::write(dir.join("untracked_copy.py"), &body).unwrap();
+        commit_all(dir, "copy without touching orig.py");
+        let r1 = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(r1.verified.introduced, 10);
+        assert_eq!(r1.verified.surviving, 10);
+        assert_eq!(r1.coverage.copy_capped_lines, 0);
+
+        // Case 2: when the commit touches `orig.py` AND copies the block into
+        // `copy.py`, `git blame -w -M -C` attributes all 20 lines at HEAD to
+        // the AI commit (`owned_at_head == 20`), clamped to `surviving == 10`
+        // with `coverage.copy_capped_lines == 10`.
+        std::fs::write(dir.join("orig.py"), format!("{body}# touched\n")).unwrap();
+        std::fs::write(dir.join("copy.py"), &body).unwrap();
+        commit_all(dir, "touch orig and duplicate block into copy.py");
+
+        let report = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(report.verified.introduced, 10);
+        assert_eq!(report.verified.surviving, 10);
+        assert_eq!(report.coverage.copy_capped_lines, 10);
+        let ai_row = report
+            .commits
+            .iter()
+            .find(|c| c.class == EvidenceClass::Verified)
+            .unwrap();
+        assert_eq!(ai_row.introduced, 10);
+        assert_eq!(ai_row.owned_at_head, 20);
+        assert_eq!(ai_row.surviving, 10);
+    }
+
+    #[test]
+    fn filenames_containing_literal_arrow_do_not_bypass_or_trigger_generated_filter() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+        run_git(dir, &["config", "core.protectNTFS", "false"]);
+
+        let blob = git(dir, &["hash-object", "-w", "main.py"]).unwrap();
+        let blob = blob.trim();
+        // 1) A file inside `vendor/` whose name contains `" => "` must remain
+        //    classified as generated (`introduced == 0`, `surviving == 0`).
+        run_git(
+            dir,
+            &[
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                &format!("100644,{blob},vendor/fake => real.py"),
+            ],
+        );
+        let t1 = git(dir, &["write-tree"]).unwrap();
+        let parent = head_hash(dir);
+        let c1 = git(
+            dir,
+            &[
+                "commit-tree",
+                t1.trim(),
+                "-p",
+                &parent,
+                "-m",
+                &format!("vendor arrow{CLAUDE_TRAILER}"),
+            ],
+        )
+        .unwrap();
+        run_git(dir, &["update-ref", "refs/heads/main", c1.trim()]);
+        let r_vendor = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(r_vendor.verified.commits, 1);
+        assert_eq!(r_vendor.verified.introduced, 0);
+        assert_eq!(r_vendor.verified.surviving, 0);
+
+        // 2) A file inside `src/` whose name ends with `" => Cargo.lock"` is
+        //    NOT `Cargo.lock` and must be counted in both numstat and blame.
+        run_git(
+            dir,
+            &[
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                &format!("100644,{blob},src/real => Cargo.lock"),
+            ],
+        );
+        let t2 = git(dir, &["write-tree"]).unwrap();
+        let c2 = git(
+            dir,
+            &[
+                "commit-tree",
+                t2.trim(),
+                "-p",
+                c1.trim(),
+                "-m",
+                &format!("src arrow{CLAUDE_TRAILER}"),
+            ],
+        )
+        .unwrap();
+        run_git(dir, &["update-ref", "refs/heads/main", c2.trim()]);
+        let r_src = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(r_src.verified.commits, 2);
+        assert_eq!(r_src.verified.introduced, 1);
+        assert_eq!(r_src.verified.surviving, 1);
+        assert_eq!(r_src.verified.survival_rate(), Some(1.0));
+    }
+
+    #[test]
+    fn staged_index_rm_cached_and_bare_repository_match_head_tree() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+        std::fs::write(dir.join("ai.py"), "a = 1\nb = 2\nc = 3\n").unwrap();
+        commit_all(dir, &format!("add ai{CLAUDE_TRAILER}"));
+
+        let baseline = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(baseline.verified.introduced, 3);
+        assert_eq!(baseline.verified.surviving, 3);
+        assert_eq!(baseline.verified.survival_rate(), Some(1.0));
+
+        // 1) Bare clone has no `.git/index`; `ls-tree -r -z HEAD` must still
+        //    measure the exact tree of `HEAD`.
+        let bare_tmp = tempfile::tempdir().unwrap();
+        let bare_dir = bare_tmp.path().join("repo.git");
+        run_git(
+            bare_tmp.path(),
+            &[
+                "clone",
+                "-q",
+                "--bare",
+                dir.to_str().unwrap(),
+                bare_dir.to_str().unwrap(),
+            ],
+        );
+        let bare_report = audit_repo(&bare_dir, &AuditOptions::default()).unwrap();
+        assert_eq!(bare_report.verified.introduced, 3);
+        assert_eq!(bare_report.verified.surviving, 3);
+        assert_eq!(bare_report.verified.survival_rate(), Some(1.0));
+
+        // 2) Uncommitted `git rm --cached ai.py` empties the index for `ai.py`
+        //    without changing `HEAD`; the audit of `HEAD` must be unchanged.
+        let head_before = head_hash(dir);
+        run_git(dir, &["rm", "-q", "--cached", "ai.py"]);
+        assert_eq!(head_hash(dir), head_before);
+        let after_rm_cached = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(after_rm_cached.verified.introduced, 3);
+        assert_eq!(after_rm_cached.verified.surviving, 3);
+        assert_eq!(after_rm_cached.verified.survival_rate(), Some(1.0));
+    }
+
+    #[test]
+    fn non_utf8_filename_is_blamed_on_unix_and_refused_without_silent_zero_on_windows() {
+        use std::io::Write;
+        use std::process::Stdio;
+
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+        let new_file = dir.join("new_ai_body.tmp");
+        std::fs::write(&new_file, "def latin1_fn():\n    return 42\n").unwrap();
+        let blob = git(dir, &["hash-object", "-w", new_file.to_str().unwrap()]).unwrap();
+        let blob = blob.trim();
+        let _ = std::fs::remove_file(&new_file);
+
+        let mut child = Command::new("git")
+            .args(["mktree", "-z"])
+            .current_dir(dir)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut entry = format!("100644 blob {blob}\tlatin1_").into_bytes();
+        entry.push(0xe8);
+        entry.extend_from_slice(b".py\0");
+        child.stdin.as_mut().unwrap().write_all(&entry).unwrap();
+        let out = child.wait_with_output().unwrap();
+        assert!(out.status.success());
+        let tree = String::from_utf8(out.stdout).unwrap();
+        let parent = head_hash(dir);
+        let commit = git(
+            dir,
+            &[
+                "commit-tree",
+                tree.trim(),
+                "-p",
+                &parent,
+                "-m",
+                &format!("non-utf8 path{CLAUDE_TRAILER}"),
+            ],
+        )
+        .unwrap();
+        run_git(dir, &["update-ref", "refs/heads/main", commit.trim()]);
+
+        let res = audit_repo(dir, &AuditOptions::default());
+        #[cfg(unix)]
+        {
+            let report = res.expect("Unix passes raw non-UTF-8 OsStr bytes to git blame");
+            assert_eq!(report.verified.introduced, 2);
+            assert_eq!(report.verified.surviving, 2);
+            assert_eq!(report.verified.survival_rate(), Some(1.0));
+        }
+        #[cfg(not(unix))]
+        {
+            let err = res
+                .expect_err("Windows must refuse non-UTF-8 path rather than recording 0% survival")
+                .to_string();
+            assert!(err.contains("non-UTF-8 path"), "{err}");
+        }
+    }
+
+    #[test]
+    fn commit_messages_with_unit_separators_newlines_and_notes_preserve_all_signals() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+
+        // Commit 1: multiple 0x1F separators + newlines in message + Claude trailer
+        // + valid git-ai note (note takes precedence and identifies `cursor`).
+        std::fs::write(dir.join("sep1.py"), "x = 1\ny = 2\n").unwrap();
+        let msg1 = format!("subj\x1fa\x1fb\n\nbody\x1fc\n{CLAUDE_TRAILER}");
+        commit_all(dir, &msg1);
+        let note_valid =
+            r#"{"schema_version":"git-ai/3.0.0","prompts":{"p1":{"agent_id":{"tool":"cursor"}}}}"#;
+        run_git(dir, &["notes", "--ref=ai", "add", "-m", note_valid, "HEAD"]);
+
+        // Commit 2: multiple 0x1F separators + malformed git-ai note + Claude trailer
+        // (malformed note must not hide the independent trailer).
+        std::fs::write(dir.join("sep2.py"), "z = 3\nw = 4\n").unwrap();
+        let msg2 = format!("second\x1fsep\x1fmsg\n\nmore\x1ftext{CLAUDE_TRAILER}");
+        commit_all(dir, &msg2);
+        run_git(
+            dir,
+            &[
+                "notes",
+                "--ref=ai",
+                "add",
+                "-m",
+                "{malformed json\x1fnot valid",
+                "HEAD",
+            ],
+        );
+
+        let report = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(report.verified.commits, 2);
+        assert_eq!(report.verified.introduced, 4);
+        assert_eq!(report.verified.surviving, 4);
+        assert_eq!(report.by_agent["cursor"].commits, 1);
+        assert_eq!(report.by_agent["claude-code"].commits, 1);
+
+        // Malformed commit hash or timestamp in raw commit stream is an error, never a silent 0.
+        assert!(
+            parse_read_commits_raw("\0COMMIT\0not_a_sha\x00123\0A\0a@b\0msg\0NOTE\0\0END\0")
+                .is_err()
+        );
+        let bad_ts = format!(
+            "\0COMMIT\0{}\0not_an_int\0A\0a@b\0msg\0NOTE\0\0END\0",
+            "a".repeat(40)
+        );
+        assert!(parse_read_commits_raw(&bad_ts).is_err());
     }
 }

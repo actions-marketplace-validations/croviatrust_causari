@@ -1,0 +1,71 @@
+{
+  "schema": "crovia.agent_card.v1",
+  "name": "Causari",
+  "alternate_name": "re",
+  "provider": {
+    "organization": "Crovia Trust",
+    "url": "https://croviatrust.com",
+    "repository": "https://github.com/croviatrust/causari"
+  },
+  "version": "0.4.1",
+  "method_version": "v5",
+  "license": "Apache-2.0",
+  "description": "Measures how many lines from commits carrying machine-readable AI authorship metadata are still attributed to those commits by git blame at HEAD (counts, not grades), issues offline-verifiable Ed25519 Crovia Seals (crovia.seal.v1), diffs receipts along a single axis (causari.audit_diff.v1), and records local agent runtime declarations (.causari/ ledger) over CLI and MCP.",
+  "disambiguation": "Causari by Crovia Trust (causari.dev; crates.io/npm/PyPI package `causari`; MCP server `io.github.croviatrust/causari`). Not related to causari.ai, the GitHub organisation `causari`, or the npm scope `@causari`.",
+  "capabilities": {
+    "offline_verification": true,
+    "telemetry": false,
+    "mcp_stdio": true,
+    "mcp_registry_id": "io.github.croviatrust/causari",
+    "mcp_tools": [
+      "causari_audit",
+      "causari_record",
+      "causari_recall",
+      "causari_why"
+    ],
+    "cli_commands": [
+      "re audit [owner/repo] [--json] [--summary] [--seal] [--badge] [--card]",
+      "re audit --diff <before> <after> [--json] [--summary]",
+      "re seal verify <audit.seal.json>",
+      "re pnx prove",
+      "re pnx verify",
+      "re init",
+      "re hook claude-code",
+      "re hook cursor",
+      "re proxy [--seal] [--pnx]",
+      "re why <file>:<line>",
+      "re trace <file>:<line>",
+      "re impact <event-id>",
+      "re bisect --test <cmd>",
+      "re revert <event-id>",
+      "re mcp"
+    ],
+    "schemas_produced": [
+      "causari.audit.v1",
+      "causari.audit-seal.v1",
+      "causari.audit_diff.v1",
+      "crovia.seal.v1",
+      "crovia.pnx.v1",
+      "crovia.pnx.reach.v1",
+      "causari.event.v0.2"
+    ]
+  },
+  "epistemic_limits": {
+    "ai_tagged_is_not_ai_written": "verified in audit JSON means git metadata matched a detection rule; it does not prove a model wrote the line.",
+    "unknown_is_not_human": "UNKNOWN and untagged commits have no qualifying git metadata; they include human code, inline completions (Copilot, Cursor Tab), and untagged agent commits.",
+    "survival_is_not_quality": "Survival is line persistence at HEAD under git blame -w -M -C, capped at introduced lines per commit. It is a count, not a grade.",
+    "signed_is_not_true": "An Ed25519 seal proves integrity under the issuer public key (issuer_trust: unverified_offline), not that the numbers are true; rerun re audit on the commit to check.",
+    "egress_witness_scope": "PNX shows that named assets shared no 47-byte substring with request bodies a witness saw; absence of observed egress is not proof that a job made no other connection."
+  },
+  "documentation": {
+    "llms_txt": "https://causari.dev/llms.txt",
+    "llms_full_txt": "https://causari.dev/llms-full.txt",
+    "method": "https://causari.dev/method",
+    "verify": "https://causari.dev/verify/",
+    "faq": "https://causari.dev/faq",
+    "facts": "https://causari.dev/facts",
+    "compare": "https://causari.dev/compare",
+    "survival_report_latest_json": "https://causari.dev/reports/survival/latest.json",
+    "survival_report_atom_feed": "https://causari.dev/reports/survival/feed.xml"
+  }
+}

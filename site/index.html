@@ -28,6 +28,7 @@
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
   <link rel="apple-touch-icon" href="/assets/favicon.svg" />
   <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+  <link rel="alternate" type="text/plain" href="/llms-full.txt" title="llms-full.txt" />
   <link rel="alternate" type="application/atom+xml" href="/reports/survival/feed.xml" title="Causari Survival Report" />
   <link rel="stylesheet" href="/styles.css?v=c96ecf026d" />
 
@@ -155,7 +156,7 @@ Baseline <span class="dim">(untagged lines of the same repository)</span>
     <div class="screen-more proof-grid">
       <div class="proof">
         <h3>What it cannot see</h3>
-        <p>Inline completions (Copilot, Cursor Tab, Windsurf, …) leave no git trace. Commits without a trailer are UNKNOWN and excluded from the headline. UNKNOWN is not a finding that a human wrote them. One bulk commit can dominate a line-weighted ratio, so method v2 also reports a capped ratio and the median per commit; repositories under five AI-tagged commits are measured but not aggregated. Method v3 puts the repository's own untagged lines next to the AI-tagged ones inside matched age windows, and names the oldest line still at HEAD. Method v4 keeps that baseline and stops counting a git-ai note that does not name a tool. Published reports through the 0.3.0 release stay on v3. The survival percentage is persistence of the tagged cohort. It is not quality, productivity, total AI usage, authorship, security, correctness, or a causal effect. All of it is written down at <a href="/method">causari.dev/method</a>, with how to reproduce or contest a number.</p>
+        <p>Inline completions (Copilot, Cursor Tab, Windsurf, …) leave no git trace. Commits without a trailer are UNKNOWN and excluded from the headline. UNKNOWN is not a finding that a human wrote them. One bulk commit can dominate a line-weighted ratio, so method v2 also reports a capped ratio and the median per commit; repositories under five AI-tagged commits are measured but not aggregated. Method v3 puts the repository's own untagged lines next to the AI-tagged ones inside matched age windows, and names the oldest line still at HEAD. Method v4 keeps that baseline and stops counting a git-ai note that does not name a tool. Method v5 binds the measurement to the <code translate="no">HEAD</code> tree (<code translate="no">git ls-tree -r -z HEAD</code> and <code translate="no">HEAD:.git-blame-ignore-revs</code>), runs <code translate="no">git log --no-merges --numstat -M -z</code>, records <code translate="no">coverage.notes_oid</code>, <code translate="no">coverage.ignore_revs_sha256</code> and <code translate="no">coverage.copy_capped_lines</code>, and adds <code translate="no">re audit --diff</code> for single-axis evidence diffs. Published reports through the 0.3.0 release stay on v3. The survival percentage is persistence of the tagged cohort. It is not quality, productivity, total AI usage, authorship, security, correctness, or a causal effect. All of it is written down at <a href="/method">causari.dev/method</a>, with how to reproduce or contest a number.</p>
 <pre translate="no"><code translate="no">re audit --json   <span class="dim"># "coverage": what was counted, what was not</span></code></pre>
       </div>
     </div>
@@ -264,7 +265,7 @@ src/auth.ts:42  ⊢  introduced by event 2d070eb8cf
       <div class="term">
 <pre translate="no"><code translate="no"><span class="dim">$</span> re audit openai/codex --json   <span class="dim"># the bytes behind a row</span>
 {
-  "method": "v4",
+  "method": "v5",
   "total_commits": <span class="dim">…</span>,
   "verified": { "commits": <span class="dim">…</span>, "introduced": <span class="dim">…</span>,
                 "surviving": <span class="dim">…</span>, "survival_rate": <span class="dim">…</span>,
@@ -274,8 +275,9 @@ src/auth.ts:42  ⊢  introduced by event 2d070eb8cf
   "baseline": { "untagged": { <span class="dim">…</span> }, "by_age": [ <span class="dim">…</span> ],
                 "age_matched": { "tagged_rate": <span class="dim">…</span>, "untagged_rate": <span class="dim">…</span>, "gap": <span class="dim">…</span> },
                 "oldest_surviving": { "date": <span class="dim">…</span>, "commits_before": <span class="dim">…</span> } },
-  "coverage": { "method": "v4", "shallow": false,
-                "blame_flags": ["-w", "-M", "-C"] },
+  "coverage": { "method": "v5", "shallow": false,
+                "blame_flags": ["-w", "-M", "-C"],
+                "numstat_flags": ["-M", "-z"] },
   "repository": { "head": "<span class="dim">40 hex</span>", "origin": "https://github.com/openai/codex" }
 }
 <span class="dim">$</span> diff &lt;(re audit openai/codex --json) repos/openai__codex.json</code></pre>

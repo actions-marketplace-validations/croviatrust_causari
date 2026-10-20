@@ -407,6 +407,17 @@ pub struct AuditArgs {
     /// Where to write the seal bundle (default: audit.seal.json)
     #[arg(short, long, requires = "seal", value_name = "FILE")]
     pub output: Option<std::path::PathBuf>,
+
+    /// Deterministic Evidence Diff between two audit receipts (plain `--json`
+    /// files or `--seal` bundles). Accepts same-method repository evolution
+    /// or same-HEAD method upgrades; refuses when both vary.
+    #[arg(
+        long,
+        num_args = 2,
+        value_names = ["BEFORE", "AFTER"],
+        conflicts_with_all = ["target", "badge", "card", "save", "allow_shallow", "seal", "output"]
+    )]
+    pub diff: Vec<std::path::PathBuf>,
 }
 
 #[derive(Args, Debug)]

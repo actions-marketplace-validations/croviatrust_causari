@@ -38,33 +38,45 @@ Local install (single binary, about 5 MB, Linux/macOS/Windows):
 Key commands:
 - `re audit [owner/repo]` — AI code survival from git history alone, with
   the same repository's untagged lines as the baseline (by line age, an
-  age-matched gap, the oldest line still at HEAD; method v4, baseline since v3); `--json`
-  gives the exact bytes; `--summary` gives Markdown for CI; `--seal` also
+  age-matched gap, the oldest line still at HEAD; method v5, baseline since v3); `--json`
+  gives the exact bytes (including `commits` per-commit rows with `owned_at_head`,
+  `coverage.notes_oid`, `coverage.ignore_revs_sha256`, `coverage.copy_capped_lines`,
+  and `repository.root_commits`); `--summary` gives Markdown for CI; `--seal` also
   writes `audit.seal.json`, a crovia.seal.v1 over the audit JSON bound to
-  the commit and method version
+  the commit, method version, and external metadata hashes
+- `re audit --diff <before> <after>` — offline single-axis comparison between
+  two audit JSONs or `.seal.json` bundles (`causari.audit_diff.v1`), classifying
+  the diff as `repository_diff`, `method_diff`, `indeterminate_method_diff`,
+  `metadata_diff`, `indeterminate_metadata`, or `identical_inputs`, with
+  `metadata_status`, `commit_set_relation` and `provenance` (`issuer_trust: "unverified_offline"`),
+  and refusing multi-axis diffs or unrelated repositories (exit 2)
 - `re seal verify audit.seal.json` — check an audit seal offline: signature,
-  both subject hashes, commit/method binding; exit 0 valid, 1 invalid,
+  both subject hashes, commit/method/coverage bindings; exit 0 valid, 1 invalid,
   2 unreadable. Same check in a browser, no network: https://causari.dev/verify
 - `re init` — create the local ledger `.causari/` (gitignored)
-- `re hook claude-code` — record every Claude Code prompt and edit exactly
+- `re hook claude-code` / `re hook cursor` — record Claude Code or Cursor prompts and edits
 - `re proxy` — local LLM proxy recording prompts, models, tokens, cost
   (Aider and OpenAI/Anthropic-compatible clients); `--seal` issues
-  crovia.seal.v1 receipts
+  crovia.seal.v1 receipts; `--pnx` witnesses egress under `crovia.pnx.v1`
 - `re why <file>:<line>` — the ledger event recorded against this line, if one matches. A miss is not human.
 - `re trace <file>:<line>` / `re impact <event-id>` — the ledger's declared
   read/write graph, walked backward or forward. Not a causal proof.
 - `re bisect --test "<cmd>"` — first recorded event that breaks a test
 - `re revert <id>` — restore the pre-state of an event, with a preview
 - MCP server: `re mcp` (stdio) exposes causari_record, causari_recall,
-  causari_why; `re mcp --install` prints the client config
+  causari_why, causari_audit; `re mcp --install` prints the client config
 
 What Causari does not claim: inline completions (Copilot, Cursor Tab) leave
 no git trace and are invisible to `re audit`; the proxy join is a heuristic
 and says so; a survival ratio is a count, not a quality judgement.
 UNKNOWN (no machine-readable AI metadata) is not human. AI-tagged is not
 AI-written: a trailer, a bot author, or a git-ai note that names a non-empty
-tool is metadata, and a person can forge it. Method v4 ignores a git-ai note
-with no named tool; method v3 counted any note. Reports #1 and #2 stay
+tool is metadata, and a person can forge it. Method v4 and v5 ignore a git-ai note
+with no named tool; method v3 counted any note. Method v5 reads only the `HEAD`
+tree (`git ls-tree -r -z HEAD` and `HEAD:.git-blame-ignore-revs`), runs
+`git log --no-merges --numstat -M -z` so pure file renames do not inflate
+introduced counts, and binds `coverage.notes_oid` and `coverage.ignore_revs_sha256`
+inside the receipt and seal. Reports #1 and #2 stay
 method v2. Reports #3 and #4 stay method v3 (report #4 is
 10.5281/zenodo.23196011). A seal proves a key signed these bytes; signed is not true. Absence
 of observed egress is not proof that a job made no other connection.
@@ -75,7 +87,7 @@ Evidence classes — do not collapse these into one word:
 - `re audit` JSON: `verified` and `probable` are confidence in git metadata.
   `verified` there means a detection rule matched. It is not a cryptographic
   verification and not a ledger `declared`. The untagged baseline is the
-  commits with no such metadata. Method version is `coverage.method` (v4 in
+  commits with no such metadata. Method version is `coverage.method` (v5 in
   this source; reports #3 and #4 are v3, reports #1 and #2 are v2).
 - Ledger events (`re why`, `re show`, MCP `causari_why`): `declared` (the
   runtime said so), `correlated` (a proxy completion overlapped the diff; a
@@ -102,10 +114,13 @@ Full history only; a shallow clone is refused unless `--allow-shallow`, and
 then `coverage.shallow` is true.
 
 Machine-readable outputs: `re audit --json`, `re audit --summary`,
-`audit.seal.json`, https://causari.dev/reports/survival/latest.json, and
+`audit.seal.json` (`causari.audit-seal.v1`), `re audit --diff` (`causari.audit_diff.v1`),
+https://causari.dev/reports/survival/latest.json, and
 `latest.json` beside each https://causari.dev/r/<owner>/<repo>/ page.
 Event schema is `causari.event.v0.2`. Audit method and the detection table
-are https://causari.dev/method.
+are https://causari.dev/method. Full machine-readable specification:
+https://causari.dev/llms-full.txt ; agent discovery card:
+https://causari.dev/.well-known/agent.json.
 
 Official: repository https://github.com/croviatrust/causari ; crates.io
 crate `causari` ; npm package `causari` ; PyPI project `causari` ; MCP

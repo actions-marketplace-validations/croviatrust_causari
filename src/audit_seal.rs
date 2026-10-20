@@ -56,6 +56,10 @@ pub struct AuditBinding {
     pub shallow: bool,
     /// Origin URL without credentials, or `sha256:` of the local path.
     pub repo: String,
+    /// Signed `coverage.notes_oid` (`Some("none")` when `refs/notes/ai` is absent).
+    pub notes_oid: Option<String>,
+    /// Signed `coverage.ignore_revs_sha256` (`Some("none")` when no ignore file was applied).
+    pub ignore_revs_sha256: Option<String>,
 }
 
 impl AuditBinding {
@@ -71,13 +75,20 @@ impl AuditBinding {
     }
 
     fn params(&self) -> Vec<(String, String)> {
-        vec![
+        let mut out = vec![
             ("subject_type".into(), SUBJECT_TYPE.into()),
             ("method".into(), self.method.clone()),
             ("commit".into(), self.commit.clone()),
             ("repo".into(), self.repo.clone()),
             ("coverage.shallow".into(), self.shallow.to_string()),
-        ]
+        ];
+        if let Some(notes) = &self.notes_oid {
+            out.push(("coverage.notes_oid".into(), notes.clone()));
+        }
+        if let Some(ir) = &self.ignore_revs_sha256 {
+            out.push(("coverage.ignore_revs_sha256".into(), ir.clone()));
+        }
+        out
     }
 }
 
@@ -294,6 +305,37 @@ pub fn verify_bundle(bundle: &Value) -> Result<VerifiedAudit> {
     if shallow && !allow_shallow {
         bail!("audit of a shallow clone without --allow-shallow cannot have been issued");
     }
+    let requires_v5_params = !matches!(method, "v1" | "v2" | "v3" | "v4");
+    let a_notes_opt = audit["coverage"].get("notes_oid").and_then(Value::as_str);
+    let p_notes_opt = params.get("coverage.notes_oid").and_then(Value::as_str);
+    if requires_v5_params || p_notes_opt.is_some() || a_notes_opt.is_some() {
+        let p_notes = p_notes_opt.ok_or_else(|| {
+            anyhow!("generator.params.coverage.notes_oid is required for method {method}")
+        })?;
+        let a_notes = a_notes_opt.unwrap_or("none");
+        if p_notes != a_notes {
+            bail!(
+                "generator.params.coverage.notes_oid ({p_notes}) differs from audit JSON ({a_notes})"
+            );
+        }
+    }
+    let a_ir_opt = audit["coverage"]
+        .get("ignore_revs_sha256")
+        .and_then(Value::as_str);
+    let p_ir_opt = params
+        .get("coverage.ignore_revs_sha256")
+        .and_then(Value::as_str);
+    if requires_v5_params || p_ir_opt.is_some() || a_ir_opt.is_some() {
+        let p_ir = p_ir_opt.ok_or_else(|| {
+            anyhow!("generator.params.coverage.ignore_revs_sha256 is required for method {method}")
+        })?;
+        let a_ir = a_ir_opt.unwrap_or("none");
+        if p_ir != a_ir {
+            bail!(
+                "generator.params.coverage.ignore_revs_sha256 ({p_ir}) differs from audit JSON ({a_ir})"
+            );
+        }
+    }
 
     Ok(VerifiedAudit {
         seal_id: field_str(sealed, &["seal_id"])?.to_string(),
@@ -331,6 +373,8 @@ mod tests {
             allow_shallow: false,
             shallow: false,
             repo: "https://github.com/croviatrust/causari".into(),
+            notes_oid: None,
+            ignore_revs_sha256: None,
         }
     }
 
@@ -538,5 +582,34 @@ mod tests {
                 "a".repeat(40)
             )
         );
+    }
+
+    #[test]
+    fn v5_bundle_requires_signed_notes_and_ignore_revs_params_while_v4_does_not() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let mut issuer = SealIssuer::load_or_create(&repo, None).unwrap();
+
+        let audit_v5 = "{\n  \"coverage\": {\n    \"ignore_revs_sha256\": null,\n    \"method\": \"v5\",\n    \"notes_oid\": null,\n    \"shallow\": false\n  },\n  \"method\": \"v5\",\n  \"verified\": {\n    \"commits\": 1,\n    \"introduced\": 3,\n    \"survival_rate\": 1.0,\n    \"surviving\": 3\n  }\n}\n";
+        let mut b_v5 = binding();
+        b_v5.method = "v5".into();
+        // Stripped: notes_oid and ignore_revs_sha256 omitted from AuditBinding (None)
+        // even though the bundle is validly signed by `issuer`.
+        let stripped_v5 = issue(&mut issuer, audit_v5.as_bytes(), &b_v5).unwrap();
+        let err = verify_bundle(&stripped_v5).unwrap_err().to_string();
+        assert!(err.contains("coverage.notes_oid is required"), "{err}");
+
+        // With both parameters bound ("none"), v5 bundle verifies.
+        b_v5.notes_oid = Some("none".into());
+        b_v5.ignore_revs_sha256 = Some("none".into());
+        let complete_v5 = issue(&mut issuer, audit_v5.as_bytes(), &b_v5).unwrap();
+        assert_eq!(verify_bundle(&complete_v5).unwrap().method, "v5");
+
+        // Authentic v4 bundle without those parameters continues to verify.
+        let audit_v4 = "{\n  \"coverage\": {\n    \"method\": \"v4\",\n    \"shallow\": false\n  },\n  \"method\": \"v4\",\n  \"verified\": {\n    \"commits\": 1,\n    \"introduced\": 3,\n    \"survival_rate\": 1.0,\n    \"surviving\": 3\n  }\n}\n";
+        let mut b_v4 = binding();
+        b_v4.method = "v4".into();
+        let valid_v4 = issue(&mut issuer, audit_v4.as_bytes(), &b_v4).unwrap();
+        assert_eq!(verify_bundle(&valid_v4).unwrap().method, "v4");
     }
 }

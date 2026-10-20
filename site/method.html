@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Method: how Causari measures AI code survival — causari</title>
-  <meta name="description" content="Exactly how re audit detects AI-tagged commits and measures which of their lines are still at HEAD, what it cannot see, and the known ways the number can mislead. Method v1." />
+  <meta name="description" content="Exactly how re audit detects AI-tagged commits and measures which of their lines are still at HEAD, what it cannot see, and the known ways the number can mislead. Method v5." />
   <meta name="theme-color" content="#0b0d10" />
   <meta name="color-scheme" content="light dark" />
   <link rel="canonical" href="https://causari.dev/method" />
@@ -15,6 +15,20 @@
   <meta property="og:image" content="https://causari.dev/assets/og.png" />
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
   <link rel="stylesheet" href="/styles.css?v=c96ecf026d" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "@id": "https://causari.dev/method",
+    "url": "https://causari.dev/method",
+    "headline": "Method: how Causari measures AI code survival (Method v5)",
+    "description": "Public specification of how re audit classifies commits from machine-readable git metadata, computes line survival at HEAD, binds external metadata into Ed25519 seals, and compares receipts along a single axis.",
+    "inLanguage": "en",
+    "author": { "@id": "https://croviatrust.com/#org" },
+    "publisher": { "@id": "https://croviatrust.com/#org" },
+    "about": { "@id": "https://causari.dev/#software" }
+  }
+  </script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -38,9 +52,9 @@
 </header>
 
 <main id="main" class="article">
-  <p class="eyebrow">method · v4 · this page changes only when the method does</p>
+  <p class="eyebrow">method · v5 · this page changes only when the method does</p>
   <h1>Method</h1>
-  <p class="version">Applies to <code translate="no">re audit</code> in this source. Sections 1–4 are the rules this source computes (method v4). Section 5 is what v2 changed, section 6 what v3 added, and <a href="#v4">section 6b</a> the one rule v4 changed. Published reports stay on the method that produced them. Reports #1 and #2 are method v2. Reports #3 and #4, and any audit produced by the 0.3.0 release, are method v3. Report #4 is <a href="https://doi.org/10.5281/zenodo.23196011">10.5281/zenodo.23196011</a>. This source does not recompute them.</p>
+  <p class="version">Applies to <code translate="no">re audit</code> in this source. Sections 1–4 are the rules this source computes (method v5). Section 5 is what v2 changed, section 6 what v3 added, <a href="#v4">section 6b</a> the rule v4 changed, and <a href="#v5">section 6c</a> what v5 hardened. Published reports stay on the method that produced them. Reports #1 and #2 are method v2. Reports #3 and #4, and any audit produced by the 0.3.0 release, are method v3. Report #4 is <a href="https://doi.org/10.5281/zenodo.23196011">10.5281/zenodo.23196011</a>. This source does not recompute them.</p>
 
   <p class="lede">Causari publishes counts about repositories that are not ours. The only honest way to do
   that is to publish, next to every number, exactly how it was obtained, what it cannot see,
@@ -70,10 +84,10 @@
   A note that has only <code translate="no">schema_version</code>, only a human declaration, or a tool that is empty or whitespace is not a signal. Detection continues with the other rows. Absence of a qualifying signal is UNKNOWN. UNKNOWN is not human.</p>
 
   <h2 id="survival"><span class="no">2</span>How survival is computed</h2>
-  <p><em>Introduced</em> = lines added by each classified commit (<code translate="no">git log --numstat</code>),
-  text files only, excluding lockfiles, vendored and generated paths. <em>Still at HEAD</em> = for
-  every tracked file, <code translate="no">git blame --line-porcelain HEAD</code>; a line counts for the commit
-  blame attributes it to, capped at that commit's introduced count. The ratio is the sum over all
+  <p><em>Introduced</em> = lines added by each classified commit (<code translate="no">git log --no-merges --numstat -M -z</code>),
+  text files only, excluding lockfiles, vendored and generated paths, with <code translate="no">-M</code> so a pure file rename introduces 0 lines rather than counting the moved file as a fresh addition. <em>Still at HEAD</em> = for
+  every regular blob in the <code translate="no">HEAD</code> tree (<code translate="no">git ls-tree -r -z HEAD</code>), <code translate="no">git blame -w -M -C --line-porcelain HEAD</code>; a line counts for the commit
+  blame attributes it to, capped at that commit's introduced count. Excess lines attributed by <code translate="no">git blame -C</code> across copies are reported separately in <code translate="no">coverage.copy_capped_lines</code>, and per-commit rows (<code translate="no">commits</code>) record both <code translate="no">owned_at_head</code> and capped <code translate="no">surviving</code>. The ratio is the sum over all
   classified commits, so it is <strong>line-weighted</strong>.</p>
   <p>The ratio is the persistence of lines that this method associates with its tagged cohort.
   It does not, by itself, establish code quality, developer productivity, total AI usage,
@@ -225,17 +239,27 @@
   <p>Commit granularity is unchanged. A qualifying signal still tags the commit, not the line
   range inside the note.</p>
 
+  <h2 id="v5"><span class="no">6c</span>Method v5: HEAD-tree purity, rename-aware numstat, and single-axis evidence diffs</h2>
+  <p>Method v5 keeps the v4 detection table and the v3 baseline, and closes five measurement and verification gaps:</p>
+  <ul>
+    <li><strong>Pure <code translate="no">HEAD</code>-tree measurement.</strong> File enumeration reads <code translate="no">git ls-tree -r -z HEAD</code> (regular file blobs <code translate="no">100644</code>/<code translate="no">100755</code> only, never the staging index or worktree), and <code translate="no">.git-blame-ignore-revs</code> is read exclusively from the committed blob <code translate="no">HEAD:.git-blame-ignore-revs</code> with its SHA-256 recorded in <code translate="no">coverage.ignore_revs_sha256</code>. Every git subprocess runs with <code translate="no">--no-replace-objects</code>. Dirty worktrees, staged index deletions, untracked ignore files, and bare clones produce identical counts for the same <code translate="no">HEAD</code>.</li>
+    <li><strong>Rename-aware introductions (<code translate="no">git log --no-merges --numstat -M -z</code>).</strong> Running <code translate="no">--numstat</code> with <code translate="no">-M -z</code> aligns <code translate="no">introduced</code> with <code translate="no">git blame -M</code>: renaming a file without editing its lines adds 0 introduced lines, and NUL-delimited path records prevent filenames containing literal <code translate="no">=&gt;</code> or non-ASCII bytes from being misparsed or silently skipped.</li>
+    <li><strong>Per-commit rows and <code translate="no">copy_capped_lines</code>.</strong> Every report includes <code translate="no">commits</code> (each commit's <code translate="no">hash</code>, <code translate="no">class</code>, <code translate="no">agent</code>, <code translate="no">introduced</code>, <code translate="no">owned_at_head</code> before the per-commit clamp, and <code translate="no">surviving</code>) plus <code translate="no">coverage.copy_capped_lines</code> (<code translate="no">sum(max(0, owned_at_head - introduced))</code> over VERIFIED commits), making <code translate="no">git blame -C</code> copy inflation explicit.</li>
+    <li><strong>Signed external metadata bindings.</strong> <code translate="no">coverage.notes_oid</code> (target OID of <code translate="no">refs/notes/ai</code>, or <code translate="no">null</code>) and <code translate="no">coverage.ignore_revs_sha256</code> are recorded in the JSON and signed inside <code translate="no">seal.generator.params</code>. Both the CLI and the browser verifier reject a v5 seal if those signed parameters are stripped or altered.</li>
+    <li><strong>Single-axis evidence diffs (<code translate="no">re audit --diff &lt;before&gt; &lt;after&gt;</code>).</strong> Compares two receipts or <code translate="no">.seal.json</code> bundles offline (<code translate="no">causari.audit_diff.v1</code>), refusing unrelated repositories (no shared root in <code translate="no">repository.root_commits</code>) and refusing diffs that vary two axes at once. Missing metadata fields in older receipts (such as v4) are reported as <code translate="no">metadata_status: "indeterminate"</code> and <code translate="no">kind: "indeterminate_method_diff"</code>, never treated as proof that metadata stayed unchanged.</li>
+  </ul>
+
   <h2 id="reproduce"><span class="no">7</span>Reproduce or contest any number</h2>
 <pre translate="no"><code translate="no">curl -fsSL https://causari.dev/install.sh | sh
-re audit owner/repo --json      <span class="dim"># counts, coverage.method, blame flags, repository.head</span>
-re audit owner/repo --summary   <span class="dim"># the same reading, as Markdown</span>
-re audit owner/repo --seal      <span class="dim"># those JSON bytes, signed for that commit and method</span>
-re seal verify audit.seal.json  <span class="dim"># or drop the file on causari.dev/verify</span></code></pre>
+re audit owner/repo --json                  <span class="dim"># counts, coverage.method, blame/numstat flags, repository.head</span>
+re audit owner/repo --summary               <span class="dim"># the same reading, as Markdown</span>
+re audit owner/repo --seal                  <span class="dim"># those JSON bytes, signed for that commit and method</span>
+re seal verify audit.seal.json              <span class="dim"># or drop the file on causari.dev/verify</span>
+re audit --diff before.json after.json      <span class="dim"># single-axis offline diff between two receipts or seals</span></code></pre>
   <p><code translate="no">--json</code> and the seal store the counts, <code translate="no">repository.head</code>,
-  <code translate="no">coverage.method</code>, <code translate="no">coverage.blame_flags</code>, and the other
-  coverage flags. They do not store <code translate="no">refs/notes/ai</code>. Naming that ref is not the
-  same as keeping its bytes: it is not part of the commit, so adding or removing it can change the
-  class while the stored SHA stays. A repository that has moved has a different commit, and this
+  <code translate="no">repository.root_commits</code>, <code translate="no">coverage.method</code>, <code translate="no">coverage.blame_flags</code>,
+  <code translate="no">coverage.numstat_flags</code>, <code translate="no">coverage.ignore_revs_sha256</code>, <code translate="no">coverage.notes_oid</code>,
+  and the other coverage flags. Recording <code translate="no">coverage.notes_oid</code> names the target OID of <code translate="no">refs/notes/ai</code> at audit time without storing the note payloads themselves: that ref is not part of the commit object, so adding or removing a note changes <code translate="no">coverage.notes_oid</code> and can change the class while the commit SHA stays. A repository that has moved has a different commit, and this
   export does not reproduce the published number.
   <code translate="no">--badge</code> and <code translate="no">--card</code> write SVGs.
   <code translate="no">re report</code> reads the local ledger; it does not export an audit.
