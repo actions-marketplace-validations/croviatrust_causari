@@ -2729,6 +2729,35 @@ mod tests {
 
     const CLAUDE_TRAILER: &str = "\n\nCo-Authored-By: Claude <noreply@anthropic.com>";
 
+    /// `git commit-tree` with the same fixed identity as `run_git`. A CI
+    /// runner has no `user.name`, and `commit-tree` refuses an empty ident.
+    fn commit_tree(dir: &Path, tree: &str, parent: &str, message: &str) -> String {
+        let out = Command::new("git")
+            .args([
+                "-c",
+                "commit.gpgsign=false",
+                "commit-tree",
+                tree,
+                "-p",
+                parent,
+                "-m",
+                message,
+            ])
+            .current_dir(dir)
+            .env("GIT_AUTHOR_NAME", "Tarik")
+            .env("GIT_AUTHOR_EMAIL", "tarik@example.com")
+            .env("GIT_COMMITTER_NAME", "Tarik")
+            .env("GIT_COMMITTER_EMAIL", "tarik@example.com")
+            .output()
+            .expect("git must be installed");
+        assert!(
+            out.status.success(),
+            "git commit-tree failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
     fn head_hash(dir: &Path) -> String {
         git(dir, &["rev-parse", "HEAD"]).unwrap().trim().to_string()
     }
@@ -3374,19 +3403,13 @@ mod tests {
         );
         let t1 = git(dir, &["write-tree"]).unwrap();
         let parent = head_hash(dir);
-        let c1 = git(
+        let c1 = commit_tree(
             dir,
-            &[
-                "commit-tree",
-                t1.trim(),
-                "-p",
-                &parent,
-                "-m",
-                &format!("vendor arrow{CLAUDE_TRAILER}"),
-            ],
-        )
-        .unwrap();
-        run_git(dir, &["update-ref", "refs/heads/main", c1.trim()]);
+            t1.trim(),
+            &parent,
+            &format!("vendor arrow{CLAUDE_TRAILER}"),
+        );
+        run_git(dir, &["update-ref", "refs/heads/main", &c1]);
         let r_vendor = audit_repo(dir, &AuditOptions::default()).unwrap();
         assert_eq!(r_vendor.verified.commits, 1);
         assert_eq!(r_vendor.verified.introduced, 0);
@@ -3404,19 +3427,8 @@ mod tests {
             ],
         );
         let t2 = git(dir, &["write-tree"]).unwrap();
-        let c2 = git(
-            dir,
-            &[
-                "commit-tree",
-                t2.trim(),
-                "-p",
-                c1.trim(),
-                "-m",
-                &format!("src arrow{CLAUDE_TRAILER}"),
-            ],
-        )
-        .unwrap();
-        run_git(dir, &["update-ref", "refs/heads/main", c2.trim()]);
+        let c2 = commit_tree(dir, t2.trim(), &c1, &format!("src arrow{CLAUDE_TRAILER}"));
+        run_git(dir, &["update-ref", "refs/heads/main", &c2]);
         let r_src = audit_repo(dir, &AuditOptions::default()).unwrap();
         assert_eq!(r_src.verified.commits, 2);
         assert_eq!(r_src.verified.introduced, 1);
@@ -3494,19 +3506,13 @@ mod tests {
         assert!(out.status.success());
         let tree = String::from_utf8(out.stdout).unwrap();
         let parent = head_hash(dir);
-        let commit = git(
+        let commit = commit_tree(
             dir,
-            &[
-                "commit-tree",
-                tree.trim(),
-                "-p",
-                &parent,
-                "-m",
-                &format!("non-utf8 path{CLAUDE_TRAILER}"),
-            ],
-        )
-        .unwrap();
-        run_git(dir, &["update-ref", "refs/heads/main", commit.trim()]);
+            tree.trim(),
+            &parent,
+            &format!("non-utf8 path{CLAUDE_TRAILER}"),
+        );
+        run_git(dir, &["update-ref", "refs/heads/main", &commit]);
 
         let res = audit_repo(dir, &AuditOptions::default());
         #[cfg(unix)]
