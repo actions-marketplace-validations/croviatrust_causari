@@ -10,7 +10,7 @@ https://causari.dev
 
 ## Body
 
-AI-written code has no author. It has causes. Causari proves them.
+AI-written code has no author. It has causes. Causari records them.
 
 I wrote `re audit` because every number about AI in code I could find was a self-report: a vendor's percentage, a survey, a dashboard. None could be re-run by someone else.
 

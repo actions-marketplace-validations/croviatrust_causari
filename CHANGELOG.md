@@ -5,6 +5,12 @@ release workflow copies it verbatim. Counts, not adjectives.
 
 ## Unreleased
 
+The source on main computes method v5: HEAD-tree purity, `git log --numstat -M -z`,
+`coverage.copy_capped_lines`, signed `coverage.notes_oid` and
+`coverage.ignore_revs_sha256`, and `re audit --diff`. The published binary
+remains 0.4.1, method v4 (commit d4c4949, 2026-10-08). Survival Reports #5
+and #6 stay method v4. This section is not a release.
+
 ## 0.4.1 — 2026-10-08
 
 ### Corrections

@@ -10,11 +10,13 @@ as siblings.
 ## What it is
 
 Counts of surviving lines from AI-tagged commits in N open-source
-repositories. Reports #1–#2 are method v2; reports #3 and #4, and the
+repositories. Reports #1 and #2 are method v2. Reports #3 and #4, and the
 0.3.0 release, are method v3. Report #4 is DOI 10.5281/zenodo.23196011.
-This source computes method v4 and is not released: v4
-counts a git-ai note only when it names a non-empty tool, and v3 counted
-any parseable note. Reports #3 and #4 are not recomputed. For each repository the
+Reports #5 (2026-10-12) and #6 (2026-10-19) are method v4, measured with
+the published binary causari 0.4.1 (2026-10-08, commit d4c4949). That
+binary counts a git-ai note only when it names a non-empty tool; method v3
+counted any parseable note. This source computes method v5, and that method
+is not in the 0.4.1 binary. Published reports are not recomputed. For each repository the
 report states how many lines were introduced by commits that carry
 machine-readable AI authorship metadata (`Co-Authored-By` trailers naming
 an agent, bot author identities, aider markers, `Assisted-by:`, and a
@@ -129,8 +131,8 @@ generator: `/survival` → `/reports/survival/`, `/survival-data.json` →
 Mondays 05:17 UTC or on demand:
 
 1. Twenty `audit` jobs run in parallel (`strategy.matrix.shard: 0…19`,
-   `fail-fast: false`). Each installs the latest release (`causari` and
-   `re`), checksum-verified, and takes every repository of
+   `fail-fast: false`). Each installs the latest published release (`causari` and
+   `re`), currently 0.4.1, method v4, commit d4c4949, checksum-verified, and takes every repository of
    `.github/survival-repos.txt` whose index in the list is `shard mod 20`,
    skipping `.github/survival-optout.txt`: full `git clone` (method v2
    refuses shallow clones; `CLONE_TIMEOUT_S`, 1800 s), a commit graph

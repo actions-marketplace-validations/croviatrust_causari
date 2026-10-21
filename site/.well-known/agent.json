@@ -8,9 +8,16 @@
     "repository": "https://github.com/croviatrust/causari"
   },
   "version": "0.4.1",
-  "method_version": "v5",
+  "method_version": "v4",
+  "source_method_version": "v5",
+  "latest_release": {
+    "version": "0.4.1",
+    "method_version": "v4",
+    "commit": "d4c4949ae25af754c7b30e5665467d66a48b9525",
+    "published": "2026-10-08"
+  },
   "license": "Apache-2.0",
-  "description": "Measures how many lines from commits carrying machine-readable AI authorship metadata are still attributed to those commits by git blame at HEAD (counts, not grades), issues offline-verifiable Ed25519 Crovia Seals (crovia.seal.v1), diffs receipts along a single axis (causari.audit_diff.v1), and records local agent runtime declarations (.causari/ ledger) over CLI and MCP.",
+  "description": "Measures how many lines from commits carrying machine-readable AI authorship metadata are still attributed to those commits by git blame at HEAD (counts, not grades), issues offline-verifiable Ed25519 Crovia Seals (crovia.seal.v1), diffs receipts along a single axis (causari.audit_diff.v1), and records local agent runtime declarations (.causari/ ledger) over CLI and MCP. version and method_version describe the published binary 0.4.1, method v4 (commit d4c4949, 2026-10-08): that is what install.sh, cargo, npm and PyPI install. source_method_version is METHOD_VERSION in this source tree, method v5, and is not in that binary.",
   "disambiguation": "Causari by Crovia Trust (causari.dev; crates.io/npm/PyPI package `causari`; MCP server `io.github.croviatrust/causari`). Not related to causari.ai, the GitHub organisation `causari`, or the npm scope `@causari`.",
   "capabilities": {
     "offline_verification": true,

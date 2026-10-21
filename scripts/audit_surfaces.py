@@ -581,6 +581,103 @@ def check_live(canon: dict, r: Report) -> None:
             r.add("live", "info", path, f"200 for a plain script client, {len(body)} bytes")
 
 
+# ---------------------------------------------------------------- distribution
+
+def check_distribution(canon: dict, r: Report) -> None:
+    """The published binary and this source may implement different audit methods.
+    The agent card's method_version follows the release named by version.
+    source_method_version follows src/audit.rs. Surfaces name both while they differ.
+    """
+    dist = canon.get("distribution")
+    if not dist:
+        r.add("distribution", "high", "canon/canon.json", "no distribution record")
+        return
+    release = dist.get("latest_release") or {}
+    for key in ("version", "method_version", "commit", "published"):
+        if not release.get(key):
+            r.add("distribution", "high", "canon/canon.json", f"latest_release.{key} empty")
+            return
+    found = re.search(r'^version = "([0-9]+\.[0-9]+\.[0-9]+)"', read("Cargo.toml"), re.M)
+    if not found:
+        r.add("distribution", "high", "Cargo.toml", "package version not found")
+        return
+    package = found.group(1)
+    method_m = re.search(r'pub const METHOD_VERSION: &str = "(v\d+)";', read("src/audit.rs"))
+    if not method_m:
+        r.add("distribution", "high", "src/audit.rs", "METHOD_VERSION not found")
+        return
+    source_method = method_m.group(1)
+    card = json.loads(read("site/.well-known/agent.json"))
+    if card.get("version") != package:
+        r.add(
+            "distribution",
+            "high",
+            "site/.well-known/agent.json",
+            f"version {card.get('version')} is not the package version {package}",
+        )
+    if card.get("source_method_version") != source_method:
+        r.add(
+            "distribution",
+            "high",
+            "site/.well-known/agent.json",
+            f"source_method_version {card.get('source_method_version')!r} is not {source_method} in src/audit.rs",
+        )
+    if card.get("latest_release") != release:
+        r.add(
+            "distribution",
+            "high",
+            "site/.well-known/agent.json",
+            "latest_release does not match canon/canon.json",
+        )
+    if package != release["version"]:
+        r.add(
+            "distribution",
+            "high",
+            "Cargo.toml",
+            f"package {package} has no matching latest_release (canon says {release['version']})",
+        )
+    if card.get("method_version") != release["method_version"]:
+        r.add(
+            "distribution",
+            "high",
+            "site/.well-known/agent.json",
+            f"method_version {card.get('method_version')!r} is not the published release method {release['method_version']}",
+        )
+    if source_method != release["method_version"]:
+        phrases = (
+            release["version"],
+            f"method {release['method_version']}",
+            f"method {source_method}",
+            release["commit"][:7],
+        )
+        for path in dist.get("name_both_methods") or []:
+            if not (ROOT / path).exists():
+                r.add("distribution", "high", path, "surface listed in name_both_methods does not exist")
+                continue
+            text = read(path).lower()
+            missing = [phrase for phrase in phrases if phrase.lower() not in text]
+            if missing:
+                r.add(
+                    "distribution",
+                    "high",
+                    path,
+                    f"source method and published release differ; missing {missing}",
+                )
+    readme = read("README.md")
+    for bad in ("DonAisted", "copy_cappdh", "reiruditd", "( v4)"):
+        if bad in readme:
+            r.add("distribution", "high", "README.md", f"corrupted text still present: {bad!r}")
+    if "latest release on the `0.2` line" in read("SECURITY.md"):
+        r.add("distribution", "high", "SECURITY.md", "supported line is still 0.2")
+    if not any(f["severity"] == "high" and f["area"] == "distribution" for f in r.findings):
+        r.add(
+            "distribution",
+            "info",
+            "repo",
+            f"package {package}; release method {release['method_version']}; source method {source_method}",
+        )
+
+
 # ---------------------------------------------------------------- main
 
 def main() -> int:
@@ -593,7 +690,7 @@ def main() -> int:
 
     canon = json.loads(read("canon/canon.json"))
     r = Report()
-    for check in (check_versions, check_forbidden, check_live_words_offline, check_required, check_files, check_html, check_assets, check_matrix, check_release, check_evidence_invariants):
+    for check in (check_versions, check_forbidden, check_live_words_offline, check_required, check_files, check_html, check_assets, check_matrix, check_release, check_evidence_invariants, check_distribution):
         try:
             check(canon, r)
         except Exception as e:  # noqa: BLE001

@@ -38,7 +38,9 @@ Local install (single binary, about 5 MB, Linux/macOS/Windows):
 Key commands:
 - `re audit [owner/repo]` — AI code survival from git history alone, with
   the same repository's untagged lines as the baseline (by line age, an
-  age-matched gap, the oldest line still at HEAD; method v5, baseline since v3); `--json`
+  age-matched gap, the oldest line still at HEAD; method v5 in this source,
+  method v4 in the published 0.4.1 binary, commit d4c4949, 2026-10-08;
+  baseline since v3); `--json`
   gives the exact bytes (including `commits` per-commit rows with `owned_at_head`,
   `coverage.notes_oid`, `coverage.ignore_revs_sha256`, `coverage.copy_capped_lines`,
   and `repository.root_commits`); `--summary` gives Markdown for CI; `--seal` also
@@ -72,13 +74,17 @@ and says so; a survival ratio is a count, not a quality judgement.
 UNKNOWN (no machine-readable AI metadata) is not human. AI-tagged is not
 AI-written: a trailer, a bot author, or a git-ai note that names a non-empty
 tool is metadata, and a person can forge it. Method v4 and v5 ignore a git-ai note
-with no named tool; method v3 counted any note. Method v5 reads only the `HEAD`
+with no named tool; method v3 counted any note. The binaries named under Local
+install are the latest GitHub release: causari 0.4.1, method v4, commit d4c4949,
+published 2026-10-08. Method v5 is what this source computes and is not in that
+binary. Method v5 reads only the `HEAD`
 tree (`git ls-tree -r -z HEAD` and `HEAD:.git-blame-ignore-revs`), runs
 `git log --no-merges --numstat -M -z` so pure file renames do not inflate
 introduced counts, and binds `coverage.notes_oid` and `coverage.ignore_revs_sha256`
 inside the receipt and seal. Reports #1 and #2 stay
 method v2. Reports #3 and #4 stay method v3 (report #4 is
-10.5281/zenodo.23196011). A seal proves a key signed these bytes; signed is not true. Absence
+10.5281/zenodo.23196011). Reports #5 and #6 stay method v4, measured with
+causari 0.4.1. A seal proves a key signed these bytes; signed is not true. Absence
 of observed egress is not proof that a job made no other connection.
 A survival ratio is not quality, productivity, total AI usage, authorship,
 security, correctness, or a causal effect.
@@ -87,8 +93,9 @@ Evidence classes — do not collapse these into one word:
 - `re audit` JSON: `verified` and `probable` are confidence in git metadata.
   `verified` there means a detection rule matched. It is not a cryptographic
   verification and not a ledger `declared`. The untagged baseline is the
-  commits with no such metadata. Method version is `coverage.method` (v5 in
-  this source; reports #3 and #4 are v3, reports #1 and #2 are v2).
+  commits with no such metadata. Method version is `coverage.method` (method v5 in
+  this source; the published 0.4.1 binary, commit d4c4949, reports method v4;
+  reports #5 and #6 are method v4, reports #3 and #4 are v3, reports #1 and #2 are v2).
 - Ledger events (`re why`, `re show`, MCP `causari_why`): `declared` (the
   runtime said so), `correlated` (a proxy completion overlapped the diff; a
   score, not a fact), `observed` (a change was seen, cause unknown).

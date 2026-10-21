@@ -1,6 +1,6 @@
 {
   "schema": "causari.canon.v1",
-  "revised": "2026-09-21",
+  "revised": "2026-10-21",
   "identity": {
     "name": "Causari",
     "wordmark": "causari",
@@ -73,7 +73,34 @@
       {
         "path": "CITATION.cff",
         "pattern": "^version: ([0-9]+\\.[0-9]+\\.[0-9]+)$"
+      },
+      {
+        "path": "site/.well-known/agent.json",
+        "pattern": "^  \"version\": \"([0-9]+\\.[0-9]+\\.[0-9]+)\""
       }
+    ]
+  },
+  "distribution": {
+    "rule": "The package version and the audit method are a pair. method_version on the agent card is the method of the latest published release. source_method_version is METHOD_VERSION in src/audit.rs. When those methods differ, every surface in name_both_methods states both, the package version, and the release commit. A new package version without a new latest_release record is a defect.",
+    "latest_release": {
+      "version": "0.4.1",
+      "method_version": "v4",
+      "commit": "d4c4949ae25af754c7b30e5665467d66a48b9525",
+      "published": "2026-10-08"
+    },
+    "name_both_methods": [
+      "README.md",
+      "SECURITY.md",
+      "CHANGELOG.md",
+      "docs/survival-report.md",
+      "docs/survival-dataset.md",
+      "site/index.html",
+      "site/method.html",
+      "site/llms.txt",
+      "site/llms-full.txt",
+      "site/facts.html",
+      "site/faq.html",
+      "site/.well-known/agent.json"
     ]
   },
   "surfaces": {

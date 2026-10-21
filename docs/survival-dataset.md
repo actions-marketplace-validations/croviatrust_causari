@@ -7,7 +7,7 @@ This dataset is the machine-readable form of the weekly [Survival Report](https:
 - Reports included: {reports} (#{first_number} to #{last_number}, {first_date} to {last_date})
 - Repositories in the latest report: {latest_repositories} ({latest_aggregated} aggregated, {latest_not_aggregated} measured but below the sample floor)
 - Latest report: [{latest_title}]({latest_url}){latest_doi_note}
-- Method: [causari.dev/method](https://causari.dev/method). Each row names the method version that produced it. Published reports are not recomputed when the method changes.
+- Method: [causari.dev/method](https://causari.dev/method). Each row names the method version that produced it. Published reports are not recomputed when the method changes. Rows through report #6 are method v2, method v3, or method v4. None is method v5. The published binary that measured reports #5 and #6 is causari 0.4.1 (commit d4c4949, 2026-10-08), method v4. This source computes method v5 and is not that binary.
 - License: CC-BY-4.0. Publisher: Crovia Trust.
 
 ## What a row means
