@@ -84,7 +84,7 @@ Reading and export
 
 The percentage is how many lines `git blame` still attributes to commits this method tagged. It is not code quality, developer productivity, total AI usage, proof a model wrote the line, security, correctness, or a causal effect of AI. An agent row under 5 commits is marked below floor; 5 commits is the comparability floor, not a reliability guarantee.
 
-A git-ai note counts only when it names a non-empty tool (method v4). A schema-only note, a human-only note, and an empty tool do not. Method v3 counted any git-ai note. Survival Reports #1 and #2 stay method v2. Reports #3 and #4, and any audit from the 0.3.0 release, stay method v3. Report #4 is [10.5281/zenodo.23196011](https://doi.org/10.5281/zenodo.23196011). Reports #5 and #6 stay method v4, measured with the published binary 0.4.1 (commit d4c4949, 2026-10-08). This source computes method v6: `surviving` reads the same paths as `introduced`, so a binary blob (a PDF, an image) adds lines to neither count and a symlink adds one line to both; `coverage.binary_files` says how many blobs were left out. Methods v5 and v6 are not in the 0.4.1 binary; no binary shipped v5. Those reports are not recomputed.
+A git-ai note counts only when it names a non-empty tool (method v4). A schema-only note, a human-only note, and an empty tool do not. Method v3 counted any git-ai note. Survival Reports #1 and #2 stay method v2. Reports #3 and #4, and any audit from the 0.3.0 release, stay method v3. Report #4 is [10.5281/zenodo.23196011](https://doi.org/10.5281/zenodo.23196011). Reports #5 and #6 stay method v4, measured with causari 0.4.1 (commit d4c4949, 2026-10-08). The published binary 0.5.0 (2026-10-21) is method v6, the method this source computes: `surviving` reads the same paths as `introduced`, so a binary blob (a PDF, an image) adds lines to neither count and a symlink adds one line to both; `coverage.binary_files` says how many blobs were left out. No binary shipped method v5. Published reports are not recomputed.
 
 ## Fifteen minutes
 
@@ -338,7 +338,7 @@ to install on a mismatch. From v0.2.0, every archive and the sums file carry a
 signed SLSA build-provenance attestation from the release workflow:
 
 ```bash
-gh attestation verify causari-v0.4.1-x86_64-unknown-linux-gnu.tar.gz --repo croviatrust/causari
+gh attestation verify causari-v0.5.0-x86_64-unknown-linux-gnu.tar.gz --repo croviatrust/causari
 ```
 
 By hand:
@@ -423,13 +423,13 @@ Causari does not compete with provenance trackers (Agent Trace, git-ai,
 leave, measures with a public method, and signs the result so a third party
 can verify it offline.
 
-Done in the published binary 0.4.1, method v4 (commit d4c4949, 2026-10-08):
-`git blame -w -M -C`, the per-commit cap, the v4 git-ai rule, and the audit
-seal. Done in this source, and not in that binary: method v5 reads the HEAD
-tree, runs `git log --numstat -M -z`, records `coverage.copy_capped_lines`,
-signs `coverage.notes_oid` and `coverage.ignore_revs_sha256`, and `re audit
---diff` compares two receipts on one axis; method v6 blames only the paths
-numstat counted, so binary blobs are in neither count. Done in the proxy: a PNX witness
+Done in the published binary 0.5.0, method v6 (2026-10-21), and in this
+source: `git blame -w -M -C`, the per-commit cap, the v4 git-ai rule, the
+audit seal, the HEAD-tree reading and `git log --numstat -M -z` of v5,
+`coverage.copy_capped_lines`, signed `coverage.notes_oid` and
+`coverage.ignore_revs_sha256`, `re audit --diff` on one axis, and the v6
+rule that blames only the paths numstat counted, so binary blobs are in
+neither count. Done in the proxy: a PNX witness
 mode. For the request bodies it saw, a proof can show that named assets
 shared no 47-byte substring with that traffic. It does not prove the
 session made no other connection.

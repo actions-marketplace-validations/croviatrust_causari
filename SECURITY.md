@@ -8,9 +8,9 @@ within three working days and a fix or a stated decision within thirty. We
 credit reporters in the release note unless asked not to. There is no bug
 bounty.
 
-Supported: the latest published release, currently 0.4.1, method v4
-(commit d4c4949, 2026-10-08). The source on main computes method v6 and is
-not the supported binary until a release is cut from it. Older releases are
+Supported: the latest published release, currently 0.5.0, method v6
+(2026-10-21). The source on main computes the same method. 0.4.1 (method
+v4) is not patched. Older releases are
 not patched; upgrade with `curl -fsSL https://causari.dev/install.sh | sh`.
 
 ## What the tool stores, and where

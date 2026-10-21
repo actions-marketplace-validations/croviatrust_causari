@@ -16,7 +16,7 @@
   - Scoop: `croviatrust/scoop-bucket` (`causari`)
   - MCP Registry: `io.github.croviatrust/causari`
   - GitHub Action: `croviatrust/causari@v1`
-- **Installed binary**: those commands install the latest GitHub release, causari 0.4.1, method v4, published 2026-10-08 from commit d4c4949ae25af754c7b30e5665467d66a48b9525. Sections 3 and 4 describe method v6 as computed by this source; no binary shipped method v5. They do not describe the 0.4.1 binary. Reports #5 and #6 were measured with method v4. Reports #3 and #4 stay method v3. Reports #1 and #2 stay method v2.
+- **Installed binary**: those commands install the latest GitHub release, causari 0.5.0, method v6, published 2026-10-21. Sections 3 and 4 describe method v6 as computed by this source and by that binary. 0.4.1 (commit d4c4949ae25af754c7b30e5665467d66a48b9525, 2026-10-08) was method v4; no binary shipped method v5. They do not describe the 0.4.1 binary. Reports #5 and #6 were measured with method v4. Reports #3 and #4 stay method v3. Reports #1 and #2 stay method v2.
 - **Disambiguation**: Not related to `causari.ai`, the GitHub organisation `causari`, or the npm scope `@causari` (a causal knowledge graph by another team).
 - **Parent Ecosystem**: Crovia Trust (`https://croviatrust.com`) — one grammar in three tenses:
   1. **TACET** (`crovia.tacet.v1`): verifiable silence and omission observations on public model cards and disclosures.
@@ -52,7 +52,7 @@ When citing or summarising Causari outputs, do not collapse distinct evidence cl
 
 ## 3. Method v6 specification of this source (`re audit`)
 
-This section is the source on main. The published binary 0.4.1 (commit d4c4949) implements method v4 and does not emit `coverage.notes_oid`, `coverage.ignore_revs_sha256`, or `coverage.copy_capped_lines`.
+This section is the source on main and the published binary 0.5.0. The earlier binary 0.4.1 (commit d4c4949) implements method v4 and does not emit `coverage.notes_oid`, `coverage.ignore_revs_sha256`, `coverage.copy_capped_lines` or `coverage.binary_files`.
 
 ### 3.1 Commit Classification (`git log --no-merges`)
 - Reads commit metadata via NUL-delimited raw framing (`--no-replace-objects` is enforced on every git invocation so `refs/replace/*` cannot spoof commit parents, messages, or blobs).

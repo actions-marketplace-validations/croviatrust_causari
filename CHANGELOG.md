@@ -3,20 +3,59 @@
 Each section is the release note of the tag with the same number; the
 release workflow copies it verbatim. Counts, not adjectives.
 
-## Unreleased
+## 0.5.0 — 2026-10-21
 
-The source on main computes method v6. Over v5 (HEAD-tree purity, `git log
---numstat -M -z`, `coverage.copy_capped_lines`, signed `coverage.notes_oid`
-and `coverage.ignore_revs_sha256`, `re audit --diff`) it changes one rule:
-`surviving` is blamed over the same paths `--numstat` counted for
-`introduced`. A binary blob (`-` in numstat) is in neither count; v5 and
-earlier blamed it and counted its newline bytes as surviving lines, which
-also differed between Git for Windows and git on Linux (issue #76). A
-symlink is one line in both counts; v5 blamed none. `coverage.binary_files`
-records the blobs left out. On OpenHands/extensions at d057809:
-73514 → 73257 surviving of 92214 introduced. The published binary remains
-0.4.1, method v4 (commit d4c4949, 2026-10-08); no binary shipped v5.
-Survival Reports #5 and #6 stay method v4. This section is not a release.
+### Method v6
+
+Published reports stay on the method that produced them. Reports #1 and #2
+are method v2; #3 and #4 (and the 0.3.0 binary) method v3; #5 and #6
+method v4, measured with 0.4.1 (commit d4c4949, 2026-10-08). This release
+measures with method v6 and does not recompute them. No binary shipped
+method v5. `coverage.method` is the method, not the crate version.
+
+- `surviving` is blamed over the same paths `git log --numstat` counted for
+  `introduced`. A file git calls binary is `-` in numstat and added no
+  introduced lines; every method through v5 still blamed it, so its newline
+  bytes became surviving lines of the commit that added it, up to that
+  commit's introduced count, and Git for Windows split the same bytes into
+  a different count than git on Linux (issue #76). v6 reads the paths from
+  `git diff-tree -r --numstat -z <empty tree> HEAD`, git's own decision,
+  and records the blobs left out in `coverage.binary_files`. A symlink is
+  one line in both counts; v5 blamed none. Gitlinks are still not blamed
+  and numstat counts each as one introduced line; the method page states
+  it. On OpenHands/extensions at d057809: 73514 → 73257 surviving of 92214
+  introduced (79.7 % → 79.4 %).
+- Everything v5 added, now in a binary for the first time: file
+  enumeration from `git ls-tree -r -z HEAD` and `HEAD:.git-blame-ignore-revs`
+  (never the index or the worktree), `git log --no-merges --numstat -M -z`
+  so a pure rename introduces no lines, per-commit rows (`commits`) with
+  `owned_at_head` before the cap, `coverage.copy_capped_lines`,
+  `repository.root_commits`, `coverage.notes_oid` and
+  `coverage.ignore_revs_sha256` signed inside the seal (a v5+ seal with
+  those parameters stripped is rejected by the CLI and the browser
+  verifier), `--no-replace-objects` on every git call, and
+  `re audit --diff <before> <after>` (`causari.audit_diff.v1`): one axis at
+  a time, unrelated repositories refused, missing metadata reported as
+  indeterminate rather than unchanged.
+
+### Checks that now run on the release
+
+- `release-check.yml`, Tuesdays and on dispatch: installs this release the
+  way the README says on ubuntu, macos and windows, audits
+  OpenHands/extensions at a fixed commit and compares every count with
+  `tests/fixtures/release-check/` (one fixture per method). A mismatch is
+  published in the run, with per-file blame counts as an artifact, and is
+  not corrected in the fixture.
+- `tests/mcp_cli.rs`: `re mcp` over stdio end to end. `tests/absent_zero_cli.rs`:
+  an absent rate, a measured zero, no tagged commit and a hand-typed
+  trailer on the badge, the card and the PR summary.
+- The Marketplace tag `v1` moves to every release; the weekly surface
+  audit reads it and the repository card from the public API.
+- `install.sh` and `install.ps1` resolve the latest tag from the release
+  redirect and use the API only as a fallback, so a shared runner's rate
+  limit does not fail an install.
+- Dependencies: clap 4.6.7, serde_json 1.0.154, thiserror 2.0.21, toml 1.1.8,
+  libc 0.2.191, rustls 0.23.46, rustls-webpki 0.103.16, webpki-roots 1.0.10.
 
 ## 0.4.1 — 2026-10-08
 

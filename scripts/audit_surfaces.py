@@ -584,11 +584,21 @@ def check_repo_card_live(canon: dict, r: Report) -> None:
         r.add("live", "info", "github:homepage", "repository homepage equals canon")
 
 
+# A commit cannot contain its own hash, so the commit that carries a release
+# tag records this phrase and the commit after the tag replaces it with the
+# tagged hash. The offline gate accepts the phrase; the live audit does not.
+PENDING_RELEASE_COMMIT = "pending: recorded by the commit after the tag"
+
+
 def check_action_tag_live(canon: dict, r: Report) -> None:
     tag = canon["distribution"].get("action_tag")
     if not tag:
         return
     want = canon["distribution"]["latest_release"]["commit"]
+    if want == PENDING_RELEASE_COMMIT:
+        r.add("live", "high", "canon/canon.json",
+              f"latest_release.commit is still {want!r}; the commit after tag v{canon['distribution']['latest_release']['version']} must record the hash")
+        return
     status, headers, body = fetch(tag["api"])
     if status != 200:
         r.add("live", "high", tag["api"], f"HTTP {status} {headers.get('error', '')}")
@@ -678,6 +688,11 @@ def check_distribution(canon: dict, r: Report) -> None:
         if not release.get(key):
             r.add("distribution", "high", "canon/canon.json", f"latest_release.{key} empty")
             return
+    commit = release["commit"]
+    if commit != PENDING_RELEASE_COMMIT and not re.fullmatch(r"[0-9a-f]{40}", commit):
+        r.add("distribution", "high", "canon/canon.json",
+              f"latest_release.commit {commit!r} is neither a 40-hex hash nor {PENDING_RELEASE_COMMIT!r}")
+        return
     found = re.search(r'^version = "([0-9]+\.[0-9]+\.[0-9]+)"', read("Cargo.toml"), re.M)
     if not found:
         r.add("distribution", "high", "Cargo.toml", "package version not found")

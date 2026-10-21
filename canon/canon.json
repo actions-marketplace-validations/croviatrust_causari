@@ -81,12 +81,12 @@
     ]
   },
   "distribution": {
-    "rule": "The package version and the audit method are a pair. method_version on the agent card is the method of the latest published release. source_method_version is METHOD_VERSION in src/audit.rs. When those methods differ, every surface in name_both_methods states both, the package version, and the release commit. A new package version without a new latest_release record is a defect.",
+    "rule": "The package version and the audit method are a pair. method_version on the agent card is the method of the latest published release. source_method_version is METHOD_VERSION in src/audit.rs. When those methods differ, every surface in name_both_methods states both, the package version, and the release commit. A new package version without a new latest_release record is a defect. A commit cannot contain its own hash: the commit that carries the tag records latest_release.commit as the pending phrase scripts/audit_surfaces.py accepts offline, and the commit after the tag replaces it with the tagged hash; the live audit fails while it is pending.",
     "latest_release": {
-      "version": "0.4.1",
-      "method_version": "v4",
-      "commit": "d4c4949ae25af754c7b30e5665467d66a48b9525",
-      "published": "2026-10-08"
+      "version": "0.5.0",
+      "method_version": "v6",
+      "commit": "pending: recorded by the commit after the tag",
+      "published": "2026-10-21"
     },
     "action_tag": {
       "rule": "`uses: croviatrust/causari@v1` must resolve to latest_release.commit, so the Marketplace action.yml and the installed binary are the same release. release.yml moves the tag; the live audit reads it from the public API.",
