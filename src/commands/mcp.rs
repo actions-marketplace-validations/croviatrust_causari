@@ -197,11 +197,14 @@ fn handle_tools_list() -> Result<Value, String> {
             },
             {
                 "name": "causari_audit",
-                "description": "Run `re audit --json` (method v5, git metadata only, no ledger \
+                "description": format!(
+                    "Run `re audit --json` (method {}, git metadata only, no ledger \
                     required) on a local git repository and return the full Evidence Receipt \
                     JSON: per-commit rows with `owned_at_head`, `verified` (metadata matched, not \
                     authorship proved), `baseline` (untagged lines and age-matched gap), and \
                     `coverage` (`ignore_revs_sha256`, `notes_oid`, `copy_capped_lines`, `below_floor`).",
+                    crate::audit::METHOD_VERSION
+                ),
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -653,7 +656,7 @@ mod wording_tests {
 
         let audit = tool("causari_audit");
         let audit_desc = audit["description"].as_str().unwrap();
-        assert!(audit_desc.contains("method v5"));
+        assert!(audit_desc.contains(&format!("method {}", crate::audit::METHOD_VERSION)));
         assert!(audit_desc.contains("metadata matched, not authorship proved"));
         assert_eq!(audit["annotations"]["readOnlyHint"], true);
         assert_eq!(audit["annotations"]["openWorldHint"], false);
