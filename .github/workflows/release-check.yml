@@ -1,0 +1,93 @@
+name: release-check
+
+# The published release, installed the way the README says, on each OS the
+# release ships for, auditing a repository that is not ours at a fixed
+# commit, must reproduce the counts recorded in tests/fixtures/release-check.
+# This is the claim "anyone can reproduce the numbers" run by a machine
+# every week. A mismatch is a finding, published in the job summary, not
+# something to be fixed by editing the fixture.
+
+on:
+  schedule:
+    - cron: "41 8 * * 2" # Tuesdays, after Monday's report and surface audit
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to install (default: latest)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: install the published release (Linux, macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          CAUSARI_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://causari.dev/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: install the published release (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CAUSARI_VERSION: ${{ inputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:RUNNER_TEMP 'causari-bin'
+          $env:CAUSARI_BIN_DIR = $dir
+          Invoke-RestMethod https://causari.dev/install.ps1 | Invoke-Expression
+          Add-Content -Path $env:GITHUB_PATH -Value $dir
+
+      - name: the binary and the git it will call
+        shell: bash
+        run: |
+          set -euo pipefail
+          re --version
+          git --version
+          echo "RELEASE_CHECK_BINARY=$(re --version) / $(git --version) / ${{ runner.os }}" >> "$GITHUB_ENV"
+
+      - name: clone the external repository at the recorded commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          FX=tests/fixtures/release-check/OpenHands__extensions.v4.json
+          URL="$(python3 -c "import json;print(json.load(open('$FX'))['url'])")"
+          SHA="$(python3 -c "import json;print(json.load(open('$FX'))['commit'])")"
+          git clone -q "$URL" "$RUNNER_TEMP/external"
+          git -C "$RUNNER_TEMP/external" checkout -q "$SHA"
+          # A plain clone has no refs/notes/ai; say so in the log, because
+          # notes change counts while the commit stays the same.
+          git -C "$RUNNER_TEMP/external" for-each-ref refs/notes || true
+
+      - name: re audit --json
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/external"
+          re audit --json > "$RUNNER_TEMP/audit.json"
+          python3 -c "import json;d=json.load(open('$RUNNER_TEMP/audit.json'));print('method',d.get('method'),'commits',d['total_commits'],'verified',d['verified']['commits'])"
+
+      - name: compare with the recorded counts
+        shell: bash
+        run: python3 scripts/release_check.py "$RUNNER_TEMP/audit.json" tests/fixtures/release-check
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-check-${{ matrix.os }}
+          path: ${{ runner.temp }}/audit.json

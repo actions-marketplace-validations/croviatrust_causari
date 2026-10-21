@@ -268,6 +268,13 @@ re audit --diff before.json after.json      <span class="dim"># single-axis offl
   repository measured add one line to
   <a href="https://github.com/croviatrust/causari/edit/main/.github/survival-optout.txt" rel="noopener"><code translate="no">.github/survival-optout.txt</code></a>;
   the next weekly run drops the row and it is not re-added.</p>
+  <p>We run this reproduction ourselves, in public, every week: the
+  <a href="https://github.com/croviatrust/causari/actions/workflows/release-check.yml" rel="noopener">release-check</a>
+  workflow installs the published release with the one-line installer on Linux, macOS and Windows,
+  clones a repository that is not ours at a fixed commit, runs <code translate="no">re audit --json</code>
+  and compares every count with the numbers recorded in
+  <a href="https://github.com/croviatrust/causari/tree/main/tests/fixtures/release-check" rel="noopener"><code translate="no">tests/fixtures/release-check</code></a>.
+  A mismatch is published in the run, not corrected in the fixture.</p>
 
   <h2 id="selection"><span class="no">8</span>How repositories are selected</h2>
   <p>The Survival Report measures the repositories listed in
