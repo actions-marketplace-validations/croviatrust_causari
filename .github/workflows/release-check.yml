@@ -66,8 +66,8 @@ jobs:
         run: |
           set -euo pipefail
           FX=tests/fixtures/release-check/OpenHands__extensions.v4.json
-          URL="$(python3 -c "import json;print(json.load(open('$FX'))['url'])")"
-          SHA="$(python3 -c "import json;print(json.load(open('$FX'))['commit'])")"
+          URL="$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['url'])" "$FX")"
+          SHA="$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['commit'])" "$FX")"
           git clone -q "$URL" "$RUNNER_TEMP/external"
           git -C "$RUNNER_TEMP/external" checkout -q "$SHA"
           # A plain clone has no refs/notes/ai; say so in the log, because
@@ -80,7 +80,9 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/external"
           re audit --json > "$RUNNER_TEMP/audit.json"
-          python3 -c "import json;d=json.load(open('$RUNNER_TEMP/audit.json'));print('method',d.get('method'),'commits',d['total_commits'],'verified',d['verified']['commits'])"
+          # The path goes through argv, not into Python source: on Windows
+          # RUNNER_TEMP is D:\a\_temp and "\a" inside a string literal is a bell.
+          python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print('method',d.get('method'),'commits',d['total_commits'],'verified',d['verified']['commits'])" "$RUNNER_TEMP/audit.json"
 
       - name: compare with the recorded counts
         shell: bash
