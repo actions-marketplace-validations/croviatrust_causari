@@ -425,6 +425,10 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           set -euo pipefail
+          if [ "${PUSH_FAILED:-}" = "1" ]; then
+            echo "::error title=Dataset publish refused::a push was rejected. The dataset would not match main. Hugging Face was not called."
+            exit 1
+          fi
           python3 scripts/survival_dataset.py build /tmp/hf-dataset
           if [ -z "${HF_TOKEN:-}" ]; then
             echo "::notice title=Hugging Face publish skipped::HF_TOKEN is not set. Add it under Settings → Secrets (write token for the CroviaResearch org) to publish the dataset each week."
