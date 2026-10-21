@@ -584,8 +584,39 @@ def check_repo_card_live(canon: dict, r: Report) -> None:
         r.add("live", "info", "github:homepage", "repository homepage equals canon")
 
 
+def check_action_tag_live(canon: dict, r: Report) -> None:
+    tag = canon["distribution"].get("action_tag")
+    if not tag:
+        return
+    want = canon["distribution"]["latest_release"]["commit"]
+    status, headers, body = fetch(tag["api"])
+    if status != 200:
+        r.add("live", "high", tag["api"], f"HTTP {status} {headers.get('error', '')}")
+        return
+    try:
+        ref = json.loads(body)
+    except ValueError:
+        r.add("live", "high", tag["api"], "response is not JSON")
+        return
+    sha = ref.get("object", {}).get("sha", "")
+    # An annotated tag points at a tag object; resolve it once.
+    if ref.get("object", {}).get("type") == "tag":
+        status, _, body = fetch(ref["object"]["url"])
+        if status == 200:
+            try:
+                sha = json.loads(body).get("object", {}).get("sha", "")
+            except ValueError:
+                sha = ""
+    if sha != want:
+        r.add("live", "high", f"tag:{tag['name']}",
+              f"{tag['name']} is at {sha[:7] or '?'}, latest release {canon['distribution']['latest_release']['version']} is {want[:7]}")
+    else:
+        r.add("live", "info", f"tag:{tag['name']}", f"{tag['name']} is the latest release commit {want[:7]}")
+
+
 def check_live(canon: dict, r: Report) -> None:
     check_repo_card_live(canon, r)
+    check_action_tag_live(canon, r)
     live = canon["live"]
     base = live["base"].rstrip("/")
     for path, marker in live["pages"].items():

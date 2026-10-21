@@ -88,6 +88,11 @@
       "commit": "d4c4949ae25af754c7b30e5665467d66a48b9525",
       "published": "2026-10-08"
     },
+    "action_tag": {
+      "rule": "`uses: croviatrust/causari@v1` must resolve to latest_release.commit, so the Marketplace action.yml and the installed binary are the same release. release.yml moves the tag; the live audit reads it from the public API.",
+      "name": "v1",
+      "api": "https://api.github.com/repos/croviatrust/causari/git/ref/tags/v1"
+    },
     "name_both_methods": [
       "README.md",
       "SECURITY.md",
