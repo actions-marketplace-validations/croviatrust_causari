@@ -442,6 +442,12 @@
       "leaderboard.html",
       "survival.js",
       "re proof"
-    ]
+    ],
+    "repo_card": {
+      "rule": "The GitHub repository description and homepage are a public surface. The description is identity.one_liner followed by identity.sub_line, nothing else; the homepage is identity.domain. The weekly live audit reads them from the public API and fails on any other text.",
+      "api": "https://api.github.com/repos/croviatrust/causari",
+      "description": "AI-written code has no author. It has causes. Causari records them. How many lines from AI-tagged commits are still alive in your repo? One command, any git repo, no setup. A count, not a grade.",
+      "homepage": "https://causari.dev"
+    }
   }
 }

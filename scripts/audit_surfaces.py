@@ -535,7 +535,57 @@ def check_live_words_offline(canon: dict, r: Report) -> None:
             r.add("wording", "info", str(f.relative_to(ROOT)), "live marker present, no forbidden live wording")
 
 
+def check_repo_card_offline(canon: dict, r: Report) -> None:
+    # The GitHub description is text nobody diffs. Canon pins it to the
+    # identity lines so a stale or inflated card is a gate failure, not a
+    # surprise on the repository page.
+    card = canon["live"].get("repo_card")
+    if not card:
+        return
+    ident = canon["identity"]
+    want = f"{ident['one_liner']} {ident['sub_line']}"
+    before = len(r.findings)
+    if card["description"] != want:
+        r.add("canon", "high", "canon/canon.json",
+              "live.repo_card.description is not identity.one_liner + identity.sub_line")
+    bad = [w for w in canon["forbidden_words"]["words"] if w.lower() in card["description"].lower()]
+    if bad:
+        r.add("canon", "high", "canon/canon.json", f"live.repo_card.description carries forbidden words: {bad}")
+    if card["homepage"].rstrip("/") != f"https://{ident['domain']}":
+        r.add("canon", "high", "canon/canon.json", "live.repo_card.homepage is not identity.domain")
+    if len(card["description"]) > 350:
+        r.add("canon", "high", "canon/canon.json", "live.repo_card.description exceeds GitHub's 350 characters")
+    if len(r.findings) == before:
+        r.add("canon", "info", "canon/canon.json", "repo card text equals the identity lines")
+
+
+def check_repo_card_live(canon: dict, r: Report) -> None:
+    card = canon["live"].get("repo_card")
+    if not card:
+        return
+    status, headers, body = fetch(card["api"])
+    if status != 200:
+        r.add("live", "high", card["api"], f"HTTP {status} {headers.get('error', '')}")
+        return
+    try:
+        data = json.loads(body)
+    except ValueError:
+        r.add("live", "high", card["api"], "response is not JSON")
+        return
+    got = (data.get("description") or "").strip()
+    if got != card["description"]:
+        r.add("live", "high", "github:description", f"repository description differs from canon: {got!r}")
+    else:
+        r.add("live", "info", "github:description", "repository description equals canon")
+    home = (data.get("homepage") or "").strip().rstrip("/")
+    if home != card["homepage"].rstrip("/"):
+        r.add("live", "high", "github:homepage", f"repository homepage is {home!r}, canon says {card['homepage']!r}")
+    else:
+        r.add("live", "info", "github:homepage", "repository homepage equals canon")
+
+
 def check_live(canon: dict, r: Report) -> None:
+    check_repo_card_live(canon, r)
     live = canon["live"]
     base = live["base"].rstrip("/")
     for path, marker in live["pages"].items():
@@ -690,7 +740,7 @@ def main() -> int:
 
     canon = json.loads(read("canon/canon.json"))
     r = Report()
-    for check in (check_versions, check_forbidden, check_live_words_offline, check_required, check_files, check_html, check_assets, check_matrix, check_release, check_evidence_invariants, check_distribution):
+    for check in (check_versions, check_forbidden, check_live_words_offline, check_required, check_files, check_html, check_assets, check_matrix, check_release, check_evidence_invariants, check_distribution, check_repo_card_offline):
         try:
             check(canon, r)
         except Exception as e:  # noqa: BLE001
