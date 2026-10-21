@@ -15,8 +15,8 @@ repositories. Reports #1 and #2 are method v2. Reports #3 and #4, and the
 Reports #5 (2026-10-12) and #6 (2026-10-19) are method v4, measured with
 the published binary causari 0.4.1 (2026-10-08, commit d4c4949). That
 binary counts a git-ai note only when it names a non-empty tool; method v3
-counted any parseable note. This source computes method v5, and that method
-is not in the 0.4.1 binary. Published reports are not recomputed. For each repository the
+counted any parseable note. This source computes method v6, and that method
+is not in the 0.4.1 binary; no binary shipped method v5. Published reports are not recomputed. For each repository the
 report states how many lines were introduced by commits that carry
 machine-readable AI authorship metadata (`Co-Authored-By` trailers naming
 an agent, bot author identities, aider markers, `Assisted-by:`, and a
@@ -288,22 +288,22 @@ full clones of ten repositories from the measured list. The retired
 no cap, no coverage block) and was therefore not relabelled as Report #1;
 `survival_report.py from-existing` refuses such data by design.
 
-## Method v5: Exact Measurement Inputs and Structural Limits
+## Method v6: Exact Measurement Inputs and Structural Limits
 
-A Method v5 receipt (`re audit --json` / `re audit --seal`) is determined by
+A Method v6 receipt (`re audit --json` / `re audit --seal`) is determined by
 the following inputs, all recorded in `repository` and `coverage`:
 
-| Input | Field in receipt | How Method v5 reads it |
+| Input | Field in receipt | How Method v6 reads it |
 |---|---|---|
 | Commit graph and tree at `HEAD` | `repository.head`, `repository.root_commits` | `git --no-replace-objects` on every invocation; `.git/refs/replace/*` is ignored so local replacement refs cannot alter history or blame without changing `HEAD`. |
-| Method version | `method`, `coverage.method` | `"v5"` |
-| Blame flags & `HEAD` tree enumeration | `coverage.blame_flags` | `["-w", "-M", "-C"]` over regular-file blobs (`100644`/`100755`) enumerated directly from `git ls-tree -r -z HEAD` with `core.quotepath=false` (never from `.git/index`, so staged `git rm --cached` and `--bare` clones match `HEAD`). On Unix, raw non-UTF-8 path bytes are passed via `OsStrExt::from_bytes`; on Windows, non-UTF-8 paths in `HEAD` are refused with an explicit error rather than replaced with `U+FFFD` (which would falsify survival to `0%`). Any `git blame` failure on a `HEAD` blob is propagated as an error, never counted as `0` surviving lines. |
+| Method version | `method`, `coverage.method` | `"v6"` |
+| Blame flags & `HEAD` tree enumeration | `coverage.blame_flags` | `["-w", "-M", "-C"]` over regular-file blobs (`100644`/`100755`) enumerated directly from `git ls-tree -r -z HEAD` with `core.quotepath=false` (never from `.git/index`, so staged `git rm --cached` and `--bare` clones match `HEAD`). On Unix, raw non-UTF-8 path bytes are passed via `OsStrExt::from_bytes`; on Windows, non-UTF-8 paths in `HEAD` are refused with an explicit error rather than replaced with `U+FFFD` (which would falsify survival to `0%`). Any `git blame` failure on a `HEAD` blob is propagated as an error, never counted as `0` surviving lines. Method v6 keeps only the paths `git diff-tree -r --numstat -z <empty tree> HEAD` gives a line count (git's own binary decision, the one `git log --numstat` makes for `introduced`), adds `120000` symlinks (one line each, as numstat counts them), and records the blobs left out in `coverage.binary_files`. Under v5 a binary blob was blamed and its newline bytes counted as surviving lines no commit had introduced. |
 | Numstat flags | `coverage.numstat_flags` | `["-M", "-z"]` on `git log --no-merges --numstat -M -z` so pure file renames do not count existing lines as newly introduced on the rename commit, and NUL-delimited paths preserve literal `" => "` or non-ASCII filenames without heuristic splitting. |
 | Committed blame ignore list | `coverage.ignore_revs_file`, `coverage.ignore_revs_sha256` | Read exclusively from `HEAD:.git-blame-ignore-revs` (`git cat-file -p`); untracked or dirty worktree copies are ignored. Every listed SHA must resolve to a commit in the repository. Bound in `crovia.seal.v1` `generator.params`. |
 | External `git-ai` notes ref | `coverage.notes_oid` | `git rev-parse --verify --quiet refs/notes/ai` (40-hex OID or `null`). Bound in `crovia.seal.v1` `generator.params` because `refs/notes/ai` lives outside the commit object. |
 | Shallow boundary | `coverage.shallow` | Refused by default (exit 2); allowed only with `--allow-shallow`. |
 
-### Structural limits that Method v5 states and does not claim to solve
+### Structural limits that Method v6 states and does not claim to solve
 
 1. **Formal definition of `surviving`, copy detection (`-C`), and `copy_capped_lines`**:
    - For each non-merge commit $c$, `introduced` is the number of added lines in

@@ -89,7 +89,7 @@ fn json_report_carries_compat_fields_and_method_extras() {
             "by_agent.claude-code.{key} missing"
         );
     }
-    assert_eq!(v["coverage"]["method"], "v5");
+    assert_eq!(v["coverage"]["method"], "v6");
     assert_eq!(
         v["coverage"]["blame_flags"],
         serde_json::json!(["-w", "-M", "-C"])
@@ -101,7 +101,7 @@ fn json_report_carries_compat_fields_and_method_extras() {
     assert!(v["coverage"]["ignore_revs_sha256"].is_null());
     assert!(v["coverage"]["notes_oid"].is_null());
     assert!(v["coverage"].get("skipped_files").is_none());
-    assert_eq!(v["method"], "v5");
+    assert_eq!(v["method"], "v6");
     assert_eq!(v["by_agent"]["claude-code"]["below_floor"], true);
     assert_eq!(v["commits"].as_array().map(Vec::len), Some(2));
     assert_eq!(v["commits"][1]["class"], "verified");
@@ -152,14 +152,14 @@ fn human_readable_outputs_name_the_method_version_and_no_verdict() {
         .lines()
         .find(|l| l.starts_with("<sub>"))
         .expect("summary ends with a <sub> footer");
-    assert!(sub.contains("Method v5"), "{sub}");
+    assert!(sub.contains("Method v6"), "{sub}");
     assert!(text.contains("untagged lines"), "{text}");
     assert!(text.contains("capped") && text.contains("median"), "{text}");
 
     let terminal = re(temp.path(), &["audit"]);
     assert!(terminal.status.success());
     let text = String::from_utf8_lossy(&terminal.stdout).into_owned() + &text;
-    assert!(text.contains("method v5"), "{text}");
+    assert!(text.contains("method v6"), "{text}");
     assert!(text.contains("Baseline: untagged lines"), "{text}");
     // Hard rule of the project: audit output measures, it does not grade.
     for verdict in ["healthy", "churn", "waste", "🟢", "🟡", "🔴"] {
@@ -199,7 +199,7 @@ fn shallow_clone_is_refused_unless_allowed() {
     );
     let v = json(&allowed);
     assert_eq!(v["coverage"]["shallow"], true);
-    assert_eq!(v["coverage"]["method"], "v5");
+    assert_eq!(v["coverage"]["method"], "v6");
 }
 
 fn commit_file(dir: &Path, name: &str, body: &str, message: &str) {
@@ -310,7 +310,7 @@ fn audit_reading_export_and_unavailable_age_match() {
         text.contains(head),
         "terminal names the measured commit:\n{text}"
     );
-    assert_eq!(exported["coverage"]["method"], "v5");
+    assert_eq!(exported["coverage"]["method"], "v6");
     assert_eq!(
         exported["coverage"]["blame_flags"],
         serde_json::json!(["-w", "-M", "-C"])
@@ -835,7 +835,7 @@ fn absent_rate_measured_zero_and_unavailable_age_gap_stay_distinct() {
     assert!(absent_json["verified"]["survival_rate"].is_null());
     assert!(absent_json["baseline"]["age_matched"].is_null());
     assert_eq!(absent_json["baseline"]["untagged"]["introduced"], 1);
-    assert_eq!(absent_json["coverage"]["method"], "v5");
+    assert_eq!(absent_json["coverage"]["method"], "v6");
 
     let absent_text = String::from_utf8_lossy(&re(absent.path(), &["audit"]).stdout).into_owned();
     assert!(absent_text.contains("Rate absent:"), "{absent_text}");
@@ -876,7 +876,7 @@ fn absent_rate_measured_zero_and_unavailable_age_gap_stay_distinct() {
     assert_eq!(zero_json["verified"]["surviving"], 0);
     assert_eq!(zero_json["verified"]["survival_rate"], 0.0);
     assert!(zero_json["baseline"]["age_matched"].is_null());
-    assert_eq!(zero_json["coverage"]["method"], "v5");
+    assert_eq!(zero_json["coverage"]["method"], "v6");
 
     let zero_text = String::from_utf8_lossy(&re(zero.path(), &["audit"]).stdout).into_owned();
     assert!(zero_text.contains("0.0%"), "{zero_text}");

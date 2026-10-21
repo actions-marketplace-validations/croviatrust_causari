@@ -9,7 +9,7 @@ credit reporters in the release note unless asked not to. There is no bug
 bounty.
 
 Supported: the latest published release, currently 0.4.1, method v4
-(commit d4c4949, 2026-10-08). The source on main computes method v5 and is
+(commit d4c4949, 2026-10-08). The source on main computes method v6 and is
 not the supported binary until a release is cut from it. Older releases are
 not patched; upgrade with `curl -fsSL https://causari.dev/install.sh | sh`.
 

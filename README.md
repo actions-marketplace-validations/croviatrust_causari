@@ -84,7 +84,7 @@ Reading and export
 
 The percentage is how many lines `git blame` still attributes to commits this method tagged. It is not code quality, developer productivity, total AI usage, proof a model wrote the line, security, correctness, or a causal effect of AI. An agent row under 5 commits is marked below floor; 5 commits is the comparability floor, not a reliability guarantee.
 
-A git-ai note counts only when it names a non-empty tool (method v4). A schema-only note, a human-only note, and an empty tool do not. Method v3 counted any git-ai note. Survival Reports #1 and #2 stay method v2. Reports #3 and #4, and any audit from the 0.3.0 release, stay method v3. Report #4 is [10.5281/zenodo.23196011](https://doi.org/10.5281/zenodo.23196011). Reports #5 and #6 stay method v4, measured with the published binary 0.4.1 (commit d4c4949, 2026-10-08). This source computes method v5. That method is not in the 0.4.1 binary. Those reports are not recomputed.
+A git-ai note counts only when it names a non-empty tool (method v4). A schema-only note, a human-only note, and an empty tool do not. Method v3 counted any git-ai note. Survival Reports #1 and #2 stay method v2. Reports #3 and #4, and any audit from the 0.3.0 release, stay method v3. Report #4 is [10.5281/zenodo.23196011](https://doi.org/10.5281/zenodo.23196011). Reports #5 and #6 stay method v4, measured with the published binary 0.4.1 (commit d4c4949, 2026-10-08). This source computes method v6: `surviving` reads the same paths as `introduced`, so a binary blob (a PDF, an image) adds lines to neither count and a symlink adds one line to both; `coverage.binary_files` says how many blobs were left out. Methods v5 and v6 are not in the 0.4.1 binary; no binary shipped v5. Those reports are not recomputed.
 
 ## Fifteen minutes
 
@@ -428,7 +428,8 @@ Done in the published binary 0.4.1, method v4 (commit d4c4949, 2026-10-08):
 seal. Done in this source, and not in that binary: method v5 reads the HEAD
 tree, runs `git log --numstat -M -z`, records `coverage.copy_capped_lines`,
 signs `coverage.notes_oid` and `coverage.ignore_revs_sha256`, and `re audit
---diff` compares two receipts on one axis. Done in the proxy: a PNX witness
+--diff` compares two receipts on one axis; method v6 blames only the paths
+numstat counted, so binary blobs are in neither count. Done in the proxy: a PNX witness
 mode. For the request bodies it saw, a proof can show that named assets
 shared no 47-byte substring with that traffic. It does not prove the
 session made no other connection.

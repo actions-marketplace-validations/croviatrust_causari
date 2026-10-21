@@ -16,7 +16,7 @@
   - Scoop: `croviatrust/scoop-bucket` (`causari`)
   - MCP Registry: `io.github.croviatrust/causari`
   - GitHub Action: `croviatrust/causari@v1`
-- **Installed binary**: those commands install the latest GitHub release, causari 0.4.1, method v4, published 2026-10-08 from commit d4c4949ae25af754c7b30e5665467d66a48b9525. Sections 3 and 4 describe method v5 as computed by this source. They do not describe the 0.4.1 binary. Reports #5 and #6 were measured with method v4. Reports #3 and #4 stay method v3. Reports #1 and #2 stay method v2.
+- **Installed binary**: those commands install the latest GitHub release, causari 0.4.1, method v4, published 2026-10-08 from commit d4c4949ae25af754c7b30e5665467d66a48b9525. Sections 3 and 4 describe method v6 as computed by this source; no binary shipped method v5. They do not describe the 0.4.1 binary. Reports #5 and #6 were measured with method v4. Reports #3 and #4 stay method v3. Reports #1 and #2 stay method v2.
 - **Disambiguation**: Not related to `causari.ai`, the GitHub organisation `causari`, or the npm scope `@causari` (a causal knowledge graph by another team).
 - **Parent Ecosystem**: Crovia Trust (`https://croviatrust.com`) — one grammar in three tenses:
   1. **TACET** (`crovia.tacet.v1`): verifiable silence and omission observations on public model cards and disclosures.
@@ -50,7 +50,7 @@ When citing or summarising Causari outputs, do not collapse distinct evidence cl
 
 ---
 
-## 3. Method v5 specification of this source (`re audit`)
+## 3. Method v6 specification of this source (`re audit`)
 
 This section is the source on main. The published binary 0.4.1 (commit d4c4949) implements method v4 and does not emit `coverage.notes_oid`, `coverage.ignore_revs_sha256`, or `coverage.copy_capped_lines`.
 
@@ -71,7 +71,7 @@ This section is the source on main. The published binary 0.4.1 (commit d4c4949) 
 - Uses `-M -z` so pure file renames introduce `0` lines (matching `git blame -M`), and NUL-delimited path tokens prevent filenames containing literal `=>` or non-ASCII bytes from being misparsed.
 
 ### 3.3 Surviving Lines at `HEAD` (`git ls-tree -r -z HEAD` + `git blame -w -M -C --line-porcelain HEAD`)
-- Enumerates regular file blobs (`100644` and `100755` only; symlinks `120000` and gitlink submodules `160000` are skipped) directly from the `HEAD` tree via `git ls-tree -r -z HEAD`.
+- Enumerates `HEAD` tree entries via `git ls-tree -r -z HEAD` and keeps blobs and symlinks (`100644`, `100755`, `120000`) that `git diff-tree -r --numstat -z <empty tree> HEAD` gives a line count: git's own text/binary decision, the same one `--numstat` makes for introduced lines (Method v6). Binary blobs (`-` in numstat) are in neither count and are counted in `coverage.binary_files`; gitlink submodules (`160000`) are never blamed although numstat counts each as one introduced line. Method v5 blamed every blob, binaries included, and no symlink.
 - Staging-index mutations (`git rm --cached`, staged edits), dirty working-tree files, and bare repositories produce identical results for the same `HEAD`.
 - Reads `.git-blame-ignore-revs` exclusively from the committed blob `HEAD:.git-blame-ignore-revs`, validates every revision entry, and records its digest in `coverage.ignore_revs_sha256` (`sha256:<64-hex>`). An untracked or modified worktree `.git-blame-ignore-revs` is ignored.
 - Propagates any `git blame` failure as an explicit error rather than silently recording 0 surviving lines.
@@ -87,9 +87,9 @@ This section is the source on main. The published binary 0.4.1 (commit d4c4949) 
 
 ## 4. Machine-Readable Schemas
 
-### 4.1 `re audit --json` (`causari.audit.v1`, Method v5)
+### 4.1 `re audit --json` (`causari.audit.v1`, Method v6)
 Key top-level fields:
-- `method`: `"v5"`
+- `method`: `"v6"`
 - `total_commits`: integer count of non-merge commits reachable from `HEAD`
 - `verified`: `{ commits, introduced, surviving, survival_rate, capped_survival_rate, cap_lines, median_survival, largest_commit_share, below_floor }`
 - `probable`: same structure as `verified`
@@ -97,9 +97,10 @@ Key top-level fields:
 - `baseline`: `{ untagged, by_age, age_matched, oldest_surviving }`
 - `commits`: array of `{ hash, class, agent, introduced, owned_at_head, surviving }`
 - `coverage`:
-  - `method`: `"v5"`
+  - `method`: `"v6"`
   - `blame_flags`: `["-w", "-M", "-C"]`
   - `numstat_flags`: `["-M", "-z"]`
+  - `binary_files`: integer, blobs at `HEAD` git calls binary, in neither count (Method v6)
   - `ignore_revs_file`: boolean
   - `ignore_revs_sha256`: `"sha256:..."` or `null`
   - `notes_oid`: 40-hex OID of `refs/notes/ai` or `null`
@@ -111,7 +112,7 @@ Key top-level fields:
 
 ### 4.2 `re audit --seal` (`causari.audit-seal.v1`)
 Wraps a `crovia.seal.v1` Ed25519 signature over:
-- `subject.input`: CSC-1 canonical JSON `{ "commit": "<40-hex>", "method": "v5", "options": { "allow_shallow": false }, "type": "causari.audit.input.v1" }`
+- `subject.input`: CSC-1 canonical JSON `{ "commit": "<40-hex>", "method": "v6", "options": { "allow_shallow": false }, "type": "causari.audit.input.v1" }`
 - `subject.output`: exact UTF-8 bytes of `re audit --json`
 - `seal.generator.params`: binds `commit`, `method`, `repo`, `subject_type`, `coverage.shallow`, `coverage.notes_oid` (`"none"` when null), and `coverage.ignore_revs_sha256` (`"none"` when null).
 
@@ -132,7 +133,7 @@ Offline single-axis comparison of two audit JSON receipts or `.seal.json` bundle
 ## 5. Canonical URLs
 
 - Home: https://causari.dev/
-- Method v5 Specification: https://causari.dev/method
+- Method v6 Specification: https://causari.dev/method
 - Offline Seal Verifier: https://causari.dev/verify/
 - Weekly Survival Report Archive: https://causari.dev/reports/survival/
 - Latest Report JSON: https://causari.dev/reports/survival/latest.json

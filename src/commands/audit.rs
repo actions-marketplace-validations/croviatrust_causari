@@ -514,7 +514,8 @@ fn run_diff(before_path: &Path, after_path: &Path, as_json: bool, summary: bool)
     let a_flags = &after["coverage"]["blame_flags"];
     let b_nflags = &before["coverage"]["numstat_flags"];
     let a_nflags = &after["coverage"]["numstat_flags"];
-    let nflags_changed = if b_method == "v5" && a_method == "v5" {
+    let has_nflags = |m: &str| !matches!(m, "v1" | "v2" | "v3" | "v4");
+    let nflags_changed = if has_nflags(b_method) && has_nflags(a_method) {
         b_nflags != a_nflags
     } else {
         !b_nflags.is_null() && !a_nflags.is_null() && b_nflags != a_nflags

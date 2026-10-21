@@ -5,11 +5,18 @@ release workflow copies it verbatim. Counts, not adjectives.
 
 ## Unreleased
 
-The source on main computes method v5: HEAD-tree purity, `git log --numstat -M -z`,
-`coverage.copy_capped_lines`, signed `coverage.notes_oid` and
-`coverage.ignore_revs_sha256`, and `re audit --diff`. The published binary
-remains 0.4.1, method v4 (commit d4c4949, 2026-10-08). Survival Reports #5
-and #6 stay method v4. This section is not a release.
+The source on main computes method v6. Over v5 (HEAD-tree purity, `git log
+--numstat -M -z`, `coverage.copy_capped_lines`, signed `coverage.notes_oid`
+and `coverage.ignore_revs_sha256`, `re audit --diff`) it changes one rule:
+`surviving` is blamed over the same paths `--numstat` counted for
+`introduced`. A binary blob (`-` in numstat) is in neither count; v5 and
+earlier blamed it and counted its newline bytes as surviving lines, which
+also differed between Git for Windows and git on Linux (issue #76). A
+symlink is one line in both counts; v5 blamed none. `coverage.binary_files`
+records the blobs left out. On OpenHands/extensions at d057809:
+73514 → 73257 surviving of 92214 introduced. The published binary remains
+0.4.1, method v4 (commit d4c4949, 2026-10-08); no binary shipped v5.
+Survival Reports #5 and #6 stay method v4. This section is not a release.
 
 ## 0.4.1 — 2026-10-08
 

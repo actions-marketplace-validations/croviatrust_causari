@@ -681,7 +681,16 @@ pub fn parse_blame_owners(porcelain: &str) -> Vec<String> {
 /// so non-ASCII paths are blamed rather than silently skipped, serializes
 /// `below_floor`, `comparable`, `notes_oid` and `skipped_files`, and emits
 /// per-commit rows (`commits`) with `owned_at_head` before the clamp.
-pub const METHOD_VERSION: &str = "v5";
+/// v6 changes one rule: `surviving` reads the same set of paths as
+/// `introduced`. `git log --numstat` reports `-` for a binary file, so a
+/// binary blob adds no introduced lines; v5 still blamed it, so its
+/// newline bytes were counted as surviving lines of the commit that added
+/// it (888 lines of one PDF in the OpenHands/extensions fixture, and a
+/// count that differed between Git for Windows and git on Linux). v6
+/// blames only the paths numstat gives a line count, symlinks included
+/// (numstat counts each as one line; v5 blamed none of them), and records
+/// the number of binary blobs left out in `coverage.binary_files`.
+pub const METHOD_VERSION: &str = "v6";
 
 /// Below this many VERIFIED commits a ratio is reported but flagged: one
 /// commit can dominate it.
@@ -849,6 +858,11 @@ pub struct Coverage {
     /// commit. `surviving` is a capped attribution count, not a count of
     /// distinct original lines retained.
     pub copy_capped_lines: u64,
+    /// Blobs at `HEAD` that git reports as binary (`-` in `--numstat`). They
+    /// are in neither `introduced` nor `surviving`: v6 blames the same set of
+    /// paths numstat counts. v5 and earlier blamed them, so a PDF or an image
+    /// could add surviving lines that no commit introduced.
+    pub binary_files: u64,
     /// The repository is a shallow clone: introduced counts are truncated
     /// and blame stops at the shallow boundary.
     pub shallow: bool,
@@ -867,6 +881,7 @@ impl Default for Coverage {
             ignore_revs_sha256: None,
             notes_oid: None,
             copy_capped_lines: 0,
+            binary_files: 0,
             shallow: false,
             sample_floor: SAMPLE_FLOOR,
             small_sample: true,
@@ -1469,11 +1484,48 @@ pub fn ignore_revs_at_head(dir: &Path) -> Option<IgnoreRevsAtHead> {
     Some(IgnoreRevsAtHead { path: tmp, sha256 })
 }
 
-/// Extract regular-file blob paths (`100644` / `100755`) from the raw NUL-delimited
-/// output of `git ls-tree -r -z HEAD`, excluding generated paths, symlinks (`120000`),
-/// and gitlink submodules (`160000`).
-fn head_tree_blob_paths(raw_ls_tree: &[u8]) -> Result<Vec<std::ffi::OsString>> {
-    let mut list = Vec::new();
+/// Paths at `HEAD` whose lines `surviving` may count, and how many blobs
+/// were left out because git calls them binary.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct HeadTextPaths {
+    pub paths: Vec<std::ffi::OsString>,
+    /// Blobs at `HEAD` that `git diff --numstat` reports as `-` (binary).
+    /// They add nothing to `introduced`, so they add nothing to `surviving`.
+    pub binary_files: u64,
+}
+
+/// Select the `HEAD` paths to blame from two raw NUL-delimited git outputs:
+/// `ls-tree -r -z HEAD` (modes) and `diff-tree -r --numstat -z <empty tree> HEAD`
+/// (git's own text/binary decision, the same one `git log --numstat` makes
+/// when `introduced` is counted). A path is blamed when it is a blob or a
+/// symlink (`100644`, `100755`, `120000`), is not a generated path, and
+/// numstat gives it a line count rather than `-`. Gitlinks (`160000`) are
+/// never blamed: `git blame` cannot open them.
+///
+/// Method v5 blamed every blob including binary ones, so a PDF or an image
+/// contributed `surviving` lines that no commit had `introduced`, and left
+/// symlinks out although numstat counts each as one introduced line. v6
+/// makes the two sides of the ratio read the same set of paths.
+fn head_text_paths(raw_ls_tree: &[u8], raw_numstat: &[u8]) -> Result<HeadTextPaths> {
+    let mut text: std::collections::HashSet<&[u8]> = std::collections::HashSet::new();
+    let mut binary: std::collections::HashSet<&[u8]> = std::collections::HashSet::new();
+    for entry in raw_numstat.split(|&b| b == 0) {
+        if entry.is_empty() {
+            continue;
+        }
+        let mut cols = entry.splitn(3, |&b| b == b'\t');
+        let (Some(added), Some(_deleted), Some(path)) = (cols.next(), cols.next(), cols.next())
+        else {
+            anyhow::bail!("malformed git diff-tree --numstat entry (expected three columns)");
+        };
+        if added == b"-" {
+            binary.insert(path);
+        } else {
+            text.insert(path);
+        }
+    }
+
+    let mut out = HeadTextPaths::default();
     for entry in raw_ls_tree.split(|&b| b == 0) {
         if entry.is_empty() {
             continue;
@@ -1483,23 +1535,55 @@ fn head_tree_blob_paths(raw_ls_tree: &[u8]) -> Result<Vec<std::ffi::OsString>> {
         };
         let meta = &entry[..tab_pos];
         let raw_path = &entry[tab_pos + 1..];
-        if !(meta.starts_with(b"100644 blob ") || meta.starts_with(b"100755 blob ")) {
+        if !(meta.starts_with(b"100644 blob ")
+            || meta.starts_with(b"100755 blob ")
+            || meta.starts_with(b"120000 blob "))
+        {
             continue;
         }
-        let lossy_path = String::from_utf8_lossy(raw_path);
-        if is_generated_path(&lossy_path) {
+        if is_generated_path(&String::from_utf8_lossy(raw_path)) {
             continue;
         }
-        list.push(raw_git_path_to_os_string(raw_path)?);
+        if binary.contains(raw_path) {
+            out.binary_files += 1;
+            continue;
+        }
+        if !text.contains(raw_path) {
+            // numstat did not list it: nothing introduced it, so nothing can
+            // survive from it. Skip rather than count lines on one side only.
+            continue;
+        }
+        out.paths.push(raw_git_path_to_os_string(raw_path)?);
     }
-    Ok(list)
+    Ok(out)
 }
 
-/// Blame every regular text/blob file in the `HEAD` tree (via `ls-tree -r -z HEAD`
-/// so staging-index mutations, bare repositories, and non-ASCII paths never distort
-/// the measurement) and propagate any `git blame` failure as an explicit error
-/// rather than silently recording 0 surviving lines.
-pub fn blame_head(dir: &Path, ignore_revs: Option<&Path>) -> Result<Vec<String>> {
+/// The hash of the empty tree in this repository's object format, so
+/// `diff-tree <empty> HEAD` lists every path at `HEAD` as an addition and
+/// numstat classifies each one exactly as it does in `git log --numstat`.
+fn empty_tree_oid(dir: &Path) -> &'static str {
+    const SHA1: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+    const SHA256: &str = "6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321";
+    match git(dir, &["rev-parse", "--show-object-format"]) {
+        Ok(f) if f.trim() == "sha256" => SHA256,
+        _ => SHA1,
+    }
+}
+
+/// What `git blame` attributes at `HEAD`: one owning commit per surviving
+/// line, and the number of binary blobs that were not blamed.
+pub struct HeadBlame {
+    pub owners: Vec<String>,
+    pub binary_files: u64,
+}
+
+/// Blame every text path in the `HEAD` tree (via `ls-tree -r -z HEAD` so
+/// staging-index mutations, bare repositories, and non-ASCII paths never distort
+/// the measurement; via `diff-tree --numstat` against the empty tree so binary
+/// blobs are left out exactly as `introduced` leaves them out) and propagate
+/// any `git blame` failure as an explicit error rather than silently
+/// recording 0 surviving lines.
+pub fn blame_head(dir: &Path, ignore_revs: Option<&Path>) -> Result<HeadBlame> {
     let mut base_args: Vec<&str> = vec!["blame"];
     base_args.extend(BLAME_FLAGS);
     base_args.push("--line-porcelain");
@@ -1510,7 +1594,10 @@ pub fn blame_head(dir: &Path, ignore_revs: Option<&Path>) -> Result<Vec<String>>
     base_args.extend(["HEAD", "--"]);
 
     let raw_tree = git_bytes(dir, &["ls-tree", "-r", "-z", "HEAD"])?;
-    let list = head_tree_blob_paths(&raw_tree)?;
+    let empty = empty_tree_oid(dir);
+    let raw_numstat = git_bytes(dir, &["diff-tree", "-r", "--numstat", "-z", empty, "HEAD"])?;
+    let selected = head_text_paths(&raw_tree, &raw_numstat)?;
+    let list = selected.paths;
     let total = list.len();
     // Blame is embarrassingly parallel across files: each worker pulls the
     // next index from a shared atomic cursor and runs its own git subprocess.
@@ -1553,7 +1640,10 @@ pub fn blame_head(dir: &Path, ignore_revs: Option<&Path>) -> Result<Vec<String>>
     for res in worker_results {
         owners.extend(res?);
     }
-    Ok(owners)
+    Ok(HeadBlame {
+        owners,
+        binary_files: selected.binary_files,
+    })
 }
 
 /// True when the repository is a shallow clone. Its history is truncated:
@@ -1679,8 +1769,9 @@ pub fn audit_repo(dir: &Path, opts: &AuditOptions) -> Result<SurvivalReport> {
     let head_committed_at = head_committed_at(dir)?;
 
     let ignore_revs = ignore_revs_at_head(dir);
-    let head_owners = blame_head(dir, ignore_revs.as_ref().map(|ir| ir.path.as_path()))?;
-    let mut report = compute_survival(&with_intro, &detections, &head_owners, head_committed_at);
+    let head = blame_head(dir, ignore_revs.as_ref().map(|ir| ir.path.as_path()))?;
+    let mut report = compute_survival(&with_intro, &detections, &head.owners, head_committed_at);
+    report.coverage.binary_files = head.binary_files;
     report.coverage.ignore_revs_file = ignore_revs.is_some();
     report.coverage.ignore_revs_sha256 = ignore_revs.as_ref().map(|ir| ir.sha256.clone());
     report.coverage.notes_oid = notes_ai_oid(dir);
@@ -2669,14 +2760,14 @@ mod tests {
         detections.insert(c.hash.clone(), detection("claude-code", 1.0));
         let owners = vec![c.hash.clone()];
         let report = compute_survival(&[(c, 3)], &detections, &owners, 0);
-        assert_eq!(report.coverage.method, "v5");
+        assert_eq!(report.coverage.method, "v6");
         assert_eq!(report.coverage.blame_flags, vec!["-w", "-M", "-C"]);
         assert_eq!(report.coverage.sample_floor, 5);
         assert!(report.coverage.small_sample);
         assert!(!report.coverage.shallow);
 
         let v = serde_json::to_value(&report).unwrap();
-        assert_eq!(v["coverage"]["method"], "v5");
+        assert_eq!(v["coverage"]["method"], "v6");
         assert_eq!(v["verified"]["survival_rate"], 1.0 / 3.0);
         assert_eq!(v["by_agent"]["claude-code"]["median_survival"], 1.0 / 3.0);
         assert_eq!(v["by_agent"]["claude-code"]["below_floor"], true);
@@ -3434,6 +3525,91 @@ mod tests {
         assert_eq!(r_src.verified.introduced, 1);
         assert_eq!(r_src.verified.surviving, 1);
         assert_eq!(r_src.verified.survival_rate(), Some(1.0));
+    }
+
+    /// The two sides of the ratio read the same paths. A binary blob is `-`
+    /// in numstat (0 introduced), so it must add 0 surviving; v5 blamed it
+    /// and counted its newline bytes. A symlink is 1 introduced line in
+    /// numstat, so it is blamed (1 surviving); v5 skipped it.
+    #[test]
+    fn binary_blobs_are_in_neither_count_and_symlinks_are_in_both() {
+        let tmp = synthetic_repo();
+        let dir = tmp.path();
+        // 40 "lines" of bytes with a NUL in the first 8 kB: git calls it binary.
+        let mut blob = vec![0u8, 1, 2, 3];
+        blob.extend(std::iter::repeat_n(b'\n', 40));
+        std::fs::write(dir.join("logo.bin"), &blob).unwrap();
+        std::fs::write(dir.join("ai.py"), "a = 1\nb = 2\nc = 3\n").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink("ai.py", dir.join("link.py")).unwrap();
+        commit_all(dir, &format!("add ai, a binary and a link{CLAUDE_TRAILER}"));
+
+        let report = audit_repo(dir, &AuditOptions::default()).unwrap();
+        let link = if cfg!(unix) { 1 } else { 0 };
+        assert_eq!(
+            report.verified.introduced,
+            3 + link,
+            "numstat: 3 text lines + the link"
+        );
+        assert_eq!(
+            report.verified.surviving,
+            3 + link,
+            "blame: the same paths, not the blob"
+        );
+        assert_eq!(report.verified.survival_rate(), Some(1.0));
+        assert_eq!(report.coverage.binary_files, 1);
+        assert_eq!(report.coverage.copy_capped_lines, 0);
+
+        // Delete the text, keep the blob: survival is 0 of 3, not 40 of 3.
+        std::fs::write(dir.join("ai.py"), "").unwrap();
+        commit_all(dir, "empty ai.py");
+        let after = audit_repo(dir, &AuditOptions::default()).unwrap();
+        assert_eq!(after.verified.introduced, 3 + link);
+        assert_eq!(after.verified.surviving, link);
+    }
+
+    #[test]
+    fn head_text_paths_follow_numstat_not_mode_alone() {
+        let ls_tree = [
+            "100644 blob aaaa\tsrc/a.rs",
+            "100644 blob bbbb\tdocs/x.pdf",
+            "120000 blob cccc\tlink",
+            "160000 commit dddd\tsub",
+            "100755 blob eeee\tpackage-lock.json",
+            "100644 blob ffff\tnot-in-numstat",
+        ]
+        .join("\0")
+            + "\0";
+        let numstat = [
+            "3\t0\tsrc/a.rs",
+            "-\t-\tdocs/x.pdf",
+            "1\t0\tlink",
+            "1\t0\tsub",
+            "900\t0\tpackage-lock.json",
+        ]
+        .join("\0")
+            + "\0";
+        let got = head_text_paths(ls_tree.as_bytes(), numstat.as_bytes()).unwrap();
+        let paths: Vec<String> = got
+            .paths
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(paths, vec!["src/a.rs", "link"]);
+        assert_eq!(got.binary_files, 1);
+    }
+
+    #[test]
+    fn empty_tree_oid_matches_git_for_this_repository() {
+        let tmp = synthetic_repo();
+        let out = Command::new("git")
+            .args(["hash-object", "-t", "tree", "--stdin"])
+            .current_dir(tmp.path())
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        let expected = String::from_utf8(out.stdout).unwrap().trim().to_string();
+        assert_eq!(empty_tree_oid(tmp.path()), expected);
     }
 
     #[test]

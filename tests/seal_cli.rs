@@ -97,7 +97,7 @@ fn audit_seal_bundle_is_written_and_verifies_from_anywhere() {
         stdout(&out)
     );
     assert_eq!(bundle["subject"]["input"]["commit"], head(dir));
-    assert_eq!(bundle["subject"]["input"]["method"], "v5");
+    assert_eq!(bundle["subject"]["input"]["method"], "v6");
     assert_eq!(bundle["seal"]["seal_version"], "crovia.seal.v1");
     assert_eq!(bundle["seal"]["generator"]["id"], "causari");
     assert_eq!(bundle["seal"]["generator"]["params"]["commit"], head(dir));
@@ -140,7 +140,7 @@ fn audit_seal_bundle_is_written_and_verifies_from_anywhere() {
     let text = stdout(&out);
     assert!(text.contains("signature valid"), "{text}");
     assert!(text.contains(&head(dir)), "{text}");
-    assert!(text.contains("method    v5"), "{text}");
+    assert!(text.contains("method    v6"), "{text}");
     assert!(text.contains("does not prove they are true"), "{text}");
 
     let out = re(
@@ -152,7 +152,7 @@ fn audit_seal_bundle_is_written_and_verifies_from_anywhere() {
     assert_eq!(v["valid"], true);
     assert_eq!(v["kind"], "audit");
     assert_eq!(v["commit"], head(dir));
-    assert_eq!(v["method"], "v5");
+    assert_eq!(v["method"], "v6");
     assert_eq!(v["sequence"], 0);
     assert_eq!(v["audit"]["verified"]["surviving"], 2);
     assert_eq!(

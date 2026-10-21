@@ -7,7 +7,7 @@ human. A metadata match is not authorship.
 
 These are the regression tests. They are not a claim that Causari wins.
 
-## Audit, method v4 and v5
+## Audit, methods v4, v5 and v6
 
 | Case | Evidence present | Evidence absent | Conclusion | Limit |
 |---|---|---|---|---|

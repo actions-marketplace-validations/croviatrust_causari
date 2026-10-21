@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Method: how Causari measures AI code survival — causari</title>
-  <meta name="description" content="Exactly how re audit detects AI-tagged commits and measures which of their lines are still at HEAD, what it cannot see, and the known ways the number can mislead. Method v5." />
+  <meta name="description" content="Exactly how re audit detects AI-tagged commits and measures which of their lines are still at HEAD, what it cannot see, and the known ways the number can mislead. Method v6." />
   <meta name="theme-color" content="#0b0d10" />
   <meta name="color-scheme" content="light dark" />
   <link rel="canonical" href="https://causari.dev/method" />
@@ -21,7 +21,7 @@
     "@type": "TechArticle",
     "@id": "https://causari.dev/method",
     "url": "https://causari.dev/method",
-    "headline": "Method: how Causari measures AI code survival (Method v5)",
+    "headline": "Method: how Causari measures AI code survival (Method v6)",
     "description": "Public specification of how re audit classifies commits from machine-readable git metadata, computes line survival at HEAD, binds external metadata into Ed25519 seals, and compares receipts along a single axis.",
     "inLanguage": "en",
     "author": { "@id": "https://croviatrust.com/#org" },
@@ -52,9 +52,9 @@
 </header>
 
 <main id="main" class="article">
-  <p class="eyebrow">method · v5 · this page changes only when the method does</p>
+  <p class="eyebrow">method · v6 · this page changes only when the method does</p>
   <h1>Method</h1>
-  <p class="version">Applies to <code translate="no">re audit</code> in this source. Sections 1–4 are the rules this source computes (method v5). Section 5 is what v2 changed, section 6 what v3 added, <a href="#v4">section 6b</a> the rule v4 changed, and <a href="#v5">section 6c</a> what v5 hardened. The published binary 0.4.1 (2026-10-08, commit d4c4949) is method v4. <code translate="no">install.sh</code>, <code translate="no">cargo install</code>, npm and PyPI install that binary. Method v5 is not in it. Published reports stay on the method that produced them. Reports #1 and #2 are method v2. Reports #3 and #4, and any audit produced by the 0.3.0 release, are method v3. Report #4 is <a href="https://doi.org/10.5281/zenodo.23196011">10.5281/zenodo.23196011</a>. Reports #5 (2026-10-12) and #6 (2026-10-19) are method v4, measured with causari 0.4.1. This source does not recompute them.</p>
+  <p class="version">Applies to <code translate="no">re audit</code> in this source. Sections 1–4 are the rules this source computes (method v6). Section 5 is what v2 changed, section 6 what v3 added, <a href="#v4">section 6b</a> the rule v4 changed, <a href="#v5">section 6c</a> what v5 hardened, and <a href="#v6">section 6d</a> the one rule v6 changed. The published binary 0.4.1 (2026-10-08, commit d4c4949) is method v4. <code translate="no">install.sh</code>, <code translate="no">cargo install</code>, npm and PyPI install that binary. Methods v5 and v6 are not in it; no binary ever shipped v5. Published reports stay on the method that produced them. Reports #1 and #2 are method v2. Reports #3 and #4, and any audit produced by the 0.3.0 release, are method v3. Report #4 is <a href="https://doi.org/10.5281/zenodo.23196011">10.5281/zenodo.23196011</a>. Reports #5 (2026-10-12) and #6 (2026-10-19) are method v4, measured with causari 0.4.1. This source does not recompute them.</p>
 
   <p class="lede">Causari publishes counts about repositories that are not ours. The only honest way to do
   that is to publish, next to every number, exactly how it was obtained, what it cannot see,
@@ -248,6 +248,15 @@
     <li><strong>Signed external metadata bindings.</strong> <code translate="no">coverage.notes_oid</code> (target OID of <code translate="no">refs/notes/ai</code>, or <code translate="no">null</code>) and <code translate="no">coverage.ignore_revs_sha256</code> are recorded in the JSON and signed inside <code translate="no">seal.generator.params</code>. Both the CLI and the browser verifier reject a v5 seal if those signed parameters are stripped or altered.</li>
     <li><strong>Single-axis evidence diffs (<code translate="no">re audit --diff &lt;before&gt; &lt;after&gt;</code>).</strong> Compares two receipts or <code translate="no">.seal.json</code> bundles offline (<code translate="no">causari.audit_diff.v1</code>), refusing unrelated repositories (no shared root in <code translate="no">repository.root_commits</code>) and refusing diffs that vary two axes at once. Missing metadata fields in older receipts (such as v4) are reported as <code translate="no">metadata_status: "indeterminate"</code> and <code translate="no">kind: "indeterminate_method_diff"</code>, never treated as proof that metadata stayed unchanged.</li>
   </ul>
+
+  <h2 id="v6"><span class="no">6d</span>Method v6: both sides of the ratio read the same paths</h2>
+  <p>Method v6 keeps every v5 rule and changes one: the set of paths <code translate="no">git blame</code> reads at <code translate="no">HEAD</code> is the set of paths <code translate="no">git log --numstat</code> counted when lines were introduced.</p>
+  <ul>
+    <li><strong>Binary blobs are in neither count.</strong> <code translate="no">--numstat</code> prints <code translate="no">-</code> for a file git calls binary, so a PDF, an image or a font adds no introduced lines. v5 and every earlier method still blamed it: each newline byte inside the binary became a surviving line of the commit that added it, up to that commit's introduced count. On <code translate="no">OpenHands/extensions</code> at <code translate="no">d057809</code> one 124&nbsp;kB PDF added 888 blame lines, 257 of them surviving after the cap, and Git for Windows split the same bytes into a different number of lines than git on Linux, so the published count did not reproduce across operating systems (<a href="https://github.com/croviatrust/causari/issues/76" rel="noopener">issue #76</a>). v6 reads git's own text/binary decision from <code translate="no">git diff-tree -r --numstat -z &lt;empty tree&gt; HEAD</code>, the same decision <code translate="no">git log --numstat</code> makes, and records the number of blobs left out in <code translate="no">coverage.binary_files</code>.</li>
+    <li><strong>Symlinks are in both counts.</strong> <code translate="no">--numstat</code> counts a symlink as one introduced line (its target). v5 enumerated only <code translate="no">100644</code> and <code translate="no">100755</code> blobs and never blamed it. v6 blames <code translate="no">120000</code> entries too, one line each. Gitlinks (<code translate="no">160000</code>, submodule pointers) are still not blamed, because <code translate="no">git blame</code> cannot open them; <code translate="no">--numstat</code> counts each as one introduced line, so a repository with submodules overstates <code translate="no">introduced</code> by one line per submodule pointer added. That residual is stated, not solved.</li>
+    <li><strong>The same number on every OS.</strong> With binaries out, every remaining line is a text line git splits the same way everywhere. The weekly release check below holds the released binary to that on Linux, macOS and Windows.</li>
+  </ul>
+  <p>On the fixture repository the change is 73514 → 73257 surviving lines (79.7 % → 79.4 %), with 92214 introduced on both methods. Reports #5 and #6 stay method v4 as published.</p>
 
   <h2 id="reproduce"><span class="no">7</span>Reproduce or contest any number</h2>
 <pre translate="no"><code translate="no">curl -fsSL https://causari.dev/install.sh | sh
