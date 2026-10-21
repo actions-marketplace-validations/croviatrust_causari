@@ -85,7 +85,7 @@
     "latest_release": {
       "version": "0.5.0",
       "method_version": "v6",
-      "commit": "pending: recorded by the commit after the tag",
+      "commit": "ef505a1910d668c40bd03e5956ad68cc9bbfb87d",
       "published": "2026-10-21"
     },
     "action_tag": {

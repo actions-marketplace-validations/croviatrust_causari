@@ -1,12 +1,12 @@
 {
   "schema": "causari.release_check.v1",
-  "note": "Expected counts for one external repository at one commit under method v6. A release check installs the latest release on each OS, clones this commit and must reproduce every field in `expect`. Recorded 2026-10-21 from the source at method v6 on Linux, git 2.43.0, before the release that ships it; the v4 fixture next to this one is what causari 0.4.1 computed on the same commit (verified.surviving 73514: 257 of those lines were newline bytes of one PDF, blamed under v4 and v5, capped by that commit's introduced count). refs/notes/ai is not fetched by a plain clone, so the commit alone fixes the input.",
+  "note": "Expected counts for one external repository at one commit under method v6. A release check installs the latest release on each OS, clones this commit and must reproduce every field in `expect`. Recorded 2026-10-21 from the source at commit 3801f67 (method v6, released as causari 0.5.0 from ef505a1) on Linux, git 2.43.0; the v4 fixture next to this one is what causari 0.4.1 computed on the same commit (verified.surviving 73514: 257 of those lines were newline bytes of one PDF, blamed under v4 and v5, capped by that commit's introduced count). refs/notes/ai is not fetched by a plain clone, so the commit alone fixes the input.",
   "repository": "OpenHands/extensions",
   "url": "https://github.com/OpenHands/extensions",
   "commit": "d05780951082d4d83f785cb1d4c7f2be6d1c14a5",
   "method": "v6",
   "recorded_with": {
-    "causari": "source at method v6 (release pending)",
+    "causari": "0.5.0",
     "git": "2.43.0",
     "os": "linux",
     "date": "2026-10-21"
