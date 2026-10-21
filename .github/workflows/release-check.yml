@@ -88,8 +88,21 @@ jobs:
         shell: bash
         run: python3 scripts/release_check.py "$RUNNER_TEMP/audit.json" tests/fixtures/release-check
 
+      # The aggregate cannot say which file moved. Per-file, per-commit counts
+      # from this runner's git, with the audit's flags, let two artifacts be
+      # diffed down to a path when the step above fails.
+      - name: per-file blame counts, so a mismatch can be located
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -d "$RUNNER_TEMP/external" ] || exit 0
+          python3 scripts/blame_counts.py "$RUNNER_TEMP/external" "$RUNNER_TEMP/blame-counts.json"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: release-check-${{ matrix.os }}
-          path: ${{ runner.temp }}/audit.json
+          path: |
+            ${{ runner.temp }}/audit.json
+            ${{ runner.temp }}/blame-counts.json
