@@ -5,116 +5,116 @@
  "url": "https://causari.dev/r/berriai/litellm/",
  "badge": "https://causari.dev/r/berriai/litellm/badge.svg",
  "report": {
-  "number": 6,
-  "id": "2026/06",
-  "date": "2026-10-19",
-  "url": "https://causari.dev/reports/survival/2026/06/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v4",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.4.1"
+  "version": "0.5.0"
  },
  "verified": {
-  "commits": 5914,
-  "introduced": 2536387,
-  "surviving": 1669345,
-  "survival_rate": 0.6581586327323078,
-  "capped_survival_rate": 0.7080359151115453,
-  "median_survival": 0.688550840672538,
-  "largest_commit_share": 0.030817852323009067
+  "commits": 6059,
+  "introduced": 2593555,
+  "surviving": 1711887,
+  "survival_rate": 0.6600542498616764,
+  "capped_survival_rate": 0.7087152612461273,
+  "median_survival": 0.6917055342500886,
+  "largest_commit_share": 0.030138554994977935
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 39225,
-   "introduced": 6604890,
-   "surviving": 3116129,
-   "survival_rate": 0.4717912031843074,
+   "commits": 39414,
+   "introduced": 6725763,
+   "surviving": 3201082,
+   "survival_rate": 0.4759433241997971,
    "median_survival": 0.125,
-   "capped_survival_rate": 0.5223733296233586,
-   "cap_lines": 553,
-   "largest_commit_share": 0.06361529109493118
+   "capped_survival_rate": 0.5258434887383839,
+   "cap_lines": 564,
+   "largest_commit_share": 0.06247201990316935
   },
   "by_age": [
    {
     "from_days": 0,
     "to_days": 30,
     "tagged": {
-     "commits": 1759,
-     "introduced": 1360628,
-     "surviving": 1019819,
-     "survival_rate": 0.7495208095085505
+     "commits": 1190,
+     "introduced": 1174328,
+     "surviving": 897826,
+     "survival_rate": 0.7645444884223147
     },
     "untagged": {
-     "commits": 1077,
-     "introduced": 575110,
-     "surviving": 380127,
-     "survival_rate": 0.6609639894976613
+     "commits": 873,
+     "introduced": 612448,
+     "surviving": 429648,
+     "survival_rate": 0.701525680547573
     }
    },
    {
     "from_days": 30,
     "to_days": 90,
     "tagged": {
-     "commits": 2279,
-     "introduced": 405922,
-     "surviving": 237545,
-     "survival_rate": 0.5851986342203674
+     "commits": 2925,
+     "introduced": 637040,
+     "surviving": 394676,
+     "survival_rate": 0.6195466532713801
     },
     "untagged": {
-     "commits": 5010,
-     "introduced": 1273421,
-     "surviving": 731200,
-     "survival_rate": 0.5742013049886879
+     "commits": 5156,
+     "introduced": 1276949,
+     "surviving": 725818,
+     "survival_rate": 0.5684001475391735
     }
    },
    {
     "from_days": 90,
     "to_days": 180,
     "tagged": {
-     "commits": 641,
-     "introduced": 507478,
-     "surviving": 276355,
-     "survival_rate": 0.5445654787005545
+     "commits": 691,
+     "introduced": 514775,
+     "surviving": 281737,
+     "survival_rate": 0.5473012481181099
     },
     "untagged": {
-     "commits": 2231,
-     "introduced": 739886,
-     "surviving": 436975,
-     "survival_rate": 0.5905977407330318
+     "commits": 2253,
+     "introduced": 748820,
+     "surviving": 464763,
+     "survival_rate": 0.620660505862557
     }
    },
    {
     "from_days": 180,
     "to_days": 365,
     "tagged": {
-     "commits": 1136,
-     "introduced": 236768,
-     "surviving": 123162,
-     "survival_rate": 0.5201800919043114
+     "commits": 1153,
+     "introduced": 241502,
+     "surviving": 124884,
+     "survival_rate": 0.5171137299069987
     },
     "untagged": {
-     "commits": 7447,
-     "introduced": 1727857,
-     "surviving": 624353,
-     "survival_rate": 0.3613452965147
+     "commits": 7580,
+     "introduced": 1770623,
+     "surviving": 622846,
+     "survival_rate": 0.35176658159303253
     }
    },
    {
     "from_days": 365,
     "to_days": 730,
     "tagged": {
-     "commits": 97,
-     "introduced": 24894,
-     "surviving": 12269,
-     "survival_rate": 0.4928496826544549
+     "commits": 98,
+     "introduced": 25213,
+     "surviving": 12570,
+     "survival_rate": 0.4985523341133542
     },
     "untagged": {
-     "commits": 7670,
-     "introduced": 912064,
-     "surviving": 397209,
-     "survival_rate": 0.43550562241246227
+     "commits": 7707,
+     "introduced": 930749,
+     "surviving": 407542,
+     "survival_rate": 0.4378645585437105
     }
    },
    {
@@ -123,27 +123,27 @@
     "tagged": {
      "commits": 2,
      "introduced": 697,
-     "surviving": 195,
-     "survival_rate": 0.2797704447632712
+     "surviving": 194,
+     "survival_rate": 0.2783357245337159
     },
     "untagged": {
-     "commits": 15790,
-     "introduced": 1376552,
-     "surviving": 546265,
-     "survival_rate": 0.39683571706699056
+     "commits": 15845,
+     "introduced": 1386174,
+     "surviving": 550465,
+     "survival_rate": 0.397111040893856
     }
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.6582626425154494,
-   "untagged_rate": 0.602801956716747,
-   "gap": 0.05546068579870245,
+   "tagged_rate": 0.6601568616561339,
+   "untagged_rate": 0.6176225629719276,
+   "gap": 0.04253429868420622,
    "buckets_used": 5,
-   "tagged_lines_covered": 0.9997251996639314
+   "tagged_lines_covered": 0.9997312569041336
   },
   "oldest_surviving": {
    "date": "2023-07-27",
-   "age_days": 1180,
+   "age_days": 1186,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -152,10 +152,10 @@
   }
  },
  "probable_commits": 0,
- "total_commits": 45139,
+ "total_commits": 45473,
  "aggregated": true,
  "coverage": {
-  "method": "v4",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 5,
+ "reports": 6,
  "reproduce": "re audit BerriAI/litellm --json",
- "bytes": "https://causari.dev/reports/survival/2026/06/repos/BerriAI__litellm.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/BerriAI__litellm.json",
  "license": "CC-BY-4.0"
 }

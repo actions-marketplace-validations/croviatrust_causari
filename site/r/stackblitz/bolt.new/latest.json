@@ -5,15 +5,15 @@
  "url": "https://causari.dev/r/stackblitz/bolt.new/",
  "badge": "https://causari.dev/r/stackblitz/bolt.new/badge.svg",
  "report": {
-  "number": 6,
-  "id": "2026/06",
-  "date": "2026-10-19",
-  "url": "https://causari.dev/reports/survival/2026/06/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v4",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.4.1"
+  "version": "0.5.0"
  },
  "verified": {
   "commits": 0,
@@ -29,10 +29,10 @@
   "untagged": {
    "commits": 101,
    "introduced": 13381,
-   "surviving": 9063,
-   "survival_rate": 0.6773036394888274,
-   "median_survival": 0.7825371336812526,
-   "capped_survival_rate": 0.6654512607556916,
+   "surviving": 9060,
+   "survival_rate": 0.6770794409984306,
+   "median_survival": 0.7617924528301887,
+   "capped_survival_rate": 0.6651505691650331,
    "cap_lines": 677,
    "largest_commit_share": 0.18952245721545474
   },
@@ -65,8 +65,8 @@
     "untagged": {
      "commits": 39,
      "introduced": 637,
-     "surviving": 349,
-     "survival_rate": 0.5478806907378336
+     "surviving": 346,
+     "survival_rate": 0.543171114599686
     }
    },
    {
@@ -149,7 +149,7 @@
  "total_commits": 101,
  "aggregated": false,
  "coverage": {
-  "method": "v4",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -160,8 +160,8 @@
   "sample_floor": 5,
   "small_sample": true
  },
- "reports": 5,
+ "reports": 6,
  "reproduce": "re audit stackblitz/bolt.new --json",
- "bytes": "https://causari.dev/reports/survival/2026/06/repos/stackblitz__bolt.new.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/stackblitz__bolt.new.json",
  "license": "CC-BY-4.0"
 }

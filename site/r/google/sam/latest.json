@@ -5,68 +5,68 @@
  "url": "https://causari.dev/r/google/sam/",
  "badge": "https://causari.dev/r/google/sam/badge.svg",
  "report": {
-  "number": 6,
-  "id": "2026/06",
-  "date": "2026-10-19",
-  "url": "https://causari.dev/reports/survival/2026/06/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v4",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.4.1"
+  "version": "0.5.0"
  },
  "verified": {
-  "commits": 37,
-  "introduced": 250,
-  "surviving": 90,
-  "survival_rate": 0.36,
-  "capped_survival_rate": 0.3814121510673235,
+  "commits": 40,
+  "introduced": 261,
+  "surviving": 100,
+  "survival_rate": 0.3831417624521073,
+  "capped_survival_rate": 0.47780730897009965,
   "median_survival": 0.0,
-  "largest_commit_share": 0.7
+  "largest_commit_share": 0.6704980842911877
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 1765,
-   "introduced": 335697,
-   "surviving": 193875,
-   "survival_rate": 0.5775297366375035,
-   "median_survival": 0.5863726790450928,
-   "capped_survival_rate": 0.5839046495814506,
-   "cap_lines": 820,
-   "largest_commit_share": 0.04770075395371421
+   "commits": 1884,
+   "introduced": 342709,
+   "surviving": 200001,
+   "survival_rate": 0.5835884088249798,
+   "median_survival": 0.6227994227994228,
+   "capped_survival_rate": 0.5868552375616838,
+   "cap_lines": 785,
+   "largest_commit_share": 0.04672477232871036
   },
   "by_age": [
    {
     "from_days": 0,
     "to_days": 30,
     "tagged": {
-     "commits": 4,
-     "introduced": 9,
-     "surviving": 7,
-     "survival_rate": 0.7777777777777778
+     "commits": 5,
+     "introduced": 14,
+     "surviving": 12,
+     "survival_rate": 0.8571428571428571
     },
     "untagged": {
-     "commits": 467,
-     "introduced": 139914,
-     "surviving": 108450,
-     "survival_rate": 0.775119001672456
+     "commits": 503,
+     "introduced": 112122,
+     "surviving": 89684,
+     "survival_rate": 0.7998787035550561
     }
    },
    {
     "from_days": 30,
     "to_days": 90,
     "tagged": {
-     "commits": 10,
-     "introduced": 18,
-     "surviving": 13,
-     "survival_rate": 0.7222222222222222
+     "commits": 12,
+     "introduced": 24,
+     "surviving": 18,
+     "survival_rate": 0.75
     },
     "untagged": {
-     "commits": 651,
-     "introduced": 93860,
-     "surviving": 49516,
-     "survival_rate": 0.5275516727040273
+     "commits": 710,
+     "introduced": 127139,
+     "surviving": 73888,
+     "survival_rate": 0.5811592037061799
     }
    },
    {
@@ -79,10 +79,10 @@
      "survival_rate": 0.31390134529147984
     },
     "untagged": {
-     "commits": 630,
-     "introduced": 81782,
-     "surviving": 34427,
-     "survival_rate": 0.42096060257758433
+     "commits": 602,
+     "introduced": 71860,
+     "surviving": 33211,
+     "survival_rate": 0.4621625382688561
     }
    },
    {
@@ -95,10 +95,10 @@
      "survival_rate": null
     },
     "untagged": {
-     "commits": 17,
-     "introduced": 20141,
-     "surviving": 1482,
-     "survival_rate": 0.07358125217218608
+     "commits": 69,
+     "introduced": 31588,
+     "surviving": 3218,
+     "survival_rate": 0.10187412941623401
     }
    },
    {
@@ -135,15 +135,15 @@
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.34439834024896265,
-   "untagged_rate": 0.428921761342215,
-   "gap": -0.08452342109325234,
-   "buckets_used": 2,
-   "tagged_lines_covered": 0.964
+   "tagged_rate": 0.3831417624521073,
+   "untagged_rate": 0.49121980372672036,
+   "gap": -0.10807804127461307,
+   "buckets_used": 3,
+   "tagged_lines_covered": 1.0
   },
   "oldest_surviving": {
    "date": "2026-04-17",
-   "age_days": 184,
+   "age_days": 190,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -152,10 +152,10 @@
   }
  },
  "probable_commits": 0,
- "total_commits": 1802,
+ "total_commits": 1924,
  "aggregated": true,
  "coverage": {
-  "method": "v4",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 4,
+ "reports": 5,
  "reproduce": "re audit google/sam --json",
- "bytes": "https://causari.dev/reports/survival/2026/06/repos/google__sam.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/google__sam.json",
  "license": "CC-BY-4.0"
 }

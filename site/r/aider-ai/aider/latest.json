@@ -5,23 +5,23 @@
  "url": "https://causari.dev/r/aider-ai/aider/",
  "badge": "https://causari.dev/r/aider-ai/aider/badge.svg",
  "report": {
-  "number": 6,
-  "id": "2026/06",
-  "date": "2026-10-19",
-  "url": "https://causari.dev/reports/survival/2026/06/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v4",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.4.1"
+  "version": "0.5.0"
  },
  "verified": {
   "commits": 11156,
   "introduced": 374687,
-  "surviving": 235782,
-  "survival_rate": 0.6292772367335936,
-  "capped_survival_rate": 0.41864655522961985,
-  "median_survival": 0.3333333333333333,
+  "surviving": 234788,
+  "survival_rate": 0.6266243557956375,
+  "capped_survival_rate": 0.41572738797670916,
+  "median_survival": 0.32432432432432434,
   "largest_commit_share": 0.2667266278253582
  },
  "interval_95": null,
@@ -107,8 +107,8 @@
     "tagged": {
      "commits": 7832,
      "introduced": 293973,
-     "surviving": 197503,
-     "survival_rate": 0.6718406112125943
+     "surviving": 196598,
+     "survival_rate": 0.6687620971994027
     },
     "untagged": {
      "commits": 286,
@@ -123,8 +123,8 @@
     "tagged": {
      "commits": 3082,
      "introduced": 68933,
-     "surviving": 32924,
-     "survival_rate": 0.4776231993384881
+     "surviving": 32835,
+     "survival_rate": 0.4763320905807088
     },
     "untagged": {
      "commits": 949,
@@ -135,9 +135,9 @@
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.6295694600825693,
+   "tagged_rate": 0.6269047236073133,
    "untagged_rate": 0.5270521590766181,
-   "gap": 0.10251730100595124,
+   "gap": 0.09985256453069524,
    "buckets_used": 4,
    "tagged_lines_covered": 0.9955509531956006
   },
@@ -155,7 +155,7 @@
  "total_commits": 12461,
  "aggregated": true,
  "coverage": {
-  "method": "v4",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 6,
+ "reports": 7,
  "reproduce": "re audit Aider-AI/aider --json",
- "bytes": "https://causari.dev/reports/survival/2026/06/repos/Aider-AI__aider.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/Aider-AI__aider.json",
  "license": "CC-BY-4.0"
 }

@@ -5,15 +5,15 @@
  "url": "https://causari.dev/r/run-llama/llama_index/",
  "badge": "https://causari.dev/r/run-llama/llama_index/badge.svg",
  "report": {
-  "number": 6,
-  "id": "2026/06",
-  "date": "2026-10-19",
-  "url": "https://causari.dev/reports/survival/2026/06/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v4",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.4.1"
+  "version": "0.5.0"
  },
  "verified": {
   "commits": 13,
@@ -29,10 +29,10 @@
   "untagged": {
    "commits": 7949,
    "introduced": 3170928,
-   "surviving": 1764523,
-   "survival_rate": 0.5564689579832781,
-   "median_survival": 0.5925925925925926,
-   "capped_survival_rate": 0.627866317679092,
+   "surviving": 1744527,
+   "survival_rate": 0.5501629176064546,
+   "median_survival": 0.5849045500553163,
+   "capped_survival_rate": 0.6219892141155496,
    "cap_lines": 1056,
    "largest_commit_share": 0.2670697663270815
   },
@@ -113,8 +113,8 @@
     "untagged": {
      "commits": 1795,
      "introduced": 448684,
-     "surviving": 320943,
-     "survival_rate": 0.7152985174421196
+     "surviving": 319996,
+     "survival_rate": 0.7131879006160238
     }
    },
    {
@@ -129,8 +129,8 @@
     "untagged": {
      "commits": 5387,
      "introduced": 2600454,
-     "surviving": 1341529,
-     "survival_rate": 0.5158826112671095
+     "surviving": 1322480,
+     "survival_rate": 0.5085573519085513
     }
    }
   ],
@@ -155,7 +155,7 @@
  "total_commits": 7962,
  "aggregated": true,
  "coverage": {
-  "method": "v4",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 5,
+ "reports": 6,
  "reproduce": "re audit run-llama/llama_index --json",
- "bytes": "https://causari.dev/reports/survival/2026/06/repos/run-llama__llama_index.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/run-llama__llama_index.json",
  "license": "CC-BY-4.0"
 }

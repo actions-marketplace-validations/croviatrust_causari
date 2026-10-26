@@ -5,84 +5,84 @@
  "url": "https://causari.dev/r/nvidia-nemo/switchyard/",
  "badge": "https://causari.dev/r/nvidia-nemo/switchyard/badge.svg",
  "report": {
-  "number": 6,
-  "id": "2026/06",
-  "date": "2026-10-19",
-  "url": "https://causari.dev/reports/survival/2026/06/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v4",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.4.1"
+  "version": "0.5.0"
  },
  "verified": {
-  "commits": 27,
-  "introduced": 15667,
-  "surviving": 10426,
-  "survival_rate": 0.6654752026552626,
-  "capped_survival_rate": 0.67205780534391,
-  "median_survival": 0.7555555555555555,
-  "largest_commit_share": 0.20150635092870364
+  "commits": 28,
+  "introduced": 15791,
+  "surviving": 10535,
+  "survival_rate": 0.667152175289722,
+  "capped_survival_rate": 0.6736944155039176,
+  "median_survival": 0.7711111111111111,
+  "largest_commit_share": 0.19992400734595656
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 556,
-   "introduced": 358975,
-   "surviving": 187842,
-   "survival_rate": 0.5232732084406992,
-   "median_survival": 0.8132530120481928,
-   "capped_survival_rate": 0.6325379084801909,
-   "cap_lines": 1087,
-   "largest_commit_share": 0.38683473779511107
+   "commits": 591,
+   "introduced": 372934,
+   "surviving": 193788,
+   "survival_rate": 0.5196308193943164,
+   "median_survival": 0.8127721335268505,
+   "capped_survival_rate": 0.643423414197146,
+   "cap_lines": 1080,
+   "largest_commit_share": 0.3723554301833568
   },
   "by_age": [
    {
     "from_days": 0,
     "to_days": 30,
     "tagged": {
-     "commits": 6,
+     "commits": 4,
      "introduced": 1497,
-     "surviving": 1334,
-     "survival_rate": 0.8911155644622578
+     "surviving": 1363,
+     "survival_rate": 0.9104876419505677
     },
     "untagged": {
-     "commits": 164,
-     "introduced": 33073,
-     "surviving": 29067,
-     "survival_rate": 0.8788740059867566
+     "commits": 123,
+     "introduced": 37643,
+     "surviving": 31948,
+     "survival_rate": 0.8487102515739978
     }
    },
    {
     "from_days": 30,
     "to_days": 90,
     "tagged": {
-     "commits": 21,
-     "introduced": 14170,
-     "surviving": 9092,
-     "survival_rate": 0.6416372618207481
+     "commits": 20,
+     "introduced": 12929,
+     "surviving": 8646,
+     "survival_rate": 0.668729213396241
     },
     "untagged": {
-     "commits": 355,
-     "introduced": 167267,
-     "surviving": 129860,
-     "survival_rate": 0.7763635385341998
+     "commits": 395,
+     "introduced": 159651,
+     "surviving": 131047,
+     "survival_rate": 0.8208341945869427
     }
    },
    {
     "from_days": 90,
     "to_days": 180,
     "tagged": {
-     "commits": 0,
-     "introduced": 0,
-     "surviving": 0,
-     "survival_rate": null
+     "commits": 4,
+     "introduced": 1365,
+     "surviving": 526,
+     "survival_rate": 0.38534798534798537
     },
     "untagged": {
-     "commits": 37,
-     "introduced": 158635,
-     "surviving": 28915,
-     "survival_rate": 0.18227377312698964
+     "commits": 73,
+     "introduced": 175640,
+     "surviving": 30793,
+     "survival_rate": 0.17531883397859258
     }
    },
    {
@@ -135,15 +135,15 @@
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.6654752026552626,
-   "untagged_rate": 0.786158532456232,
-   "gap": -0.12068332980096941,
-   "buckets_used": 2,
-   "tagged_lines_covered": 1.0
+   "tagged_rate": 0.668729213396241,
+   "untagged_rate": 0.8208341945869427,
+   "gap": -0.1521049811907017,
+   "buckets_used": 1,
+   "tagged_lines_covered": 0.8187575201063897
   },
   "oldest_surviving": {
    "date": "2026-06-30",
-   "age_days": 108,
+   "age_days": 116,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -152,10 +152,10 @@
   }
  },
  "probable_commits": 0,
- "total_commits": 583,
+ "total_commits": 619,
  "aggregated": true,
  "coverage": {
-  "method": "v4",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 4,
+ "reports": 5,
  "reproduce": "re audit NVIDIA-NeMo/Switchyard --json",
- "bytes": "https://causari.dev/reports/survival/2026/06/repos/NVIDIA-NeMo__Switchyard.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/NVIDIA-NeMo__Switchyard.json",
  "license": "CC-BY-4.0"
 }
