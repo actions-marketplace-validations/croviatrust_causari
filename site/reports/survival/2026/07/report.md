@@ -6,6 +6,7 @@ Page: https://causari.dev/reports/survival/2026/07/
 Data: https://causari.dev/reports/survival/2026/07/report.json  
 Feed: https://causari.dev/reports/survival/feed.xml  
 Licence: CC-BY-4.0  
+DOI: https://doi.org/10.5281/zenodo.23670353  
 
 ## Aggregate
 
@@ -171,4 +172,4 @@ Prior measurement work asks related questions with different instruments. GitCle
 
 ## Cite
 
-Crovia Trust. Survival Report #7 (2026-10-26). https://causari.dev/reports/survival/2026/07/
+Crovia Trust. Survival Report #7 (2026-10-26). https://causari.dev/reports/survival/2026/07/ DOI 10.5281/zenodo.23670353

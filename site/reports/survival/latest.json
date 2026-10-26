@@ -12758,7 +12758,13 @@
    "re pnx verify reach.sheet.json --policy egress-policy.json"
   ]
  },
- "doi": null,
- "concept_doi": null,
- "zenodo": null
+ "doi": "10.5281/zenodo.23670353",
+ "concept_doi": "10.5281/zenodo.22863965",
+ "zenodo": {
+  "record_url": "https://zenodo.org/records/23670353",
+  "record_id": 23670353,
+  "version": "#7",
+  "sandbox": false,
+  "published_at": "2026-10-26T16:10:09Z"
+ }
 }
