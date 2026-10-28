@@ -53,7 +53,7 @@ anyhow = "1.0"
 thiserror = "2.0"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.4"
-colored = "2.1"
+colored = "3.1"
 similar = "3.1"
 notify = "8.2"
 ctrlc = "3.4"
