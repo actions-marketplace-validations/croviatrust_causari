@@ -194,6 +194,19 @@
     const allowShallow = get(input, ["options", "allow_shallow"]);
     step(typeof allowShallow === "boolean", "subject.input.options.allow_shallow is a boolean", String(allowShallow));
     step(!(shallow && !allowShallow), "a shallow audit was allowed explicitly", shallow ? "--allow-shallow" : "full history");
+    const requiresV5Params = !["v1", "v2", "v3", "v4"].includes(method);
+    const aNotesOpt = audit.coverage && typeof audit.coverage.notes_oid === "string" ? audit.coverage.notes_oid : null;
+    const pNotesOpt = typeof params["coverage.notes_oid"] === "string" ? params["coverage.notes_oid"] : null;
+    if (requiresV5Params || pNotesOpt !== null || aNotesOpt !== null) {
+      const aNotes = aNotesOpt ?? "none";
+      step(pNotesOpt === aNotes, "generator.params.coverage.notes_oid equals the audit JSON", aNotes);
+    }
+    const aIrOpt = audit.coverage && typeof audit.coverage.ignore_revs_sha256 === "string" ? audit.coverage.ignore_revs_sha256 : null;
+    const pIrOpt = typeof params["coverage.ignore_revs_sha256"] === "string" ? params["coverage.ignore_revs_sha256"] : null;
+    if (requiresV5Params || pIrOpt !== null || aIrOpt !== null) {
+      const aIr = aIrOpt ?? "none";
+      step(pIrOpt === aIr, "generator.params.coverage.ignore_revs_sha256 equals the audit JSON", aIr);
+    }
 
     return {
       seal_id: getStr(sealed, ["seal_id"]),
@@ -303,7 +316,7 @@
   }
   function renderAudit(a) {
     const tb = auditTbl.tBodies[0];
-    for (const [label, s] of [["verified AI", a.verified], ["probable AI", a.probable]]) {
+    for (const [label, s] of [["AI-tagged (metadata matched)", a.verified], ["probable (heuristic)", a.probable]]) {
       if (!isObject(s)) continue;
       const tr = el("tr");
       for (const cell of [label, s.commits, s.introduced, s.surviving, pct(s.survival_rate), pct(s.capped_survival_rate), pct(s.median_survival)]) tr.appendChild(el("td", "", String(cell)));

@@ -5,31 +5,157 @@
  "url": "https://causari.dev/r/managarm/managarm/",
  "badge": "https://causari.dev/r/managarm/managarm/badge.svg",
  "report": {
-  "number": 2,
-  "id": "2026/02",
-  "date": "2026-09-23",
-  "url": "https://causari.dev/reports/survival/2026/02/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v2",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.2.0"
+  "version": "0.5.0"
  },
  "verified": {
-  "commits": 595,
-  "introduced": 47375,
-  "surviving": 36929,
-  "survival_rate": 0.7795039577836411,
-  "capped_survival_rate": 0.7799796249855048,
-  "median_survival": 0.8980169971671388,
-  "largest_commit_share": 0.06245910290237467
+  "commits": 891,
+  "introduced": 65212,
+  "surviving": 50539,
+  "survival_rate": 0.7749953996197019,
+  "capped_survival_rate": 0.775259752573396,
+  "median_survival": 0.88,
+  "largest_commit_share": 0.04537508434030547
  },
  "interval_95": null,
+ "baseline": {
+  "untagged": {
+   "commits": 5810,
+   "introduced": 444629,
+   "surviving": 173867,
+   "survival_rate": 0.3910383713163109,
+   "median_survival": 0.375,
+   "capped_survival_rate": 0.38574914106668,
+   "cap_lines": 286,
+   "largest_commit_share": 0.010446911919825292
+  },
+  "by_age": [
+   {
+    "from_days": 0,
+    "to_days": 30,
+    "tagged": {
+     "commits": 283,
+     "introduced": 16644,
+     "surviving": 14219,
+     "survival_rate": 0.8543018505167027
+    },
+    "untagged": {
+     "commits": 41,
+     "introduced": 4133,
+     "surviving": 3207,
+     "survival_rate": 0.7759496733607549
+    }
+   },
+   {
+    "from_days": 30,
+    "to_days": 90,
+    "tagged": {
+     "commits": 455,
+     "introduced": 33928,
+     "surviving": 27113,
+     "survival_rate": 0.7991334590898374
+    },
+    "untagged": {
+     "commits": 102,
+     "introduced": 9041,
+     "surviving": 6473,
+     "survival_rate": 0.7159606238247982
+    }
+   },
+   {
+    "from_days": 90,
+    "to_days": 180,
+    "tagged": {
+     "commits": 148,
+     "introduced": 10767,
+     "surviving": 6564,
+     "survival_rate": 0.609640568403455
+    },
+    "untagged": {
+     "commits": 187,
+     "introduced": 16825,
+     "surviving": 12485,
+     "survival_rate": 0.7420505200594354
+    }
+   },
+   {
+    "from_days": 180,
+    "to_days": 365,
+    "tagged": {
+     "commits": 5,
+     "introduced": 3873,
+     "surviving": 2643,
+     "survival_rate": 0.6824167312161116
+    },
+    "untagged": {
+     "commits": 499,
+     "introduced": 32390,
+     "surviving": 19725,
+     "survival_rate": 0.608984254399506
+    }
+   },
+   {
+    "from_days": 365,
+    "to_days": 730,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 937,
+     "introduced": 59680,
+     "surviving": 39298,
+     "survival_rate": 0.6584785522788204
+    }
+   },
+   {
+    "from_days": 730,
+    "to_days": null,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 4044,
+     "introduced": 322560,
+     "surviving": 92679,
+     "survival_rate": 0.2873232886904762
+    }
+   }
+  ],
+  "age_matched": {
+   "tagged_rate": 0.7749953996197019,
+   "untagged_rate": 0.7292257924203119,
+   "gap": 0.04576960719938994,
+   "buckets_used": 4,
+   "tagged_lines_covered": 1.0
+  },
+  "oldest_surviving": {
+   "date": "2014-10-08",
+   "age_days": 4400,
+   "commits_before": 0,
+   "introduced_before": 0,
+   "tagged_commits_before": 0,
+   "tagged_introduced_before": 0,
+   "commits_before_share": 0.0
+  }
+ },
  "probable_commits": 0,
- "total_commits": 6363,
+ "total_commits": 6701,
  "aggregated": true,
  "coverage": {
-  "method": "v2",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -40,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 1,
+ "reports": 5,
  "reproduce": "re audit managarm/managarm --json",
- "bytes": "https://causari.dev/reports/survival/2026/02/repos/managarm__managarm.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/managarm__managarm.json",
  "license": "CC-BY-4.0"
 }

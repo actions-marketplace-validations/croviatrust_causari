@@ -5,31 +5,157 @@
  "url": "https://causari.dev/r/langchain-ai/langchain/",
  "badge": "https://causari.dev/r/langchain-ai/langchain/badge.svg",
  "report": {
-  "number": 2,
-  "id": "2026/02",
-  "date": "2026-09-23",
-  "url": "https://causari.dev/reports/survival/2026/02/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v2",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.2.0"
+  "version": "0.5.0"
  },
  "verified": {
   "commits": 43,
   "introduced": 7289,
-  "surviving": 5388,
-  "survival_rate": 0.7391960488407189,
-  "capped_survival_rate": 0.6984234571231189,
+  "surviving": 5386,
+  "survival_rate": 0.7389216627795308,
+  "capped_survival_rate": 0.697779881186621,
   "median_survival": 0.8741935483870967,
   "largest_commit_share": 0.2410481547537385
  },
  "interval_95": null,
+ "baseline": {
+  "untagged": {
+   "commits": 16916,
+   "introduced": 2753263,
+   "surviving": 470911,
+   "survival_rate": 0.17103741996314917,
+   "median_survival": 0.0,
+   "capped_survival_rate": 0.19407602535796478,
+   "cap_lines": 657,
+   "largest_commit_share": 0.07334243041801673
+  },
+  "by_age": [
+   {
+    "from_days": 0,
+    "to_days": 30,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 220,
+     "introduced": 35029,
+     "surviving": 30922,
+     "survival_rate": 0.8827542893031488
+    }
+   },
+   {
+    "from_days": 30,
+    "to_days": 90,
+    "tagged": {
+     "commits": 2,
+     "introduced": 188,
+     "surviving": 177,
+     "survival_rate": 0.9414893617021277
+    },
+    "untagged": {
+     "commits": 376,
+     "introduced": 48041,
+     "surviving": 40689,
+     "survival_rate": 0.8469640515393102
+    }
+   },
+   {
+    "from_days": 90,
+    "to_days": 180,
+    "tagged": {
+     "commits": 6,
+     "introduced": 3699,
+     "surviving": 3459,
+     "survival_rate": 0.935117599351176
+    },
+    "untagged": {
+     "commits": 658,
+     "introduced": 46212,
+     "surviving": 34667,
+     "survival_rate": 0.7501731152081711
+    }
+   },
+   {
+    "from_days": 180,
+    "to_days": 365,
+    "tagged": {
+     "commits": 14,
+     "introduced": 1012,
+     "surviving": 942,
+     "survival_rate": 0.9308300395256917
+    },
+    "untagged": {
+     "commits": 1166,
+     "introduced": 115532,
+     "surviving": 76157,
+     "survival_rate": 0.6591853339334557
+    }
+   },
+   {
+    "from_days": 365,
+    "to_days": 730,
+    "tagged": {
+     "commits": 21,
+     "introduced": 2390,
+     "surviving": 808,
+     "survival_rate": 0.33807531380753136
+    },
+    "untagged": {
+     "commits": 2918,
+     "introduced": 361745,
+     "surviving": 107347,
+     "survival_rate": 0.29674770902154834
+    }
+   },
+   {
+    "from_days": 730,
+    "to_days": null,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 11578,
+     "introduced": 2146704,
+     "surviving": 181129,
+     "survival_rate": 0.08437539595584673
+    }
+   }
+  ],
+  "age_matched": {
+   "tagged_rate": 0.7335586537107449,
+   "untagged_rate": 0.5845955408614537,
+   "gap": 0.1489631128492912,
+   "buckets_used": 3,
+   "tagged_lines_covered": 0.9742077102483194
+  },
+  "oldest_surviving": {
+   "date": "2022-10-24",
+   "age_days": 1461,
+   "commits_before": 0,
+   "introduced_before": 0,
+   "tagged_commits_before": 0,
+   "tagged_introduced_before": 0,
+   "commits_before_share": 0.0
+  }
+ },
  "probable_commits": 3,
- "total_commits": 16732,
+ "total_commits": 16962,
  "aggregated": true,
  "coverage": {
-  "method": "v2",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -40,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 1,
+ "reports": 6,
  "reproduce": "re audit langchain-ai/langchain --json",
- "bytes": "https://causari.dev/reports/survival/2026/02/repos/langchain-ai__langchain.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/langchain-ai__langchain.json",
  "license": "CC-BY-4.0"
 }

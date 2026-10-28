@@ -5,31 +5,151 @@
  "url": "https://causari.dev/r/openai/openai-python/",
  "badge": "https://causari.dev/r/openai/openai-python/badge.svg",
  "report": {
-  "number": 2,
-  "id": "2026/02",
-  "date": "2026-09-23",
-  "url": "https://causari.dev/reports/survival/2026/02/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v2",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.2.0"
+  "version": "0.5.0"
  },
  "verified": {
   "commits": 3,
   "introduced": 63,
-  "surviving": 61,
-  "survival_rate": 0.9682539682539683,
-  "capped_survival_rate": 0.9682539682539683,
+  "surviving": 62,
+  "survival_rate": 0.9841269841269841,
+  "capped_survival_rate": 0.9841269841269841,
   "median_survival": 1.0,
   "largest_commit_share": 0.8095238095238095
  },
  "interval_95": null,
+ "baseline": {
+  "untagged": {
+   "commits": 1793,
+   "introduced": 716712,
+   "surviving": 501352,
+   "survival_rate": 0.6995166817354809,
+   "median_survival": 0.7272727272727273,
+   "capped_survival_rate": 0.6934376721713137,
+   "cap_lines": 1288,
+   "largest_commit_share": 0.10828617352576768
+  },
+  "by_age": [
+   {
+    "from_days": 0,
+    "to_days": 30,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 159,
+     "introduced": 138493,
+     "surviving": 112295,
+     "survival_rate": 0.8108352046673839
+    }
+   },
+   {
+    "from_days": 30,
+    "to_days": 90,
+    "tagged": {
+     "commits": 3,
+     "introduced": 63,
+     "surviving": 62,
+     "survival_rate": 0.9841269841269841
+    },
+    "untagged": {
+     "commits": 228,
+     "introduced": 243461,
+     "surviving": 180099,
+     "survival_rate": 0.7397447640484512
+    }
+   },
+   {
+    "from_days": 90,
+    "to_days": 180,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 111,
+     "introduced": 83988,
+     "surviving": 62382,
+     "survival_rate": 0.742748964137734
+    }
+   },
+   {
+    "from_days": 180,
+    "to_days": 365,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 150,
+     "introduced": 23873,
+     "surviving": 18246,
+     "survival_rate": 0.7642943911531856
+    }
+   },
+   {
+    "from_days": 365,
+    "to_days": 730,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 473,
+     "introduced": 90265,
+     "surviving": 68080,
+     "survival_rate": 0.754223674735501
+    }
+   },
+   {
+    "from_days": 730,
+    "to_days": null,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 672,
+     "introduced": 136632,
+     "surviving": 60250,
+     "survival_rate": 0.44096551320334915
+    }
+   }
+  ],
+  "age_matched": null,
+  "oldest_surviving": {
+   "date": "2020-10-25",
+   "age_days": 2190,
+   "commits_before": 0,
+   "introduced_before": 0,
+   "tagged_commits_before": 0,
+   "tagged_introduced_before": 0,
+   "commits_before_share": 0.0
+  }
+ },
  "probable_commits": 0,
- "total_commits": 1628,
+ "total_commits": 1796,
  "aggregated": false,
  "coverage": {
-  "method": "v2",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -40,8 +160,8 @@
   "sample_floor": 5,
   "small_sample": true
  },
- "reports": 1,
+ "reports": 6,
  "reproduce": "re audit openai/openai-python --json",
- "bytes": "https://causari.dev/reports/survival/2026/02/repos/openai__openai-python.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/openai__openai-python.json",
  "license": "CC-BY-4.0"
 }

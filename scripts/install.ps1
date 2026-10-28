@@ -31,10 +31,26 @@ $arch = if ([Environment]::Is64BitOperatingSystem) { 'x86_64' } else { Die 'only
 $target = "$arch-pc-windows-msvc"
 
 # ---- resolve version ----
+# The release page redirects to the latest tag without touching the API,
+# so a shared address (CI runner, office NAT) that has used up the
+# unauthenticated API quota still installs. The API is the fallback.
 if (-not $Version) {
-  $rel = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing
-  $Version = $rel.tag_name
-  if (-not $Version) { Die 'could not fetch latest release' }
+  $loc = $null
+  try {
+    $resp = Invoke-WebRequest "https://github.com/$Repo/releases/latest" -Method Head -MaximumRedirection 0 -UseBasicParsing -ErrorAction Stop
+    $loc = [string]$resp.Headers['Location']
+  } catch {
+    # Windows PowerShell 5.1 and some PowerShell 7 builds throw on a 302 when
+    # redirects are off; the response with the Location header is on the error.
+    try { $loc = [string]$_.Exception.Response.Headers['Location'] } catch { $loc = $null }
+    if (-not $loc) { try { $loc = [string]$_.Exception.Response.Headers.Location } catch { $loc = $null } }
+  }
+  if ($loc -match '/releases/tag/(v[0-9][^/?]*)') { $Version = $Matches[1] }
+  if (-not $Version) {
+    $rel = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing
+    $Version = $rel.tag_name
+  }
+  if (-not $Version) { Die 'could not resolve the latest release tag (set $env:CAUSARI_VERSION to pin one)' }
 }
 Say "installing $Repo $Version ($target)"
 
@@ -95,6 +111,17 @@ if ($userPath -notlike "*$BinDir*") {
 # ---- cleanup ----
 Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 
+# ---- git on PATH ----
+$gitCmd = Get-Command git -ErrorAction SilentlyContinue
+if (-not $gitCmd) {
+  Warn 'git was not found on PATH. Causari reads git history; install Git for Windows, then open a new terminal. Until git is on PATH, re audit cannot read a repository.'
+} else {
+  Say "git: $($gitCmd.Source)"
+}
+
 # ---- post ----
 try { & $dst --version } catch { }
-Say 'done. Try: re audit'
+Say "installed $dst"
+Say 'this window may not see the updated user PATH yet. Open a new terminal, then run:'
+Say '  re audit owner/repo'
+Say "until that terminal exists, the full command is: & '$dst' audit owner/repo"

@@ -19,7 +19,21 @@
   <meta name="twitter:description" content="git blame, Copilot metrics, churn reports, DORA dashboards and causari: what each counts and what it cannot see." />
   <meta name="twitter:image" content="https://causari.dev/assets/og.png" />
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-  <link rel="stylesheet" href="/styles.css?v=0c1191c49d" />
+  <link rel="stylesheet" href="/styles.css?v=c96ecf026d" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": "https://causari.dev/compare",
+    "url": "https://causari.dev/compare",
+    "name": "causari and the other ways to count",
+    "inLanguage": "en",
+    "isPartOf": { "@type": "WebSite", "name": "causari", "url": "https://causari.dev" },
+    "about": { "@id": "https://causari.dev/#software" },
+    "publisher": { "@id": "https://croviatrust.com/#org" },
+    "description": "Comparison of git blame, Copilot metrics dashboards, GitClear-style churn reports, DORA delivery metrics, and Causari (re audit Method v6)."
+  }
+  </script>
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -76,7 +90,7 @@
         <td>The data is the product's own telemetry, so it covers that product and only that product.</td>
         <td>No. It works from diffs. Attribution to AI, where its reports make one, is statistical over time, not per commit.</td>
         <td>No. It does not attribute code to anyone.</td>
-        <td>Yes, in the weak sense that the commit must carry a trailer, a bot author or a git-ai note. Untagged commits are UNKNOWN and never counted; inline completions are invisible.</td>
+        <td>Yes, in the weak sense that the commit must carry a trailer, a bot author, or (method v4) a git-ai note that names a non-empty tool. Method v3 counted any git-ai note. Untagged commits are UNKNOWN and never counted; inline completions are invisible. UNKNOWN is not human.</td>
       </tr>
       <tr>
         <td>Needs a vendor account?</td>
@@ -156,6 +170,6 @@ re seal verify audit.seal.json    <span class="dim"># offline · or drop it on c
     <p class="muted"><a href="/reports/survival/">Survival Report</a> · <a href="/method">method</a> · <a href="/verify/">verify</a> · <a href="/faq">faq</a> · <a href="/">causari.dev</a></p>
   </div>
 </footer>
-<script src="/app.js?v=eb85cbc8d5" defer></script>
+<script src="/app.js?v=b8add14453" defer></script>
 </body>
 </html>

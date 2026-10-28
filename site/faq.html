@@ -19,7 +19,7 @@
   <meta name="twitter:description" content="Sixteen questions about counting AI-written code in git, answered with the command and the limit." />
   <meta name="twitter:image" content="https://causari.dev/assets/og.png" />
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-  <link rel="stylesheet" href="/styles.css?v=0c1191c49d" />
+  <link rel="stylesheet" href="/styles.css?v=c96ecf026d" />
   <!-- faq-jsonld: begin (each acceptedAnswer.text is the text of the visible .faq-a block; checked before commit) -->
   <script type="application/ld+json">
   {
@@ -44,7 +44,7 @@
         "name": "How much of my code was written by AI?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Causari cannot tell you that. It counts something narrower: the lines introduced by commits that carry machine-readable AI authorship metadata (a Co-Authored-By trailer naming an agent, a bot author, an AI-* trailer, a git-ai note), and how many of those lines git blame still attributes to them at HEAD. Code from inline completions or from untagged commits counts as human. Run re audit in any repository; the output states what was counted and what was not. Rules: causari.dev/method."
+          "text": "Causari cannot tell you that. It counts something narrower: the lines introduced by commits that carry machine-readable AI authorship metadata (a Co-Authored-By trailer naming an agent, a bot author, an AI-* trailer, or, from method v4, a git-ai note that names a non-empty tool), and how many of those lines git blame still attributes to them at HEAD. Code from inline completions or from untagged commits is not counted as AI-tagged, and that is not a finding that a human wrote it. Run re audit in any repository; the output states what was counted and what was not. Rules: causari.dev/method."
         }
       },
       {
@@ -53,7 +53,7 @@
         "name": "What does \"survival\" mean here?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "A line survives if git blame -w -M -C at HEAD still attributes it to the AI-tagged commit that introduced it. The survival ratio is surviving lines divided by introduced lines, summed over all such commits, so it is line-weighted; method v2 also reports a capped ratio and the median per commit, and method v3 puts the untagged lines of the same repository and the same age next to it. A rewritten line is a death even when the meaning is unchanged; a surviving line may be dead code. It is a count from git history, not a judgement about quality. Definition: causari.dev/method#survival."
+          "text": "A line survives if git blame -w -M -C at HEAD still attributes it to the AI-tagged commit that introduced it. The survival ratio is surviving lines divided by introduced lines, summed over all such commits, so it is line-weighted; method v2 also reports a capped ratio and the median per commit, and method v3 puts the untagged lines of the same repository and the matched age windows next to it. A rewritten line is a death even when the meaning is unchanged; a surviving line may be dead code. It is a count from git history, not a judgement about quality, productivity, total AI usage, authorship, security, correctness, or a causal effect. Definition: causari.dev/method#survival."
         }
       },
       {
@@ -80,7 +80,7 @@
         "name": "Which AI agents does it detect?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Those that leave machine-readable metadata in git: Co-Authored-By trailers naming Claude, Copilot, aider, Codex, ChatGPT or OpenHands (Devin, Jules, Gemini and Cursor only with a bot identity or vendor domain); bot author identities such as noreply@anthropic.com, devin-ai, openhands, cursoragent, google-labs-jules; AI-* and Assisted-by: trailers; git-ai notes under refs/notes/ai. An agent that commits without any of these is UNKNOWN and never counted. The full rule table, signal by signal: causari.dev/method#counted."
+          "text": "Those that leave machine-readable metadata in git: Co-Authored-By trailers naming Claude, Copilot, aider, Codex, ChatGPT or OpenHands (Devin, Jules, Gemini and Cursor only with a bot identity or vendor domain); bot author identities such as noreply@anthropic.com, devin-ai, openhands, cursoragent, google-labs-jules; AI-* and Assisted-by: trailers; from method v4, a git-ai note under refs/notes/ai that names a non-empty tool. Method v3 counted any git-ai note. Reports #3 and #4 stay on v3 (report #4 is 10.5281/zenodo.23196011); reports #1 and #2 stay on v2. An agent that commits without a qualifying signal is UNKNOWN and never counted. UNKNOWN is not human. The full rule table, signal by signal: causari.dev/method#counted."
         }
       },
       {
@@ -89,7 +89,7 @@
         "name": "Does it work with Copilot or Cursor Tab?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "No. Inline completions (Copilot, Cursor Tab, Windsurf, Continue, Zed AI, JetBrains AI) leave no trace in git: a person accepts the suggestion and commits it under their own name, so re audit counts those lines as human. \"No git signal\" means no metadata, not no AI. Agents that commit with a trailer or a bot identity (Claude Code, aider, Codex CLI, the Copilot coding agent, Devin, Jules) are visible. What stays invisible: causari.dev/method#cannot-see."
+          "text": "No. Inline completions (Copilot, Cursor Tab, Windsurf, Continue, Zed AI, JetBrains AI) leave no trace in git: a person accepts the suggestion and commits it under their own name, so those lines are untagged. Untagged is not a finding that a human wrote them. \"No git signal\" means no metadata, not no AI. Agents that commit with a trailer or a bot identity (Claude Code, aider, Codex CLI, the Copilot coding agent, Devin, Jules) are visible. What stays invisible: causari.dev/method#cannot-see."
         }
       },
       {
@@ -143,7 +143,7 @@
         "name": "How is this different from git blame?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "git blame says which commit last touched each line. Causari runs it, then adds what blame does not do: it decides which commits carry AI authorship metadata by a public rule table, sums introduced against surviving lines per commit, applies a per-commit cap and a sample floor, and writes a coverage block into every result. It can then sign the result for offline verification. You could script the same; the point is that everyone runs one method and gets the same bytes. Other ways to count: causari.dev/compare."
+          "text": "git blame says which commit last touched each line. Causari runs it, then adds what blame does not do: it decides which commits carry AI authorship metadata by a public rule table, sums introduced against surviving lines per commit, applies a per-commit cap and a sample floor, and writes a coverage block into every result. It can then sign the result for offline verification. You could script the same; the same bytes require the same commit, method, blame flags and refs/notes/ai. A repository that has moved does not match. Other ways to count: causari.dev/compare."
         }
       },
       {
@@ -218,7 +218,7 @@
   <section class="faq-q" id="how-much-ai">
     <h2>How much of my code was written by AI?</h2>
     <div class="faq-a">
-      <p>Causari cannot tell you that. It counts something narrower: the lines introduced by commits that carry machine-readable AI authorship metadata (a <code translate="no">Co-Authored-By</code> trailer naming an agent, a bot author, an <code translate="no">AI-*</code> trailer, a git-ai note), and how many of those lines <code translate="no">git blame</code> still attributes to them at HEAD. Code from inline completions or from untagged commits counts as human. Run <code translate="no">re audit</code> in any repository; the output states what was counted and what was not. Rules: <a href="/method#counted">causari.dev/method</a>.</p>
+      <p>Causari cannot tell you that. It counts something narrower: the lines introduced by commits that carry machine-readable AI authorship metadata (a <code translate="no">Co-Authored-By</code> trailer naming an agent, a bot author, an <code translate="no">AI-*</code> trailer, or, from method v4, a git-ai note that names a non-empty tool), and how many of those lines <code translate="no">git blame</code> still attributes to them at HEAD. Code from inline completions or from untagged commits is not counted as AI-tagged, and that is not a finding that a human wrote it. Run <code translate="no">re audit</code> in any repository; the output states what was counted and what was not. Rules: <a href="/method#counted">causari.dev/method</a>.</p>
     </div>
     <div class="term">
 <pre translate="no"><code translate="no">re audit                    <span class="dim"># the repository you are in</span>
@@ -229,7 +229,7 @@ re audit --json             <span class="dim"># "coverage": what was counted, wh
   <section class="faq-q" id="what-is-survival">
     <h2>What does "survival" mean here?</h2>
     <div class="faq-a">
-      <p>A line survives if <code translate="no">git blame -w -M -C</code> at HEAD still attributes it to the AI-tagged commit that introduced it. The survival ratio is surviving lines divided by introduced lines, summed over all such commits, so it is line-weighted; method v2 also reports a capped ratio and the median per commit, and method v3 puts the untagged lines of the same repository and the same age next to it. A rewritten line is a death even when the meaning is unchanged; a surviving line may be dead code. It is a count from git history, not a judgement about quality. Definition: <a href="/method#survival">causari.dev/method#survival</a>.</p>
+      <p>A line survives if <code translate="no">git blame -w -M -C</code> at HEAD still attributes it to the AI-tagged commit that introduced it. The survival ratio is surviving lines divided by introduced lines, summed over all such commits, so it is line-weighted; method v2 also reports a capped ratio and the median per commit, method v3 puts the untagged lines of the same repository and the matched age windows next to it, method v5 reads the HEAD tree directly (<code translate="no">git ls-tree -r -z HEAD</code> and <code translate="no">git log --no-merges --numstat -M -z</code>) and records <code translate="no">copy_capped_lines</code>, and method v6, in this source and in the 0.5.0 binary, blames only the paths numstat counted, so a binary file adds lines to neither side of the ratio. The published binary 0.5.0 (2026-10-21) is method v6. Reports #5 and #6 were measured with 0.4.1, method v4. A rewritten line is a death even when the meaning is unchanged; a surviving line may be dead code. It is a count from git history, not a judgement about quality, productivity, total AI usage, authorship, security, correctness, or a causal effect. Definition: <a href="/method#survival">causari.dev/method#survival</a>.</p>
     </div>
   </section>
 
@@ -261,14 +261,14 @@ brew install croviatrust/tap/causari                <span class="dim"># Homebrew
   <section class="faq-q" id="which-agents">
     <h2>Which AI agents does it detect?</h2>
     <div class="faq-a">
-      <p>Those that leave machine-readable metadata in git: <code translate="no">Co-Authored-By</code> trailers naming Claude, Copilot, aider, Codex, ChatGPT or OpenHands (Devin, Jules, Gemini and Cursor only with a bot identity or vendor domain); bot author identities such as <code translate="no">noreply@anthropic.com</code>, <code translate="no">devin-ai</code>, <code translate="no">openhands</code>, <code translate="no">cursoragent</code>, <code translate="no">google-labs-jules</code>; <code translate="no">AI-*</code> and <code translate="no">Assisted-by:</code> trailers; git-ai notes under <code translate="no">refs/notes/ai</code>. An agent that commits without any of these is UNKNOWN and never counted. The full rule table, signal by signal: <a href="/method#counted">causari.dev/method#counted</a>.</p>
+      <p>Those that leave machine-readable metadata in git: <code translate="no">Co-Authored-By</code> trailers naming Claude, Copilot, aider, Codex, ChatGPT or OpenHands (Devin, Jules, Gemini and Cursor only with a bot identity or vendor domain); bot author identities such as <code translate="no">noreply@anthropic.com</code>, <code translate="no">devin-ai</code>, <code translate="no">openhands</code>, <code translate="no">cursoragent</code>, <code translate="no">google-labs-jules</code>; <code translate="no">AI-*</code> and <code translate="no">Assisted-by:</code> trailers; from method v4, a git-ai note under <code translate="no">refs/notes/ai</code> that names a non-empty tool. Method v3 counted any git-ai note. Reports #3 and #4 stay on v3 (report #4 is 10.5281/zenodo.23196011); reports #1 and #2 stay on v2. An agent that commits without a qualifying signal is UNKNOWN and never counted. UNKNOWN is not human. The full rule table, signal by signal: <a href="/method#counted">causari.dev/method#counted</a>.</p>
     </div>
   </section>
 
   <section class="faq-q" id="copilot-cursor-tab">
     <h2>Does it work with Copilot or Cursor Tab?</h2>
     <div class="faq-a">
-      <p>No. Inline completions (Copilot, Cursor Tab, Windsurf, Continue, Zed AI, JetBrains AI) leave no trace in git: a person accepts the suggestion and commits it under their own name, so <code translate="no">re audit</code> counts those lines as human. "No git signal" means no metadata, not no AI. Agents that commit with a trailer or a bot identity (Claude Code, aider, Codex CLI, the Copilot coding agent, Devin, Jules) are visible. What stays invisible: <a href="/method#cannot-see">causari.dev/method#cannot-see</a>.</p>
+      <p>No. Inline completions (Copilot, Cursor Tab, Windsurf, Continue, Zed AI, JetBrains AI) leave no trace in git: a person accepts the suggestion and commits it under their own name, so those lines are untagged. Untagged is not a finding that a human wrote them. "No git signal" means no metadata, not no AI. Agents that commit with a trailer or a bot identity (Claude Code, aider, Codex CLI, the Copilot coding agent, Devin, Jules) are visible. What stays invisible: <a href="/method#cannot-see">causari.dev/method#cannot-see</a>.</p>
     </div>
   </section>
 
@@ -330,7 +330,7 @@ jobs:
   <section class="faq-q" id="vs-git-blame">
     <h2>How is this different from git blame?</h2>
     <div class="faq-a">
-      <p><code translate="no">git blame</code> says which commit last touched each line. Causari runs it, then adds what blame does not do: it decides which commits carry AI authorship metadata by a public rule table, sums introduced against surviving lines per commit, applies a per-commit cap and a sample floor, and writes a coverage block into every result. It can then sign the result for offline verification. You could script the same; the point is that everyone runs one method and gets the same bytes. Other ways to count: <a href="/compare">causari.dev/compare</a>.</p>
+      <p><code translate="no">git blame</code> says which commit last touched each line. Causari runs it, then adds what blame does not do: it decides which commits carry AI authorship metadata by a public rule table, sums introduced against surviving lines per commit, applies a per-commit cap and a sample floor, and writes a coverage block into every result. It can then sign the result for offline verification. You could script the same; the same bytes require the same commit, method, blame flags and refs/notes/ai. A repository that has moved does not match. Other ways to count: <a href="/compare">causari.dev/compare</a>.</p>
     </div>
   </section>
 
@@ -383,6 +383,6 @@ re audit --card             <span class="dim"># causari-survival.svg</span></cod
     <p class="muted"><a href="/reports/survival/">Survival Report</a> · <a href="/method">method</a> · <a href="/verify/">verify</a> · <a href="/compare">compare</a> · <a href="/">causari.dev</a></p>
   </div>
 </footer>
-<script src="/app.js?v=eb85cbc8d5" defer></script>
+<script src="/app.js?v=b8add14453" defer></script>
 </body>
 </html>

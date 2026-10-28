@@ -23,10 +23,10 @@ Record (the ledger, in .causari/):
 Ask (queries over the ledger):
   log       Recent events
   show      One event: prompt, model, tokens, cost, evidence
-  why       The event behind a line: `re why path/to/file:42`
-  trace     Everything that led to a line, transitively
-  impact    Everything that flowed from an event
-  lens      A file annotated with per-line provenance
+  why       The ledger event recorded against a line: `re why path/to/file:42`
+  trace     Ledger events linked by declared reads and writes, backward
+  impact    Ledger events linked by declared reads and writes, forward
+  lens      A file annotated from the local ledger
   diff      What one event changed (or a range)
   find      Search prompts, messages and tools
 
@@ -86,7 +86,7 @@ pub enum Command {
     /// Show the diff introduced by an event (or between two events)
     Diff(DiffArgs),
 
-    /// Explain who/what created a specific line: `re why path/to/file:42`
+    /// Ledger event recorded against a line, if one matches: `re why path/to/file:42`
     Why(WhyArgs),
 
     /// Auto-record every filesystem change as a Causari event (passive recorder)
@@ -104,24 +104,25 @@ pub enum Command {
     /// Switch HEAD to an existing session and sync the workspace to its tip
     Switch(SwitchArgs),
 
-    /// Show the FULL causal cone of a line: every event that contributed,
-    /// transitively, via the files it read or wrote.
+    /// Walk declared reads and writes backward from a line.
+    /// This is the ledger graph. It does not establish cause.
     Trace(TraceArgs),
 
     /// Search events by free text in prompt, message, reasoning or tool.
     Find(FindArgs),
 
-    /// Show the DOWNSTREAM causal cone of an event (what flowed from it).
+    /// Walk declared reads and writes forward from an event.
+    /// Later events in this graph read files the event wrote.
     Impact(ImpactArgs),
 
-    /// Render a file with per-line provenance annotations.
+    /// Annotate a file with the ledger event last associated with each line.
     Lens(LensArgs),
 
     /// Distill, inspect and verify signed skills (the experience layer)
     Skill(SkillArgs),
 
-    /// Emit a portable Markdown briefing of verified experience for a task —
-    /// paste it into any model's context (CLAUDE.md, AGENTS.md, .cursorrules)
+    /// Emit a Markdown briefing of past skills for a task (recall counts, not proofs).
+    /// Paste it into any model's context (CLAUDE.md, AGENTS.md, .cursorrules)
     Brief(BriefArgs),
 
     /// Retired: use `re audit --seal` and `re seal verify`
@@ -300,7 +301,7 @@ pub struct SwitchArgs {
 
 #[derive(Args, Debug)]
 pub struct TraceArgs {
-    /// Location whose causal cone you want, in the form `path/to/file:line`
+    /// Location to walk in the ledger graph, in the form `path/to/file:line`
     pub spec: String,
 }
 
@@ -322,7 +323,7 @@ pub struct ImpactArgs {
 
 #[derive(Args, Debug)]
 pub struct LensArgs {
-    /// Path to the file you want annotated with per-line provenance
+    /// Path to the file to annotate from the local ledger
     pub file: String,
 }
 
@@ -406,6 +407,17 @@ pub struct AuditArgs {
     /// Where to write the seal bundle (default: audit.seal.json)
     #[arg(short, long, requires = "seal", value_name = "FILE")]
     pub output: Option<std::path::PathBuf>,
+
+    /// Deterministic Evidence Diff between two audit receipts (plain `--json`
+    /// files or `--seal` bundles). Accepts same-method repository evolution
+    /// or same-HEAD method upgrades; refuses when both vary.
+    #[arg(
+        long,
+        num_args = 2,
+        value_names = ["BEFORE", "AFTER"],
+        conflicts_with_all = ["target", "badge", "card", "save", "allow_shallow", "seal", "output"]
+    )]
+    pub diff: Vec<std::path::PathBuf>,
 }
 
 #[derive(Args, Debug)]
@@ -469,6 +481,25 @@ pub struct ProxyArgs {
     /// Naming a run that was left open (the proxy died) resumes it.
     #[arg(long, requires = "pnx", value_name = "ID")]
     pub pnx_run_id: Option<String>,
+
+    /// Egress policy for the PNX reach record (a crovia.pnx.policy.v1
+    /// document: {"version": "crovia.pnx.policy.v1", "allow":
+    /// ["api.openai.com:443", "*.anthropic.com:443"]}). Every upstream the
+    /// proxy forwards to is recorded in the run sheet with its outcome;
+    /// with a policy, destinations outside it are refused (--pnx-reach-mode
+    /// enforce, the default) or relayed and recorded (observe). Without a
+    /// policy the sheet still states where the run connected.
+    #[arg(long, requires = "pnx", value_name = "FILE")]
+    pub pnx_policy: Option<std::path::PathBuf>,
+
+    /// enforce: refuse destinations outside --pnx-policy (HTTP 403, recorded
+    /// as blocked); observe: relay everything and let the verifier judge.
+    #[arg(long, requires = "pnx_policy", value_name = "MODE", value_parser = ["enforce", "observe"])]
+    pub pnx_reach_mode: Option<String>,
+
+    /// Disclose salted host hashes in the sheet instead of host names.
+    #[arg(long, requires = "pnx")]
+    pub pnx_reach_salted: bool,
 }
 
 #[derive(Args, Debug)]
@@ -529,17 +560,31 @@ pub enum PnxCommand {
         fail_on_present: bool,
     },
 
-    /// Verify a PNX proof offline (bare or delivered inside a Crovia Seal).
-    /// Exit 0: valid, every asset absent. 1: valid, but an asset was
-    /// present, undetectable or only partially covered. 2: invalid.
+    /// Verify a PNX proof offline (bare or delivered inside a Crovia Seal),
+    /// or a signed run sheet on its own (a reach receipt: no asset judged,
+    /// reported as `sheet-only`). Exit 0: valid, every asset absent (or a
+    /// sheet alone), reach within policy. 1: valid, but an asset was
+    /// present, undetectable or only partially covered, or a destination
+    /// was reached outside the policy. 2: invalid.
     Verify {
-        /// Path to the proof JSON
+        /// Path to the proof JSON, or to a run sheet
         proof: std::path::PathBuf,
 
         #[command(flatten)]
         assets: PnxAssetArgs,
 
-        /// Exit 1 on warnings too (assets not supplied, partial coverage)
+        /// The crovia.pnx.policy.v1 document the witness applied: its hash
+        /// is checked against the sheet's reach record and every
+        /// destination is matched against its rules
+        #[arg(long, value_name = "FILE")]
+        policy: Option<std::path::PathBuf>,
+
+        /// Under salted disclosure, report whether HOST was reached
+        #[arg(long, value_name = "HOST")]
+        name: Vec<String>,
+
+        /// Exit 1 on warnings too (assets not supplied, partial coverage,
+        /// reach unchecked)
         #[arg(long)]
         strict: bool,
 

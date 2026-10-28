@@ -1,4 +1,36 @@
 User-agent: *
 Allow: /
 
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+# AI & Agent machine-readable entrypoints:
+# https://causari.dev/llms.txt
+# https://causari.dev/llms-full.txt
+# https://causari.dev/.well-known/agent.json
 Sitemap: https://causari.dev/sitemap.xml
+

@@ -5,31 +5,157 @@
  "url": "https://causari.dev/r/apache/fluss/",
  "badge": "https://causari.dev/r/apache/fluss/badge.svg",
  "report": {
-  "number": 2,
-  "id": "2026/02",
-  "date": "2026-09-23",
-  "url": "https://causari.dev/reports/survival/2026/02/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v2",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.2.0"
+  "version": "0.5.0"
  },
  "verified": {
-  "commits": 34,
-  "introduced": 12656,
-  "surviving": 10135,
-  "survival_rate": 0.8008059418457648,
-  "capped_survival_rate": 0.7993153956376373,
-  "median_survival": 0.9509485612426789,
-  "largest_commit_share": 0.125
+  "commits": 56,
+  "introduced": 21403,
+  "surviving": 17001,
+  "survival_rate": 0.7943278979582301,
+  "capped_survival_rate": 0.7922991568029498,
+  "median_survival": 0.8900402993667242,
+  "largest_commit_share": 0.09152922487501752
  },
  "interval_95": null,
+ "baseline": {
+  "untagged": {
+   "commits": 2277,
+   "introduced": 1075742,
+   "surviving": 871600,
+   "survival_rate": 0.8102314495483117,
+   "median_survival": 0.7919254658385093,
+   "capped_survival_rate": 0.7624405534869279,
+   "cap_lines": 1728,
+   "largest_commit_share": 0.19422407975146458
+  },
+  "by_age": [
+   {
+    "from_days": 0,
+    "to_days": 30,
+    "tagged": {
+     "commits": 22,
+     "introduced": 8747,
+     "surviving": 7222,
+     "survival_rate": 0.8256545101177547
+    },
+    "untagged": {
+     "commits": 125,
+     "introduced": 86406,
+     "surviving": 70628,
+     "survival_rate": 0.8173969400273129
+    }
+   },
+   {
+    "from_days": 30,
+    "to_days": 90,
+    "tagged": {
+     "commits": 20,
+     "introduced": 5632,
+     "surviving": 4702,
+     "survival_rate": 0.8348721590909091
+    },
+    "untagged": {
+     "commits": 249,
+     "introduced": 142000,
+     "surviving": 115778,
+     "survival_rate": 0.8153380281690141
+    }
+   },
+   {
+    "from_days": 90,
+    "to_days": 180,
+    "tagged": {
+     "commits": 11,
+     "introduced": 6422,
+     "surviving": 4547,
+     "survival_rate": 0.7080348800996574
+    },
+    "untagged": {
+     "commits": 291,
+     "introduced": 127702,
+     "surviving": 105608,
+     "survival_rate": 0.8269878310441496
+    }
+   },
+   {
+    "from_days": 180,
+    "to_days": 365,
+    "tagged": {
+     "commits": 3,
+     "introduced": 602,
+     "surviving": 530,
+     "survival_rate": 0.8803986710963455
+    },
+    "untagged": {
+     "commits": 758,
+     "introduced": 284412,
+     "surviving": 217713,
+     "survival_rate": 0.7654845787097591
+    }
+   },
+   {
+    "from_days": 365,
+    "to_days": 730,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 854,
+     "introduced": 435222,
+     "surviving": 361873,
+     "survival_rate": 0.831467618824416
+    }
+   },
+   {
+    "from_days": 730,
+    "to_days": null,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    }
+   }
+  ],
+  "age_matched": {
+   "tagged_rate": 0.7918369309167829,
+   "untagged_rate": 0.8198005220918381,
+   "gap": -0.027963591175055202,
+   "buckets_used": 3,
+   "tagged_lines_covered": 0.9718731019016026
+  },
+  "oldest_surviving": {
+   "date": "2024-11-25",
+   "age_days": 699,
+   "commits_before": 0,
+   "introduced_before": 0,
+   "tagged_commits_before": 0,
+   "tagged_introduced_before": 0,
+   "commits_before_share": 0.0
+  }
+ },
  "probable_commits": 0,
- "total_commits": 2184,
+ "total_commits": 2333,
  "aggregated": true,
  "coverage": {
-  "method": "v2",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -40,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 1,
+ "reports": 5,
  "reproduce": "re audit apache/fluss --json",
- "bytes": "https://causari.dev/reports/survival/2026/02/repos/apache__fluss.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/apache__fluss.json",
  "license": "CC-BY-4.0"
 }

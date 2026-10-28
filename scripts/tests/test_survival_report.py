@@ -371,7 +371,7 @@ class BaselineTests(unittest.TestCase):
 
     def test_report_page_shows_gap_column_and_baseline_section(self) -> None:
         header = re.search(r'<table class="lb-table" id="repos">.*?</thead>', self.page, re.S).group(0)
-        self.assertIn("<th>Untagged, same age</th><th>Gap</th>", header)
+        self.assertIn("<th>Untagged, matched windows</th><th>Gap</th>", header)
         self.assertIn(">-5.0 pts<", self.page)
         self.assertIn(">70.0 %<", self.page)
         self.assertIn("no shared window", self.page)  # base/lonely
@@ -394,12 +394,12 @@ class BaselineTests(unittest.TestCase):
                 self.assertIn(before, ('"', "'", "\u201c", "\u2018", "`", "\u00ab"), f"forbidden word {word!r} bare")
 
     def test_report_md_has_baseline(self) -> None:
-        self.assertIn("## Baseline: the same repositories' untagged lines, at the same age", self.md)
+        self.assertIn("## Baseline: the same repositories' untagged lines, in the matched age windows", self.md)
         self.assertIn("- Median gap across them: -1.4 pts", self.md)
         self.assertIn("- Gaps below zero: 1 · above zero: 1", self.md)
         self.assertIn("Cleared or rewritten", self.md)
         self.assertIn("| base/cleared · rewritten |", self.md)
-        self.assertIn("| Untagged, same age | Gap |", self.md.replace("|  Untagged", "| Untagged"))
+        self.assertIn("| Untagged, matched windows | Gap |", self.md.replace("|  Untagged", "| Untagged"))
         self.assertIn("| 70.0 % | -5.0 pts |", self.md)
         self.assertIn("| — | — |", self.md)  # zeta/last, no baseline
 
@@ -994,6 +994,288 @@ class ZenodoTests(unittest.TestCase):
         files = {"report.json": b"{}", "MANIFEST.json": b"a"}
         self.assertEqual(zd.content_hash(files), zd.content_hash({"report.json": b"{}", "MANIFEST.json": b"b"}))
         self.assertNotEqual(zd.content_hash(files), zd.content_hash({"report.json": b"{ }"}))
+
+
+PNX_005 = json.loads((ROOT / "tests" / "vectors" / "pnx" / "conformance" / "pnx_005_reach.json").read_text(encoding="utf-8"))
+
+
+def verify_json(sheet: dict, verdict: str = "within-policy", ok: bool = True, outside: list | None = None) -> dict:
+    """What `tacet-pnx verify SHEET --policy POLICY --json` writes for a sheet alone."""
+    return {"ok": ok, "verdict": "sheet-only" if ok else "?", "assets": {}, "errors": [] if ok else ["witness signature invalid"],
+            "warnings": [], "sealed": False, "sheet_only": True,
+            "reach": {"verdict": verdict if ok else "?", "outside": outside or [], "reached": {}}}
+
+
+def _archive_facts(number: int, names: list[str], method: str, rate: float = 0.5) -> dict:
+    """The fields render_index reads. Names are the aggregated repositories."""
+    n = len(names)
+    return {
+        "number": number,
+        "id": f"2026/{number:02d}",
+        "date": "2026-09-28",
+        "url": f"https://causari.dev/reports/survival/2026/{number:02d}/",
+        "generated_at": "2026-09-28T05:17:00Z",
+        "aggregate": {
+            "repositories": n,
+            "ai_tagged_commits": 10,
+            "introduced": 100,
+            "surviving": 50,
+            "survival_rate": rate,
+            "survival_rate_interval_95": None,
+        },
+        "method": {"version": method},
+        "repositories": [{"repo": name} for name in names],
+    }
+
+
+class ArchiveRateTests(unittest.TestCase):
+    """The archive table puts one line-weighted rate per report in one column.
+    That column is a series only when the aggregated repositories and the
+    method are the same. Report #4 will not have report #3's 43 repositories."""
+
+    def test_a_changed_sample_is_named_and_is_not_a_series(self) -> None:
+        older = ["o/r" + str(i) for i in range(43)]
+        newer = older + ["o/extra" + str(i) for i in range(18)]
+        html = sr.render_index([
+            _archive_facts(4, newer, "v3", 0.40),
+            _archive_facts(3, older, "v3", 0.614),
+        ])
+        text = visible_text(html)
+        self.assertIn("The line-weighted column is not a series.", text)
+        self.assertIn("#4 aggregated 61 repositories under method v3", text)
+        self.assertIn("#3 aggregated 43 repositories under method v3", text)
+        self.assertIn("A different repository count means the rates do not measure the same sample over time.", text)
+        self.assertIn("A repository followed across reports is on its page.", text)
+        self.assertIn('id="archive-rates"', html)
+        self.assertNotIn("up from", text.lower())
+        self.assertNotIn("down from", text.lower())
+
+    def test_a_method_change_is_not_a_series_even_at_the_same_count(self) -> None:
+        names = ["o/r" + str(i) for i in range(43)]
+        text = visible_text(sr.render_index([
+            _archive_facts(3, names, "v3"),
+            _archive_facts(2, names, "v2"),
+        ]))
+        self.assertIn("not a series", text)
+        self.assertIn("A different method means the rates do not measure the same thing over time.", text)
+
+    def test_the_same_repositories_under_the_same_method_need_no_warning(self) -> None:
+        names = ["o/r" + str(i) for i in range(43)]
+        text = visible_text(sr.render_index([
+            _archive_facts(4, names, "v3", 0.55),
+            _archive_facts(3, names, "v3", 0.614),
+        ]))
+        self.assertNotIn("not a series", text)
+        self.assertNotIn('id="archive-rates"', sr.render_index([
+            _archive_facts(4, names, "v3"),
+            _archive_facts(3, names, "v3"),
+        ]))
+
+    def test_the_lede_names_metadata_matched_and_points_at_the_readme(self) -> None:
+        html = sr.render_index([_archive_facts(1, ["o/only"], "v3")])
+        for text in (html, (ROOT / "site/reports/survival/index.html").read_text(encoding="utf-8")):
+            self.assertIn("AI-tagged means that metadata matched", text)
+            self.assertIn("does not prove a model wrote the line", text)
+            self.assertIn("https://github.com/croviatrust/causari#readme", text)
+            self.assertNotIn("Verified AI", text)
+
+    def test_one_report_has_nothing_to_line_up(self) -> None:
+        html = sr.render_index([_archive_facts(1, ["o/only"], "v2")])
+        self.assertNotIn("not a series", visible_text(html))
+
+    def test_equal_counts_of_different_repositories_are_not_the_same_sample(self) -> None:
+        text = visible_text(sr.render_index([
+            _archive_facts(2, ["o/a", "o/b"], "v3"),
+            _archive_facts(1, ["o/a", "o/c"], "v3"),
+        ]))
+        self.assertIn("not the same set", text)
+
+
+class ReachTests(unittest.TestCase):
+    """The run's reach receipt: the signed PNX run sheet of the egress witness
+    the shards ran behind, published next to the report once verified."""
+
+    def scratch(self, sheet: dict | None, verify: dict | None, policy: bool = True) -> Scratch:
+        s = Scratch()
+        if sheet is not None:
+            (s.run / "reach.sheet.json").write_text(json.dumps(sheet), encoding="utf-8")
+        if verify is not None:
+            (s.run / "reach.verify.json").write_text(json.dumps(verify), encoding="utf-8")
+        if policy:
+            (s.root / ".github" / "egress-policy.json").write_text(json.dumps(PNX_005["policy"]["document"]), encoding="utf-8")
+        return s
+
+    def test_a_run_without_a_sheet_has_no_receipt(self) -> None:
+        s = Scratch()
+        try:
+            f = s.build()
+            self.assertIsNone(f["reach"])
+            d = s.site / "reports" / "survival" / "2026" / "01"
+            self.assertNotIn("Where this measurement connected", (d / "index.html").read_text(encoding="utf-8"))
+            self.assertNotIn("Where this measurement connected", (d / "report.md").read_text(encoding="utf-8"))
+            self.assertFalse((d / "reach.sheet.json").exists())
+        finally:
+            s.close()
+
+    def test_a_verified_sheet_is_published_with_its_destinations_and_policy(self) -> None:
+        sheet = PNX_005["valid"]["enforce"]["sheet"]
+        s = self.scratch(sheet, verify_json(sheet))
+        try:
+            f = s.build()
+            r = f["reach"]
+            self.assertEqual(r["profile"], "crovia.pnx.v1")
+            self.assertEqual(r["record"], "crovia.pnx.reach.v1")
+            self.assertEqual(r["run_id"], sheet["run_id"])
+            self.assertEqual(r["witness"], {"id": sheet["witness"]["id"], "key_hex": sheet["witness"]["pubkey"]["key_hex"]})
+            self.assertEqual(r["verdict"], "within-policy")
+            self.assertEqual(r["summary"], sheet["reach"]["summary"])
+            self.assertEqual([d["host"] for d in r["destinations"]], [d["host"] for d in sheet["reach"]["destinations"]])
+            self.assertEqual(r["policy"]["hash"], sheet["reach"]["policy"]["hash"])
+            self.assertEqual(r["policy"]["file"], "egress-policy.json")
+            self.assertEqual(r["policy"]["mode"], "enforce")
+            self.assertNotIn("_files", r)
+            self.assertIn("tacet-pnx verify reach.sheet.json --policy egress-policy.json", r["verify"])
+            d = s.site / "reports" / "survival" / "2026" / "01"
+            # the sheet and the policy travel with the report, byte for byte
+            self.assertEqual(json.loads((d / "reach.sheet.json").read_text(encoding="utf-8")), sheet)
+            self.assertEqual(json.loads((d / "egress-policy.json").read_text(encoding="utf-8")), PNX_005["policy"]["document"])
+            html = (d / "index.html").read_text(encoding="utf-8")
+            text = visible_text(html)
+            self.assertIn("Where this measurement connected", text)
+            self.assertIn("Every destination the witness saw is one the policy allows.", text)
+            self.assertIn("pastebin.com:443", text)
+            self.assertIn("blocked", text)
+            self.assertIn('href="reach.sheet.json"', html)
+            self.assertIn('href="egress-policy.json"', html)
+            self.assertIn("re pnx verify reach.sheet.json --policy egress-policy.json", text)
+            self.assertIn("Not covered:", text)
+            for word in FORBIDDEN:
+                self.assertNotIn(word, text)
+            md = (d / "report.md").read_text(encoding="utf-8")
+            self.assertIn("## Where this measurement connected", md)
+            self.assertIn("| pastebin.com:443 | blocked | 1 | 0 | 0 |", md)
+            self.assertIn(sheet["reach"]["policy"]["hash"], md)
+            # the receipt is part of the deposit
+            self.assertTrue({"reach.sheet.json", "egress-policy.json"} <= set(zd.gather(d)))
+        finally:
+            s.close()
+
+    def test_a_sheet_without_a_verification_is_not_published(self) -> None:
+        sheet = PNX_005["valid"]["enforce"]["sheet"]
+        s = self.scratch(sheet, None)
+        try:
+            with self.assertRaises(SystemExit) as cm:
+                s.build()
+            self.assertIn("reach.verify.json missing", str(cm.exception))
+            self.assertFalse((s.site / "reports" / "survival" / "2026" / "01").exists())
+        finally:
+            s.close()
+
+    def test_a_sheet_that_failed_verification_is_not_published(self) -> None:
+        sheet = PNX_005["valid"]["enforce"]["sheet"]
+        s = self.scratch(sheet, verify_json(sheet, ok=False))
+        try:
+            with self.assertRaises(SystemExit) as cm:
+                s.build()
+            self.assertIn("did not verify", str(cm.exception))
+            self.assertIn("witness signature invalid", str(cm.exception))
+        finally:
+            s.close()
+
+    def test_an_object_that_is_not_a_sheet_is_refused(self) -> None:
+        s = self.scratch({"profile": "crovia.pnx.v1", "hello": 1}, verify_json({}))
+        try:
+            with self.assertRaises(SystemExit) as cm:
+                s.build()
+            self.assertIn("not a crovia.pnx.v1 run sheet with a reach record", str(cm.exception))
+        finally:
+            s.close()
+
+    def test_outside_policy_is_published_and_said_plainly(self) -> None:
+        # observe mode: the witness relayed everything; the verifier found pastebin.com outside the policy.
+        sheet = PNX_005["valid"]["observe"]["sheet"]
+        s = self.scratch(sheet, verify_json(sheet, verdict="outside-policy", outside=["pastebin.com:443"]))
+        try:
+            f = s.build()
+            self.assertEqual(f["reach"]["verdict"], "outside-policy")
+            self.assertEqual(f["reach"]["outside"], ["pastebin.com:443"])
+            d = s.site / "reports" / "survival" / "2026" / "01"
+            text = visible_text((d / "index.html").read_text(encoding="utf-8"))
+            self.assertIn("A destination outside the policy was reached: pastebin.com:443.", text)
+            self.assertIn("observe mode", text)
+        finally:
+            s.close()
+
+    def test_without_a_policy_the_destinations_are_stated_not_judged(self) -> None:
+        sheet = PNX_005["valid"]["none"]["sheet"]
+        s = self.scratch(sheet, verify_json(sheet, verdict="unpoliced"), policy=False)
+        try:
+            f = s.build()
+            self.assertEqual(f["reach"]["verdict"], "unpoliced")
+            self.assertIsNone(f["reach"]["policy"]["file"])
+            self.assertIsNone(f["reach"]["policy"]["hash"])
+            d = s.site / "reports" / "survival" / "2026" / "01"
+            self.assertFalse((d / "egress-policy.json").exists())
+            text = visible_text((d / "index.html").read_text(encoding="utf-8"))
+            self.assertIn("with no policy in force (destinations stated, not judged)", text)
+            self.assertIn("No policy was in force; the destinations are stated, not judged.", text)
+        finally:
+            s.close()
+
+    def test_a_missing_shard_log_is_said_and_the_sheet_does_not_cover_the_job(self) -> None:
+        sheet = PNX_005["valid"]["enforce"]["sheet"]
+        s = self.scratch(sheet, verify_json(sheet))
+        try:
+            run = json.loads((s.run / "run.json").read_text(encoding="utf-8"))
+            run["shards"] = ["run-shard-0.json", "run-shard-1.json", "run-shard-2.json"]
+            (s.run / "run.json").write_text(json.dumps(run), encoding="utf-8")
+            (s.run / "reach-shard-0.jsonl").write_text("{}\n", encoding="utf-8")
+            (s.run / "reach-shard-1.jsonl").write_text("{}\n", encoding="utf-8")
+            f = s.build()
+            self.assertEqual(f["reach"]["logs"], {"uploaded": 2, "shards": 3})
+            self.assertNotIn("every audit shard", f["reach"]["covers"])
+            self.assertIn("uploaded and concatenated", f["reach"]["covers"])
+            self.assertIn("uploaded no log", f["reach"]["not_covered"])
+            text = visible_text((s.site / "reports" / "survival" / "2026" / "01" / "index.html").read_text(encoding="utf-8"))
+            self.assertIn("2 of 3 uploaded shard logs", text)
+            self.assertIn("a shard that uploaded no log is absent from this sheet", text)
+            self.assertIn("Every destination the witness saw is one the policy allows.", text)
+            policy = json.loads((ROOT / ".github" / "egress-policy.json").read_text(encoding="utf-8"))
+            self.assertEqual(set(policy), {"version", "allow"})
+            self.assertEqual(policy["allow"], ["github.com:443"])
+        finally:
+            s.close()
+
+    def test_rerender_keeps_the_receipt(self) -> None:
+        sheet = PNX_005["valid"]["enforce"]["sheet"]
+        s = self.scratch(sheet, verify_json(sheet))
+        try:
+            s.build()
+            d = s.site / "reports" / "survival" / "2026" / "01"
+            (d / "index.html").unlink()
+            self.assertEqual(sr.main(["--site", str(s.site), "--root", str(s.root), "rerender", str(d)]), 0)
+            self.assertIn("Where this measurement connected", (d / "index.html").read_text(encoding="utf-8"))
+        finally:
+            s.close()
+
+
+class UnfinishedDiscoverySentenceTests(unittest.TestCase):
+    def test_an_unfinished_attempt_is_said_in_the_sentence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".github").mkdir()
+            (root / ".github" / "survival-discovery.json").write_text(json.dumps({
+                "schema": "causari.survival_discovery.v1",
+                "discovered_at": "2026-09-27T10:04:14Z",
+                "selection": {"floor": 5, "min_stars": 100},
+                "repositories": [{"repo": "a/one", "seed": True}, {"repo": "b/two", "seed": False}],
+                "last_attempt": {"finished": False, "list_replaced": False, "reason": "deadline"},
+            }), encoding="utf-8")
+            sentence = sr.selection_sentence(root)
+            self.assertIn("discovered 2026-09-27", sentence)
+            self.assertIn("The latest discovery run did not finish, and this list was not replaced.", sentence)
+            for word in FORBIDDEN:
+                self.assertNotIn(word, sentence)
 
 
 if __name__ == "__main__":

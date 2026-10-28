@@ -5,31 +5,157 @@
  "url": "https://causari.dev/r/cfug/flutter.cn/",
  "badge": "https://causari.dev/r/cfug/flutter.cn/badge.svg",
  "report": {
-  "number": 2,
-  "id": "2026/02",
-  "date": "2026-09-23",
-  "url": "https://causari.dev/reports/survival/2026/02/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v2",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.2.0"
+  "version": "0.5.0"
  },
  "verified": {
   "commits": 149,
   "introduced": 68543,
-  "surviving": 59214,
-  "survival_rate": 0.8638956567410239,
-  "capped_survival_rate": 0.7514610877503933,
-  "median_survival": 0.8792270531400965,
+  "surviving": 55321,
+  "survival_rate": 0.8070991932071838,
+  "capped_survival_rate": 0.7303510378674646,
+  "median_survival": 0.8602797657774885,
   "largest_commit_share": 0.4782399369738704
  },
  "interval_95": null,
+ "baseline": {
+  "untagged": {
+   "commits": 10439,
+   "introduced": 983943,
+   "surviving": 497430,
+   "survival_rate": 0.5055475774511329,
+   "median_survival": 0.0,
+   "capped_survival_rate": 0.4105306053412206,
+   "cap_lines": 317,
+   "largest_commit_share": 0.04840829194374064
+  },
+  "by_age": [
+   {
+    "from_days": 0,
+    "to_days": 30,
+    "tagged": {
+     "commits": 16,
+     "introduced": 3442,
+     "surviving": 3181,
+     "survival_rate": 0.9241719930273097
+    },
+    "untagged": {
+     "commits": 98,
+     "introduced": 16678,
+     "surviving": 15078,
+     "survival_rate": 0.9040652356397649
+    }
+   },
+   {
+    "from_days": 30,
+    "to_days": 90,
+    "tagged": {
+     "commits": 18,
+     "introduced": 1149,
+     "surviving": 994,
+     "survival_rate": 0.8651000870322019
+    },
+    "untagged": {
+     "commits": 192,
+     "introduced": 62725,
+     "surviving": 59780,
+     "survival_rate": 0.9530490235153447
+    }
+   },
+   {
+    "from_days": 90,
+    "to_days": 180,
+    "tagged": {
+     "commits": 29,
+     "introduced": 56091,
+     "surviving": 46020,
+     "survival_rate": 0.8204524790073274
+    },
+    "untagged": {
+     "commits": 200,
+     "introduced": 19153,
+     "surviving": 12384,
+     "survival_rate": 0.6465827807654153
+    }
+   },
+   {
+    "from_days": 180,
+    "to_days": 365,
+    "tagged": {
+     "commits": 86,
+     "introduced": 7861,
+     "surviving": 5126,
+     "survival_rate": 0.6520798880549549
+    },
+    "untagged": {
+     "commits": 387,
+     "introduced": 45582,
+     "surviving": 25163,
+     "survival_rate": 0.5520380852090737
+    }
+   },
+   {
+    "from_days": 365,
+    "to_days": 730,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 853,
+     "introduced": 81914,
+     "surviving": 42851,
+     "survival_rate": 0.5231218106794931
+    }
+   },
+   {
+    "from_days": 730,
+    "to_days": null,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 8709,
+     "introduced": 757891,
+     "surviving": 342174,
+     "survival_rate": 0.45148180938947685
+    }
+   }
+  ],
+  "age_matched": {
+   "tagged_rate": 0.8070991932071838,
+   "untagged_rate": 0.6538069826653727,
+   "gap": 0.15329221054181108,
+   "buckets_used": 4,
+   "tagged_lines_covered": 1.0
+  },
+  "oldest_surviving": {
+   "date": "2015-09-09",
+   "age_days": 4017,
+   "commits_before": 1,
+   "introduced_before": 58,
+   "tagged_commits_before": 0,
+   "tagged_introduced_before": 0,
+   "commits_before_share": 9.444654325651681e-05
+  }
+ },
  "probable_commits": 0,
  "total_commits": 10588,
  "aggregated": true,
  "coverage": {
-  "method": "v2",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -40,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 1,
+ "reports": 5,
  "reproduce": "re audit cfug/flutter.cn --json",
- "bytes": "https://causari.dev/reports/survival/2026/02/repos/cfug__flutter.cn.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/cfug__flutter.cn.json",
  "license": "CC-BY-4.0"
 }

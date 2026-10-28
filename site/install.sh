@@ -44,10 +44,17 @@ esac
 target="${arch}-${os}"
 
 # ---- resolve version ----
+# The release page redirects to the latest tag without touching the API,
+# so a shared address (CI runner, office NAT) that has used up the
+# unauthenticated API quota still installs. The API is the fallback.
 if [ -z "$VERSION" ]; then
-  VERSION="$(curl -sSfL "https://api.github.com/repos/$REPO/releases/latest" \
-    | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1)"
-  [ -n "$VERSION" ] || die "could not fetch latest release tag"
+  VERSION="$(curl -sSI -o /dev/null -w '%{redirect_url}' "https://github.com/$REPO/releases/latest" 2>/dev/null \
+    | sed -n 's#.*/releases/tag/\(v[0-9][^/?]*\).*#\1#p')"
+  if [ -z "$VERSION" ]; then
+    VERSION="$(curl -sSfL "https://api.github.com/repos/$REPO/releases/latest" \
+      | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1)"
+  fi
+  [ -n "$VERSION" ] || die "could not resolve the latest release tag (set CAUSARI_VERSION=vX.Y.Z to pin one)"
 fi
 say "installing $REPO $VERSION ($target)"
 

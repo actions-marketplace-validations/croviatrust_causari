@@ -3,6 +3,166 @@
 Each section is the release note of the tag with the same number; the
 release workflow copies it verbatim. Counts, not adjectives.
 
+## 0.5.0 — 2026-10-21
+
+### Method v6
+
+Published reports stay on the method that produced them. Reports #1 and #2
+are method v2; #3 and #4 (and the 0.3.0 binary) method v3; #5 and #6
+method v4, measured with 0.4.1 (commit d4c4949, 2026-10-08). This release
+measures with method v6 and does not recompute them. No binary shipped
+method v5. `coverage.method` is the method, not the crate version.
+
+- `surviving` is blamed over the same paths `git log --numstat` counted for
+  `introduced`. A file git calls binary is `-` in numstat and added no
+  introduced lines; every method through v5 still blamed it, so its newline
+  bytes became surviving lines of the commit that added it, up to that
+  commit's introduced count, and Git for Windows split the same bytes into
+  a different count than git on Linux (issue #76). v6 reads the paths from
+  `git diff-tree -r --numstat -z <empty tree> HEAD`, git's own decision,
+  and records the blobs left out in `coverage.binary_files`. A symlink is
+  one line in both counts; v5 blamed none. Gitlinks are still not blamed
+  and numstat counts each as one introduced line; the method page states
+  it. On OpenHands/extensions at d057809: 73514 → 73257 surviving of 92214
+  introduced (79.7 % → 79.4 %).
+- Everything v5 added, now in a binary for the first time: file
+  enumeration from `git ls-tree -r -z HEAD` and `HEAD:.git-blame-ignore-revs`
+  (never the index or the worktree), `git log --no-merges --numstat -M -z`
+  so a pure rename introduces no lines, per-commit rows (`commits`) with
+  `owned_at_head` before the cap, `coverage.copy_capped_lines`,
+  `repository.root_commits`, `coverage.notes_oid` and
+  `coverage.ignore_revs_sha256` signed inside the seal (a v5+ seal with
+  those parameters stripped is rejected by the CLI and the browser
+  verifier), `--no-replace-objects` on every git call, and
+  `re audit --diff <before> <after>` (`causari.audit_diff.v1`): one axis at
+  a time, unrelated repositories refused, missing metadata reported as
+  indeterminate rather than unchanged.
+
+### Checks that now run on the release
+
+- `release-check.yml`, Tuesdays and on dispatch: installs this release the
+  way the README says on ubuntu, macos and windows, audits
+  OpenHands/extensions at a fixed commit and compares every count with
+  `tests/fixtures/release-check/` (one fixture per method). A mismatch is
+  published in the run, with per-file blame counts as an artifact, and is
+  not corrected in the fixture.
+- `tests/mcp_cli.rs`: `re mcp` over stdio end to end. `tests/absent_zero_cli.rs`:
+  an absent rate, a measured zero, no tagged commit and a hand-typed
+  trailer on the badge, the card and the PR summary.
+- The Marketplace tag `v1` moves to every release; the weekly surface
+  audit reads it and the repository card from the public API.
+- `install.sh` and `install.ps1` resolve the latest tag from the release
+  redirect and use the API only as a fallback, so a shared runner's rate
+  limit does not fail an install.
+- Dependencies: clap 4.6.7, serde_json 1.0.154, thiserror 2.0.21, toml 1.1.8,
+  libc 0.2.191, rustls 0.23.46, rustls-webpki 0.103.16, webpki-roots 1.0.10.
+
+## 0.4.1 — 2026-10-08
+
+### Corrections
+
+Method stays v4. Published Survival Reports are not recomputed.
+Tags v0.4.0 and v1 stay where they are.
+
+- Recall and brief no longer count as a successful use. A skill is not
+  promoted by searching it. `proven` is not awarded. A `stats.uses`
+  counter already on disk stays outside the signature, is not an
+  execution, and is ignored for trust and ranking. Existing signatures
+  stay verifiable.
+- `verified` is a declared signal frozen at distill: a caller-supplied
+  exit code 0, or every declared write path still at the tip. It is not
+  an observed success. Where a score is shown, the 2× weight is that
+  declared signal, not measured reliability.
+- `exit_code` from `causari_record` and from `re record` on stdin must be
+  an integer from -2147483648 to 2147483647. A wrong type or a value
+  outside that range is an error before any write. A missing field stays
+  absent.
+- Human audit text separates an absent rate (no introduced lines are
+  included in the measurement), a measured zero (`0.0%`), and an
+  age-matched gap that is unavailable. JSON null and the counts are
+  unchanged. An absent rate is not a claim that the commits introduced
+  no lines.
+
+## 0.4.0 — 2026-10-07
+
+### Method v4
+
+Published reports stay on the method that produced them.
+Reports #1 and #2 stay method v2. Reports #3 and #4, and the 0.3.0 binary,
+stay method v3. Report #4 is DOI 10.5281/zenodo.23196011. This release
+measures with method v4 and does not recompute those reports.
+`coverage.method` is the method, not the crate version.
+
+- A git-ai note is AI evidence only when `sessions` or `prompts` names a
+  non-empty tool. A schema-only note, a human-only note, and an empty or
+  whitespace tool are not a signal, and they do not hide a later tool or
+  an independent trailer. Named-tool notes stay. `refs/notes/ai` is not
+  removed. The JSON key `verified` still means a metadata rule matched.
+- The same repository can change number relative to v3. On the Report #3
+  corpus the schema-only fallback was two commits; the aggregate moved
+  −0.0023 percentage points and the median gap did not. Report #3 is not
+  recomputed and its DOI is unchanged. Report #4 is not recomputed either.
+- The first survival percentage is followed by what it measures, and by the
+  age-matched gap in percentage points (metadata-matched rate minus untagged
+  rate in the matched age windows) or by an explicit unavailable. An agent row under
+  the floor of 5 is marked not comparable. Meeting the floor is not a
+  reliability guarantee. `re report` outside a ledger names `re audit`.
+  The Windows installer prints the executable path, `re audit owner/repo`,
+  and a warning when `git` is not on PATH.
+- Commit granularity is unchanged: a qualifying signal tags the commit.
+- `re why`, `re trace`, `re impact`, `re lens` and the `re revert` preview
+  describe the local ledger graph. They do not claim cause or human
+  authorship from absence.
+
+### PNX
+
+- **Reach record** (PNX draft 0.4 §4a, `crovia.pnx.reach.v1`): the run
+  sheet of `re proxy --pnx` now states where the run connected — every
+  upstream `host:port` the proxy forwarded to, with outcome, connection and
+  byte counts, first and last time — signed with the rest of the sheet.
+  `--pnx-policy FILE` binds a `crovia.pnx.policy.v1` allowlist by hash;
+  under `enforce` (default) destinations outside it are answered 403 and
+  recorded as `blocked`, under `--pnx-reach-mode observe` everything is
+  relayed and recorded. `--pnx-reach-salted` discloses host hashes instead
+  of names. Persisted in `reach.jsonl` and `meta.json`, so a resumed run
+  keeps its policy.
+- `re pnx verify --policy FILE [--name HOST]` recomputes the policy hash,
+  matches every destination against the rules and reports the reach verdict
+  (`within-policy` · `outside-policy` · `unchecked` · `unpoliced`);
+  `outside-policy` exits 1 like `present`. The `--json` report carries
+  `reach`. Without the document the verdict the record alone supports is
+  reported, with a warning.
+- `re pnx verify` takes a signed run sheet on its own (a reach receipt of a
+  run with nothing to prove against): §6 steps 1 and 1b, reported as
+  `sheet-only`, exit code from the reach verdict. `scripts/egress_witness.py`
+  (standard library) is the CI-side CONNECT witness that writes the
+  connection log such a sheet is built from; the Survival Report job runs
+  behind it (see below).
+- **The Survival Report carries its own reach receipt.** Every audit shard
+  clones and measures behind the egress witness under
+  `.github/egress-policy.json` (`github.com:443`, nothing else); the report
+  job signs the shards' connection logs into one `crovia.pnx.v1` run sheet,
+  verifies it against the policy and publishes `reach.sheet.json`,
+  `egress-policy.json`, a `reach` block in `report.json` and the section
+  "Where this measurement connected" on the page and in `report.md`
+  (destinations, outcomes, bytes, verdict, what is and is not covered). The
+  build refuses a sheet that did not verify. Zenodo deposits include both
+  files. Secret `PNX_WITNESS_SEED` (optional) keeps one witness identity
+  across weeks.
+- Conformance: `pnx_005_reach.json` added and `pnx_002`–`004` refreshed
+  from crovia-tacet 0.5.0; the reach record a Causari witness derives from
+  the vector's connection log is byte-identical to the reference's. 244
+  unit tests, 8 + 8 integration tests.
+
+### Install
+
+- `npx causari` and `pipx run causari`: the npm and PyPI launchers are
+  published (0.3.0, the npm one by hand once, both registries now through
+  Trusted Publishing from `publish-shims.yml`). Each downloads the release
+  archive for the platform, checks it against `SHA256SUMS.txt` and runs
+  it. Listed on the home page, in the README and in `llms.txt`. This tag
+  publishes the npm package with a provenance attestation.
+
 ## 0.3.0 — 2026-09-24
 
 Method v3: `re audit` compares AI-tagged lines with the same repository's

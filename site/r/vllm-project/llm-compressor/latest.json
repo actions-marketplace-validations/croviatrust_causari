@@ -5,31 +5,157 @@
  "url": "https://causari.dev/r/vllm-project/llm-compressor/",
  "badge": "https://causari.dev/r/vllm-project/llm-compressor/badge.svg",
  "report": {
-  "number": 2,
-  "id": "2026/02",
-  "date": "2026-09-23",
-  "url": "https://causari.dev/reports/survival/2026/02/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v2",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.2.0"
+  "version": "0.5.0"
  },
  "verified": {
-  "commits": 154,
-  "introduced": 17210,
-  "surviving": 13838,
-  "survival_rate": 0.8040674026728646,
-  "capped_survival_rate": 0.7473666525190149,
+  "commits": 171,
+  "introduced": 25754,
+  "surviving": 21840,
+  "survival_rate": 0.848023607983226,
+  "capped_survival_rate": 0.7695369127013161,
   "median_survival": 0.8718629343629344,
-  "largest_commit_share": 0.3045903544450901
+  "largest_commit_share": 0.203541197483886
  },
  "interval_95": null,
+ "baseline": {
+  "untagged": {
+   "commits": 3122,
+   "introduced": 928468,
+   "surviving": 66129,
+   "survival_rate": 0.07122377938711942,
+   "median_survival": 0.0,
+   "capped_survival_rate": 0.1630895375028912,
+   "cap_lines": 867,
+   "largest_commit_share": 0.19835686313367829
+  },
+  "by_age": [
+   {
+    "from_days": 0,
+    "to_days": 30,
+    "tagged": {
+     "commits": 17,
+     "introduced": 8544,
+     "surviving": 8174,
+     "survival_rate": 0.9566947565543071
+    },
+    "untagged": {
+     "commits": 55,
+     "introduced": 8059,
+     "surviving": 7586,
+     "survival_rate": 0.9413078545725276
+    }
+   },
+   {
+    "from_days": 30,
+    "to_days": 90,
+    "tagged": {
+     "commits": 43,
+     "introduced": 8099,
+     "surviving": 7401,
+     "survival_rate": 0.9138165205580936
+    },
+    "untagged": {
+     "commits": 105,
+     "introduced": 10064,
+     "surviving": 7608,
+     "survival_rate": 0.7559618441971383
+    }
+   },
+   {
+    "from_days": 90,
+    "to_days": 180,
+    "tagged": {
+     "commits": 46,
+     "introduced": 4512,
+     "surviving": 3058,
+     "survival_rate": 0.6777482269503546
+    },
+    "untagged": {
+     "commits": 123,
+     "introduced": 15904,
+     "surviving": 13022,
+     "survival_rate": 0.8187877263581489
+    }
+   },
+   {
+    "from_days": 180,
+    "to_days": 365,
+    "tagged": {
+     "commits": 48,
+     "introduced": 3975,
+     "surviving": 2945,
+     "survival_rate": 0.740880503144654
+    },
+    "untagged": {
+     "commits": 281,
+     "introduced": 29374,
+     "surviving": 17054,
+     "survival_rate": 0.5805814666031184
+    }
+   },
+   {
+    "from_days": 365,
+    "to_days": 730,
+    "tagged": {
+     "commits": 17,
+     "introduced": 624,
+     "surviving": 262,
+     "survival_rate": 0.4198717948717949
+    },
+    "untagged": {
+     "commits": 549,
+     "introduced": 45385,
+     "surviving": 13718,
+     "survival_rate": 0.30225845543681834
+    }
+   },
+   {
+    "from_days": 730,
+    "to_days": null,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 2009,
+     "introduced": 819682,
+     "surviving": 7141,
+     "survival_rate": 0.008711915108542093
+    }
+   }
+  ],
+  "age_matched": {
+   "tagged_rate": 0.848023607983226,
+   "untagged_rate": 0.7903960593650787,
+   "gap": 0.05762754861814723,
+   "buckets_used": 5,
+   "tagged_lines_covered": 1.0
+  },
+  "oldest_surviving": {
+   "date": "2019-07-26",
+   "age_days": 2646,
+   "commits_before": 0,
+   "introduced_before": 0,
+   "tagged_commits_before": 0,
+   "tagged_introduced_before": 0,
+   "commits_before_share": 0.0
+  }
+ },
  "probable_commits": 6,
- "total_commits": 3227,
+ "total_commits": 3299,
  "aggregated": true,
  "coverage": {
-  "method": "v2",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -40,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 1,
+ "reports": 6,
  "reproduce": "re audit vllm-project/llm-compressor --json",
- "bytes": "https://causari.dev/reports/survival/2026/02/repos/vllm-project__llm-compressor.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/vllm-project__llm-compressor.json",
  "license": "CC-BY-4.0"
 }

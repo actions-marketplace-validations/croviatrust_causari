@@ -28,8 +28,9 @@
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
   <link rel="apple-touch-icon" href="/assets/favicon.svg" />
   <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+  <link rel="alternate" type="text/plain" href="/llms-full.txt" title="llms-full.txt" />
   <link rel="alternate" type="application/atom+xml" href="/reports/survival/feed.xml" title="Causari Survival Report" />
-  <link rel="stylesheet" href="/styles.css?v=0c1191c49d" />
+  <link rel="stylesheet" href="/styles.css?v=c96ecf026d" />
 
   <script type="application/ld+json">
   {
@@ -43,10 +44,11 @@
         "operatingSystem": "Linux, macOS, Windows",
         "applicationCategory": "DeveloperApplication",
         "description": "Measures how many lines from AI-tagged commits are still alive in a git repository, and records the prompt, model and files behind every agent edit in a local, append-only ledger. Counts, not grades. Verifiable offline.",
+        "disambiguatingDescription": "Causari by Crovia Trust (causari.dev; npm, PyPI and crates.io package `causari`; MCP server io.github.croviatrust/causari). Not related to causari.ai, the GitHub organisation `causari` or the npm scope @causari.",
         "url": "https://causari.dev",
         "downloadUrl": "https://github.com/croviatrust/causari/releases",
         "installUrl": "https://causari.dev/install.sh",
-        "softwareVersion": "0.3.0",
+        "softwareVersion": "0.5.0",
         "license": "https://www.apache.org/licenses/LICENSE-2.0",
         "isAccessibleForFree": true,
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -67,7 +69,11 @@
         "name": "Causari Survival Report",
         "description": "Weekly, numbered, citable: for each measured open-source repository, commits carrying machine-readable AI authorship metadata, lines they introduced, and lines git blame still attributes to them at HEAD. Counts and intervals; unranked; method public.",
         "url": "https://causari.dev/reports/survival/",
-        "distribution": { "@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": "https://causari.dev/reports/survival/latest.json" },
+        "sameAs": ["https://huggingface.co/datasets/CroviaResearch/causari-survival"],
+        "distribution": [
+          { "@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": "https://causari.dev/reports/survival/latest.json" },
+          { "@type": "DataDownload", "encodingFormat": "application/jsonl", "contentUrl": "https://huggingface.co/datasets/CroviaResearch/causari-survival/resolve/main/data/repositories.jsonl" }
+        ],
         "license": "https://creativecommons.org/licenses/by/4.0/",
         "creator": { "@id": "https://croviatrust.com/#org" }
       },
@@ -107,7 +113,7 @@
 
 <section class="hero">
   <div class="container">
-    <p class="eyebrow">∵ causari · part of the <a href="https://croviatrust.com" rel="noopener">Crovia</a> family · v0.3.0</p>
+    <p class="eyebrow">∵ causari · part of the <a href="https://croviatrust.com" rel="noopener">Crovia</a> family · v0.5.0</p>
     <h1>AI-written code has no author. It has causes. Causari records them.</h1>
     <p class="lede">How many lines from AI-tagged commits are still alive in your repository? One command, any git repo, no setup. A count, not a grade.</p>
 
@@ -128,7 +134,7 @@ re audit vercel/next.js     <span class="dim"># any public repository</span></co
       <div class="screen-text">
         <p class="eyebrow">01 · measure · <code translate="no">re audit</code></p>
         <h2>Everyone argues about how much code AI writes. Nobody can check the numbers.</h2>
-        <p><code translate="no">re audit</code> reads plain git history — <code translate="no">Co-Authored-By</code> trailers, bot authors, agent markers — and asks <code translate="no">git blame</code> how many lines from those commits are still at HEAD. No model, no estimate, no survey: anyone re-runs it and gets the same bytes.</p>
+        <p><code translate="no">re audit</code> reads plain git history — <code translate="no">Co-Authored-By</code> trailers, bot authors, agent markers — and asks <code translate="no">git blame</code> how many lines from those commits are still at HEAD. No model, no estimate, no survey. The same bytes require the same commit, method, blame flags and refs/notes/ai. A repository that has moved does not match.</p>
         <p class="muted"><code translate="no">--json</code> gives the exact bytes behind any published row; <code translate="no">--summary</code> writes the same count as Markdown for CI.</p>
       </div>
       <div class="term">
@@ -137,10 +143,10 @@ re audit vercel/next.js     <span class="dim"># any public repository</span></co
 ───────────────────────────────────────────
   216 commits analyzed <span class="dim">(git metadata only)</span>
 
-Verified AI-tagged:   14 commits, 6267 introduced,
+AI-tagged (metadata matched):   14 commits, 6267 introduced,
                       5185 survived (82.7%)
 Probable AI-assisted: none detected
-By agent <span class="dim">(verified only)</span>
+By agent <span class="dim">(metadata matched only)</span>
   cursor        6267 lines,  5185 survived (82.7%)
 
 Baseline <span class="dim">(untagged lines of the same repository)</span>
@@ -154,7 +160,7 @@ Baseline <span class="dim">(untagged lines of the same repository)</span>
     <div class="screen-more proof-grid">
       <div class="proof">
         <h3>What it cannot see</h3>
-        <p>Inline completions (Copilot, Cursor Tab, Windsurf, …) leave no git trace and count as human. Commits without a trailer are UNKNOWN and excluded from the headline. One bulk commit can dominate a line-weighted ratio, so method v2 also reports a capped ratio and the median per commit; repositories under five AI-tagged commits are measured but not aggregated. Method v3 puts the repository's own untagged lines next to the AI-tagged ones, at the same age, and names the oldest line still at HEAD. All of it is written down at <a href="/method">causari.dev/method</a>, with how to reproduce or contest a number.</p>
+        <p>Inline completions (Copilot, Cursor Tab, Windsurf, …) leave no git trace. Commits without a trailer are UNKNOWN and excluded from the headline. UNKNOWN is not a finding that a human wrote them. One bulk commit can dominate a line-weighted ratio, so method v2 also reports a capped ratio and the median per commit; repositories under five AI-tagged commits are measured but not aggregated. Method v3 puts the repository's own untagged lines next to the AI-tagged ones inside matched age windows, and names the oldest line still at HEAD. Method v4 keeps that baseline and stops counting a git-ai note that does not name a tool. Method v5 binds the measurement to the <code translate="no">HEAD</code> tree (<code translate="no">git ls-tree -r -z HEAD</code> and <code translate="no">HEAD:.git-blame-ignore-revs</code>), runs <code translate="no">git log --no-merges --numstat -M -z</code>, records <code translate="no">coverage.notes_oid</code>, <code translate="no">coverage.ignore_revs_sha256</code> and <code translate="no">coverage.copy_capped_lines</code>, and adds <code translate="no">re audit --diff</code> for single-axis evidence diffs. Method v6, in this source and in the 0.5.0 binary, blames only the paths <code translate="no">git log --numstat</code> counted: a binary blob is in neither <code translate="no">introduced</code> nor <code translate="no">surviving</code>, a symlink is one line in both, and <code translate="no">coverage.binary_files</code> counts the blobs left out. The published binary 0.5.0 (2026-10-21) is method v6, and that is what <code translate="no">install.sh</code>, cargo, npm and PyPI install. Reports #5 and #6 stay on 0.4.1, method v4. Published reports through the 0.3.0 release stay on v3. The survival percentage is persistence of the tagged cohort. It is not quality, productivity, total AI usage, authorship, security, correctness, or a causal effect. All of it is written down at <a href="/method">causari.dev/method</a>, with how to reproduce or contest a number.</p>
 <pre translate="no"><code translate="no">re audit --json   <span class="dim"># "coverage": what was counted, what was not</span></code></pre>
       </div>
     </div>
@@ -166,8 +172,8 @@ Baseline <span class="dim">(untagged lines of the same repository)</span>
     <div class="screen-grid">
       <div class="screen-text">
         <p class="eyebrow">02 · record · <code translate="no">re init</code></p>
-        <h2>Git remembers what changed. The ledger remembers what caused it.</h2>
-        <p>When you need to know <em>why</em> a line exists, the same binary records each agent edit — prompt, model, files read and written — into a local, append-only ledger in <code translate="no">.causari/</code>, gitignored. Ask it like git: <code translate="no">re why</code> names the event, the agent and the prompt behind a line.</p>
+        <h2>Git remembers what changed. The ledger records what the runtime declared.</h2>
+        <p>The same binary can record each agent edit — prompt, model, files read and written — into a local ledger in <code translate="no">.causari/</code>, gitignored. <code translate="no">re why</code> names the ledger event associated with a line. That is what the recorder stored. It is not a proof of who wrote the line, and a miss is not a finding that a human did.</p>
       </div>
       <div class="term">
 <pre translate="no"><code translate="no">re init                     <span class="dim"># .causari/, added to .gitignore</span>
@@ -224,13 +230,13 @@ src/auth.ts:42  ⊢  introduced by event 2d070eb8cf
   written  audit.seal.json
   issuer   urn:crovia:seal-issuer:causari:c4b3b0a67b24
   commit   5990442f31c267cdbaee9039a54e0cbf6a81ef57
-  method   v3 · sequence 0
+  method   v4 · sequence 0
 
 <span class="dim">$</span> re seal verify audit.seal.json
 ✓ signature valid — cs_2026_6X3TIUCUGIMGLH7ZQNXOMRREJ4
-  crovia.seal.v1, audit seal · method v3
+  crovia.seal.v1, audit seal · method v4
   commit   5990442f31c267cdbaee9039a54e0cbf6a81ef57
-  audit    216 commits · verified AI: 14 commits,
+  audit    216 commits · AI-tagged (metadata matched): 14 commits,
            6267 introduced, 5185 survived
 
 <span class="dim">$ # someone edits a number…</span>
@@ -263,7 +269,7 @@ src/auth.ts:42  ⊢  introduced by event 2d070eb8cf
       <div class="term">
 <pre translate="no"><code translate="no"><span class="dim">$</span> re audit openai/codex --json   <span class="dim"># the bytes behind a row</span>
 {
-  "method": "v3",
+  "method": "v6",
   "total_commits": <span class="dim">…</span>,
   "verified": { "commits": <span class="dim">…</span>, "introduced": <span class="dim">…</span>,
                 "surviving": <span class="dim">…</span>, "survival_rate": <span class="dim">…</span>,
@@ -273,8 +279,9 @@ src/auth.ts:42  ⊢  introduced by event 2d070eb8cf
   "baseline": { "untagged": { <span class="dim">…</span> }, "by_age": [ <span class="dim">…</span> ],
                 "age_matched": { "tagged_rate": <span class="dim">…</span>, "untagged_rate": <span class="dim">…</span>, "gap": <span class="dim">…</span> },
                 "oldest_surviving": { "date": <span class="dim">…</span>, "commits_before": <span class="dim">…</span> } },
-  "coverage": { "method": "v3", "shallow": false,
-                "blame_flags": ["-w", "-M", "-C"] },
+  "coverage": { "method": "v6", "shallow": false, "binary_files": <span class="dim">…</span>,
+                "blame_flags": ["-w", "-M", "-C"],
+                "numstat_flags": ["-M", "-z"] },
   "repository": { "head": "<span class="dim">40 hex</span>", "origin": "https://github.com/openai/codex" }
 }
 <span class="dim">$</span> diff &lt;(re audit openai/codex --json) repos/openai__codex.json</code></pre>
@@ -307,8 +314,11 @@ iwr -useb https://causari.dev/install.ps1 | iex</code></pre>
 scoop install causari</code></pre>
       </div>
       <div class="term">
-        <div class="term-head"><span>cargo · from crates.io</span><button class="copy" data-copy="ins-cargo" aria-label="Copy the cargo command">copy</button></div>
-<pre translate="no" id="ins-cargo"><code translate="no">cargo install causari --locked</code></pre>
+        <div class="term-head"><span>cargo · npm · pip</span><button class="copy" data-copy="ins-cargo" aria-label="Copy the cargo, npm and pip commands">copy</button></div>
+<pre translate="no" id="ins-cargo"><code translate="no">cargo install causari --locked
+<span class="dim"># no install: the launchers fetch the verified binary</span>
+npx causari audit
+pipx run causari audit</code></pre>
       </div>
     </div>
     <p class="muted prose" style="margin-top:1.5rem">One program under two names, <code translate="no">causari</code> and <code translate="no">re</code>. The installers check the archive's SHA-256 against the release's <code translate="no">SHA256SUMS.txt</code>; every archive carries a signed SLSA provenance attestation. <code translate="no">re mcp</code> serves Claude Code, Cursor, Windsurf and Cline over local stdio (<a href="https://github.com/croviatrust/causari#as-an-mcp-server" rel="noopener">README</a>). Everything stays in <code translate="no">.causari/</code> next to your code. Apache 2.0, no paid tier.</p>
@@ -342,11 +352,12 @@ jobs:
 
 <footer class="footer">
   <div class="container foot-bottom">
-    <p>© <span id="year">2026</span> Crovia · <em>causari</em> is a trademark of Crovia Trust · <a href="https://github.com/croviatrust/causari/blob/main/NOTICE" rel="noopener">notice</a> · <a href="mailto:security@croviatrust.com">security</a></p>
-    <p><a href="/reports/survival/">survival report</a> · <a href="/method">method</a> · <a href="/verify/">verify</a> · <a href="/faq">faq</a> · <a href="/compare">compare</a> · <a href="/llms.txt">llms.txt</a> · <a href="https://github.com/croviatrust/causari/blob/main/MANIFESTO.md" rel="noopener">manifesto</a> · <a href="https://github.com/croviatrust/causari/blob/main/ROADMAP.md" rel="noopener">roadmap</a> · <a href="https://croviatrust.com" rel="noopener">the Crovia family</a></p>
+    <p>© <span id="year">2026</span> Crovia · <em>causari</em> is a trademark of Crovia Trust · <a href="https://github.com/croviatrust/causari/blob/main/NOTICE" rel="noopener">notice</a> · <a href="mailto:security@croviatrust.com">security</a> · <a href="https://github.com/croviatrust/causari/blob/main/CITATION.cff" rel="noopener">cite</a></p>
+    <p class="foot-note">Not related to causari.ai, the GitHub organisation <code translate="no">causari</code> or the npm scope <code translate="no">@causari</code>, a causal knowledge graph by another team. This is the <code translate="no">causari</code> package on npm, PyPI and crates.io.</p>
+    <p><a href="/reports/survival/">survival report</a> · <a href="/method">method</a> · <a href="/verify/">verify</a> · <a href="/faq">faq</a> · <a href="/facts">facts</a> · <a href="/compare">compare</a> · <a href="/llms.txt">llms.txt</a> · <a href="https://github.com/croviatrust/causari/blob/main/MANIFESTO.md" rel="noopener">manifesto</a> · <a href="https://github.com/croviatrust/causari/blob/main/ROADMAP.md" rel="noopener">roadmap</a> · <a href="https://croviatrust.com" rel="noopener">the Crovia family</a></p>
   </div>
 </footer>
 
-<script src="/app.js?v=eb85cbc8d5" defer></script>
+<script src="/app.js?v=b8add14453" defer></script>
 </body>
 </html>

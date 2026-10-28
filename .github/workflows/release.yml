@@ -163,3 +163,27 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           body_path: notes.md
+
+  action-tag:
+    name: move v1 to this release
+    needs: notes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # `uses: croviatrust/causari@v1` resolves this tag. v1 is the major of
+      # the action's inputs, not the package version (0.x). Without this
+      # step it stays on whichever release last moved it by hand (it sat
+      # on 0.2.0 while 0.4.1 was current) and the Marketplace shows that
+      # release's action.yml. The weekly surface audit checks the tag
+      # against canon distribution.latest_release.commit.
+      - name: point v1 at ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Crovia Trust"
+          git config user.email "info@croviatrust.com"
+          git tag -f -a v1 -m "Causari action v1 → ${GITHUB_REF_NAME}" "${GITHUB_SHA}"
+          git push -f origin refs/tags/v1

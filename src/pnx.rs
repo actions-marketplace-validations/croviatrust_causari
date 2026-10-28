@@ -29,6 +29,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::LazyLock;
 
+use crate::pnx_reach::{Policy, ReachVerifyResult, verify_reach};
 use crate::seal::csc1_serialize;
 
 pub const PROFILE: &str = "crovia.pnx.v1";
@@ -52,6 +53,8 @@ pub const VERDICT_ABSENT_PARTIAL: &str = "absent-partial";
 pub const VERDICT_PRESENT: &str = "present";
 pub const VERDICT_UNDETECTABLE: &str = "undetectable";
 pub const VERDICT_MIXED: &str = "mixed";
+/// A run sheet verified without a proof: no asset was judged (PNX.md §6).
+pub const VERDICT_SHEET_ONLY: &str = "sheet-only";
 
 const DOMAIN_EMPTY: &[u8] = b"TACET-EMPTY-v1\n";
 const DOMAIN_LEAF: &[u8] = b"TACET-LEAF-v1\n";
@@ -531,6 +534,9 @@ pub struct Witness {
     pub last_at: Option<String>,
     /// Normalisation layers applied, sorted. Empty when none.
     pub normalization: Vec<String>,
+    /// The reach record (PNX.md §4a): where the run connected, under which
+    /// policy. Optional; signed with the rest of the sheet when present.
+    pub reach: Option<Value>,
 }
 
 impl Witness {
@@ -546,6 +552,7 @@ impl Witness {
             first_at: None,
             last_at: None,
             normalization: vec![NORMALIZE_JSON_STRINGS.to_string()],
+            reach: None,
         }
     }
 
@@ -617,6 +624,9 @@ impl Witness {
                 "pubkey": {"alg": "ed25519", "key_hex": hex::encode(key.verifying_key().to_bytes())},
             },
         });
+        if let Some(reach) = &self.reach {
+            sheet["reach"] = reach.clone();
+        }
         let sig = key.sign(&sheet_payload(&sheet)?);
         sheet["signature"] = json!({
             "alg": "ed25519",
@@ -724,6 +734,8 @@ pub struct VerifyResult {
     pub warnings: Vec<String>,
     /// Recomputed per-asset verdicts, in proof order.
     pub assets: Vec<(String, String)>,
+    /// Set when the sheet carries a reach record (PNX.md §4a).
+    pub reach: Option<ReachVerifyResult>,
 }
 
 /// Parameters a sheet declares, validated for consistency.
@@ -800,6 +812,19 @@ pub fn verify_sheet(sheet: &Value) -> Vec<String> {
     if !ok {
         errors.push("witness signature invalid".to_string());
     }
+    if let Some(reach) = sheet.get("reach") {
+        if !reach.is_object() {
+            errors.push("reach must be an object".to_string());
+        } else {
+            let salt = sheet_salt(sheet).unwrap_or([0u8; 16]);
+            errors.extend(
+                verify_reach(reach, &salt, None, &[])
+                    .errors
+                    .into_iter()
+                    .map(|e| format!("reach: {e}")),
+            );
+        }
+    }
     errors
 }
 
@@ -822,7 +847,65 @@ fn verify_signature(key_hex: &str, message: &[u8], sig_hex: &str) -> bool {
 /// be supplied. Without them the paths are verified for the keys the proof
 /// lists, which proves non-inclusion of *those keys* only; the result
 /// carries a warning saying so.
+#[cfg(test)]
 pub fn verify_proof(proof: &Value, assets: Option<&BTreeMap<String, Vec<u8>>>) -> VerifyResult {
+    verify_proof_with(proof, assets, None, &[])
+}
+
+/// [`verify_proof`], plus the reach record (PNX.md §6 step 1b): with the
+/// `policy` document its hash is recomputed and every destination matched
+/// against the rules; `names` are hosts to look up under salted disclosure.
+/// A signed run sheet on its own (§4), as opposed to a proof (§5) that wraps one.
+pub fn is_sheet(obj: &Value) -> bool {
+    obj.is_object()
+        && obj.get("root").is_some()
+        && obj.get("witness").is_some()
+        && obj.get("sheet").is_none()
+        && obj.get("assets").is_none()
+}
+
+/// PNX.md §6 steps 1 and 1b for a run sheet published without a proof (a
+/// reach receipt, a run with nothing to prove against). The result carries
+/// no asset verdict: `verdict` is `sheet-only`.
+pub fn verify_sheet_alone(
+    sheet: &Value,
+    policy: Option<&Policy>,
+    names: &[String],
+) -> VerifyResult {
+    let mut res = VerifyResult {
+        ok: true,
+        verdict: VERDICT_SHEET_ONLY.to_string(),
+        errors: verify_sheet(sheet),
+        warnings: Vec::new(),
+        assets: Vec::new(),
+        reach: None,
+    };
+    if !res.errors.is_empty() {
+        res.ok = false;
+        return res;
+    }
+    let salt = sheet_salt(sheet).expect("checked by verify_sheet");
+    if let Some(reach) = sheet.get("reach").filter(|r| r.is_object()) {
+        let r = verify_reach(reach, &salt, policy, names);
+        res.errors
+            .extend(r.errors.iter().map(|e| format!("reach: {e}")));
+        res.warnings
+            .extend(r.warnings.iter().map(|w| format!("reach: {w}")));
+        res.reach = Some(r);
+    } else if policy.is_some() {
+        res.warnings
+            .push("policy document supplied but the sheet carries no reach record".to_string());
+    }
+    res.ok = res.errors.is_empty();
+    res
+}
+
+pub fn verify_proof_with(
+    proof: &Value,
+    assets: Option<&BTreeMap<String, Vec<u8>>>,
+    policy: Option<&Policy>,
+    names: &[String],
+) -> VerifyResult {
     let mut res = VerifyResult {
         ok: true,
         verdict: proof
@@ -833,6 +916,7 @@ pub fn verify_proof(proof: &Value, assets: Option<&BTreeMap<String, Vec<u8>>>) -
         errors: Vec::new(),
         warnings: Vec::new(),
         assets: Vec::new(),
+        reach: None,
     };
     let sheet = proof.get("sheet").cloned().unwrap_or(Value::Null);
     res.errors.extend(verify_sheet(&sheet));
@@ -847,6 +931,22 @@ pub fn verify_proof(proof: &Value, assets: Option<&BTreeMap<String, Vec<u8>>>) -
         res.warnings.push(
             "assets not supplied: fingerprints taken from the proof, not recomputed".to_string(),
         );
+    }
+    if let Some(reach) = sheet.get("reach").filter(|r| r.is_object()) {
+        // Structure was checked by verify_sheet; this is the policy conformance.
+        let r = verify_reach(reach, &salt, policy, names);
+        res.errors
+            .extend(r.errors.iter().map(|e| format!("reach: {e}")));
+        res.warnings
+            .extend(r.warnings.iter().map(|w| format!("reach: {w}")));
+        res.reach = Some(r);
+        if !res.errors.is_empty() {
+            res.ok = false;
+            return res;
+        }
+    } else if policy.is_some() {
+        res.warnings
+            .push("policy document supplied but the sheet carries no reach record".to_string());
     }
 
     let empty = Vec::new();

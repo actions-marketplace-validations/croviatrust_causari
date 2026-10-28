@@ -3,6 +3,17 @@
 <p align="center"><strong>AI-written code has no author. It has causes. Causari records them.</strong></p>
 <p align="center"><em>How many lines from AI-tagged commits are still alive in your repo? One command, any git repo, no setup. A count, not a grade.</em></p>
 
+`re audit` counts lines introduced by commits whose git metadata matched an AI-detection rule, and how many of those lines `git blame` still attributes to those commits at HEAD. That count is **survival**: a count, not a grade. **AI-tagged means the metadata matched.** It does not prove a model wrote the line. UNKNOWN (no such metadata) is not human.
+
+Causari also keeps a local ledger of what an agent runtime declared (prompt, model, files) and exposes it over MCP (`re mcp`). A Seal authenticates that a key signed these bytes for this commit and method. It does not authenticate that the numbers, or the attribution, are true.
+
+Method and limits: [causari.dev/method](https://causari.dev/method). The same limits, for an agent, in one file: [causari.dev/llms.txt](https://causari.dev/llms.txt) (full specification and schemas: [causari.dev/llms-full.txt](https://causari.dev/llms-full.txt); agent discovery card: [causari.dev/.well-known/agent.json](https://causari.dev/.well-known/agent.json)).
+
+```bash
+curl -fsSL https://causari.dev/install.sh | sh
+re audit
+```
+
 <p align="center">
   <a href="https://causari.dev"><strong>causari.dev</strong></a>
   &nbsp;·&nbsp;
@@ -24,12 +35,11 @@
   <a href="https://causari.dev/r/croviatrust/causari/"><img alt="AI code survival, measured by this tool on its own repository" src="https://causari.dev/r/croviatrust/causari/badge.svg"></a>
 </p>
 
+<p align="center"><sub>Causari by Crovia Trust: the <code>causari</code> / <code>re</code> binary, the <code>causari</code> package on npm, PyPI and crates.io, the MCP server <code>io.github.croviatrust/causari</code>. Not related to causari.ai, the GitHub organisation <code>causari</code> or the npm scope <code>@causari</code> (a causal knowledge graph by another team).</sub></p>
+
 ---
 
 ```bash
-curl -fsSL https://causari.dev/install.sh | sh     # Linux / macOS (Windows below)
-
-re audit                    # the repo you are in
 re audit vercel/next.js     # any public repo, cloned to a temp dir and removed after
 ```
 
@@ -39,10 +49,12 @@ $ re audit
 ───────────────────────────────────────────────────
   216 commits analyzed (git metadata only, no setup required)
 
-Verified AI-tagged: 14 commits, 6267 introduced, 5185 survived
+AI-tagged (metadata matched): 14 commits, 6267 introduced, 5185 survived
   survival 82.7% line-weighted · 82.7% capped · median 92.8%
+  Of the lines introduced by metadata-matched commits, this percentage is the share `git blame -w -M -C` still attributes to those commits. It is not the share of the repository and it is not a quality score. Metadata matched does not prove who wrote each line. UNKNOWN and untagged are commits with no such signal; they are not a finding that a human wrote them.
+  Age-matched gap: +2.9 percentage points (AI-tagged 85.6% minus untagged 82.7% in the matched age windows). Positive means the metadata-matched lines have the higher line-weighted survival in those windows, over 1 matched age window holding 75% of the AI-tagged lines. Lines outside those windows are not in this gap.
 Probable AI-assisted: none detected
-By agent (verified only)
+By agent (metadata matched only)
   agent                commits introduced  survived  line-wt   capped   median
   cursor                    14       6267      5185    82.7%    82.7%    92.8%
 
@@ -52,38 +64,71 @@ Baseline: untagged lines of the same repository
       0-30 d       85.6% (13 commits)      82.7% (142 commits)
      30-90 d                        —       75.8% (23 commits)   (below floor on one side)
     90-180 d         73.9% (1 commit)       62.6% (37 commits)   (below floor on one side)
-  age-matched: AI-tagged 85.6% vs untagged 82.7% of the same age → +2.9 points, over 1 window holding 75% of AI-tagged lines
+  Age-matched gap: +2.9 percentage points (AI-tagged 85.6% minus untagged 82.7% in the matched age windows). Positive means the metadata-matched lines have the higher line-weighted survival in those windows, over 1 matched age window holding 75% of the AI-tagged lines. Lines outside those windows are not in this gap.
 
 Confidence notes
-  · VERIFIED = explicit metadata (trailers, bot author, etc.)
+  · JSON field `verified` = metadata matched (trailers, bot author, …), not authorship proved
   · PROBABLE = weak heuristic; may include human-assisted commits
   · UNKNOWN commits are excluded from headline numbers; they form
     the untagged baseline (human, inline-completed and untagged-agent code alike)
   · Only lines from AI-tagged commits are measured; inline completions
     (Copilot, Cursor Tab, …) leave no git trace and are invisible here
-  · A measurement, not a grade: method v3 at https://causari.dev/method
+  · A measurement, not a grade: method v4 at https://causari.dev/method
+
+Reading and export
+  · The age-matched gap above is the comparison. An agent row marked below floor is not comparable.
+    Meeting the floor is not a reliability guarantee.
+  · Export: `re audit <target> --json`, `--summary`, `--seal`, `--badge`, `--card`
+    `re report` reads the local ledger. It does not export this audit.
 ```
+
+The percentage is how many lines `git blame` still attributes to commits this method tagged. It is not code quality, developer productivity, total AI usage, proof a model wrote the line, security, correctness, or a causal effect of AI. An agent row under 5 commits is marked below floor; 5 commits is the comparability floor, not a reliability guarantee.
+
+A git-ai note counts only when it names a non-empty tool (method v4). A schema-only note, a human-only note, and an empty tool do not. Method v3 counted any git-ai note. Survival Reports #1 and #2 stay method v2. Reports #3 and #4, and any audit from the 0.3.0 release, stay method v3. Report #4 is [10.5281/zenodo.23196011](https://doi.org/10.5281/zenodo.23196011). Reports #5 and #6 stay method v4, measured with causari 0.4.1 (commit d4c4949, 2026-10-08). The published binary 0.5.0 (2026-10-21) is method v6, the method this source computes: `surviving` reads the same paths as `introduced`, so a binary blob (a PDF, an image) adds lines to neither count and a symlink adds one line to both; `coverage.binary_files` says how many blobs were left out. No binary shipped method v5. Published reports are not recomputed.
+
+## Fifteen minutes
+
+```bash
+curl -fsSL https://causari.dev/install.sh | sh
+cd /path/to/a/git/repo
+re audit
+```
+
+Read three lines of the output. **AI-tagged (metadata matched)** is the cohort whose commit metadata matched a rule. **Baseline** is every other commit: untagged, not "human". The survival percentage is the line-weighted persistence of the tagged cohort. It does not prove who typed the code. The rules and the limits are at [causari.dev/method](https://causari.dev/method).
+
+The ledger is a second path, local and gitignored, used only if you record:
+
+```text
+git history → re audit → survival counts
+hooks or proxy → .causari/ → re why / trace / lens
+```
+
+A seal signs the audit bytes. It does not connect the two paths.
 
 Everyone argues about how much code AI writes. Nobody can check the numbers.
 `re audit` reads plain git history — `Co-Authored-By` trailers, bot authors,
-agent markers — finds the commits that carry machine-readable AI authorship,
-and asks `git blame` how many of their lines are still at HEAD. No model, no
-estimate, no survey. Anyone re-runs it and gets the same bytes.
+agent markers — finds the commits whose metadata matched, and asks `git blame`
+how many of their lines are still at HEAD. Metadata matched is not proof a
+model wrote the line. No model, no estimate, no survey. `--json` stores the counts, `repository.head`, `repository.root_commits`, the method, the blame and numstat flags (`coverage.blame_flags`, `coverage.numstat_flags`), `coverage.ignore_revs_sha256` and `coverage.notes_oid` (the target OID of `refs/notes/ai` when present). It does not store the note payloads of `refs/notes/ai`: that ref is not part of the commit object, and changing it changes `coverage.notes_oid` and can change the counts while the commit SHA stays the same. A
+repository that has moved has a different commit.
 
-- `--json` the exact bytes behind any published row
+- `--json` the exact bytes behind any published row (the published rows themselves: [causari.dev/reports/survival](https://causari.dev/reports/survival/), also as a dataset at [CroviaResearch/causari-survival](https://huggingface.co/datasets/CroviaResearch/causari-survival))
 - `--summary` Markdown for CI; `--badge` / `--card` one-colour SVGs
+- `--diff <before> <after>` compare two audit JSONs or `.seal.json` bundles along one axis (`repository_diff`, `method_diff`, `indeterminate_method_diff`, `metadata_diff`, or `identical_inputs`), refusing multi-axis diffs and unrelated repositories
 - `--save` append a snapshot to track your own trend
 
 **Compared with what**: since method v3 every audit puts the repository's
 own untagged lines next to the AI-tagged ones, by line age, and states the
-age-matched gap: AI-tagged survival against untagged survival of the same
-age in the same repository. It also names the oldest line still at HEAD and
+age-matched gap: AI-tagged survival minus untagged survival inside the
+matched age windows of the same repository, not a comparison of identical timestamps. It also names the oldest line still at HEAD and
 how many commits predate it: a repository that was cleared or rewritten
 shows there, and its ratio is read accordingly.
 
 **What it cannot see**: code from inline completions (Copilot, Cursor Tab,
-Windsurf, …) leaves no git trace and counts as human, so it is in the
-untagged baseline. Commits without a trailer are UNKNOWN. A formatter pass
+Windsurf, …) leaves no git trace, so it is in the untagged baseline.
+Untagged is not a finding that a human wrote it. Commits without a trailer
+are UNKNOWN. An agent that needs the same limits in one file should read
+[causari.dev/llms.txt](https://causari.dev/llms.txt). A formatter pass
 or a moved function counts as a death under method v1. One bulk commit can
 dominate a line-weighted ratio; ratios under 5 AI-tagged commits are
 flagged. All of this is written out at
@@ -207,13 +252,16 @@ carrying the root. `re pnx prove` then shows, for a set of protected assets,
 that none shared a substring of 47 bytes or more with that traffic — or
 records which did. Sheet and proof contain no traffic bytes and no asset
 bytes, and verify offline with `re pnx verify` or with the Python reference
-`tacet-pnx`, in both directions, same verdicts and exit codes. What a proof
-does and does not say: [`docs/pnx.md`](docs/pnx.md).
+`tacet-pnx`, in both directions, same verdicts and exit codes. The sheet also
+states *where* the run connected — every upstream the proxy forwarded to,
+with its outcome under an egress policy bound by hash (the reach record,
+PNX §4a); a destination outside the policy is refused before the body
+leaves. What a proof does and does not say: [`docs/pnx.md`](docs/pnx.md).
 
 ```bash
-re proxy --pnx                                    # witness a session; Ctrl-C signs the sheet
+re proxy --pnx --pnx-policy egress-policy.json    # witness a session; upstreams outside the policy are refused; Ctrl-C signs the sheet
 re pnx prove --asset api_key=.env --assets-dir src/secret/
-re pnx verify .causari/pnx/<run>/proof.json --asset api_key=.env --assets-dir src/secret/
+re pnx verify .causari/pnx/<run>/proof.json --asset api_key=.env --assets-dir src/secret/ --policy egress-policy.json
 ```
 
 **Audit seals.** `re audit --seal` writes the audit result as the same kind of
@@ -230,6 +278,7 @@ in favour of this; it exits 2 and names the replacement.)
 ```bash
 re audit --seal --output audit.seal.json
 re seal verify audit.seal.json
+re audit --diff before.seal.json after.seal.json --summary
 ```
 
 ## Experimental
@@ -238,8 +287,12 @@ These commands exist, work in the demos, and are not yet held to the standard
 above. They are out of the proof and out of the front page until they are.
 
 - `re skill distill / verify / export / import / pull / trust`: signed units
-  of past work; the trust ladder (recorded → verified → proven) currently
-  measures file existence and recall counts, not correctness.
+  of past work. Ed25519 detects a later edit; the signature does not certify
+  the content. `verified` is a declared signal frozen at distill (a
+  caller-supplied exit code 0, or declared write paths still at the tip),
+  not an observed success. A 2× rank weight is that declared signal, not
+  measured reliability. `proven` is not awarded. A legacy recall count is
+  not an execution.
 - `re brief`: a Markdown briefing of past work for a model's context.
 - `re guard`: substring rules over recent changes; gates a build only when
   asked (`--fail-on alert|warning`); `--json` for machines.
@@ -267,6 +320,10 @@ scoop bucket add causari https://github.com/croviatrust/scoop-bucket && scoop in
 # crates.io (Rust 1.85+)
 cargo install causari --locked
 
+# no install: launchers that fetch the verified binary on first run
+npx causari audit
+pipx run causari audit
+
 # from source
 cargo install --git https://github.com/croviatrust/causari --locked
 ```
@@ -281,7 +338,7 @@ to install on a mismatch. From v0.2.0, every archive and the sums file carry a
 signed SLSA build-provenance attestation from the release workflow:
 
 ```bash
-gh attestation verify causari-v0.3.0-x86_64-unknown-linux-gnu.tar.gz --repo croviatrust/causari
+gh attestation verify causari-v0.5.0-x86_64-unknown-linux-gnu.tar.gz --repo croviatrust/causari
 ```
 
 By hand:
@@ -362,24 +419,41 @@ between snapshots. The full design, and its current limits, are in
 ## Where this is going
 
 Causari does not compete with provenance trackers (Agent Trace, git-ai,
-`Assisted-by:` trailers, Entire checkpoints); it reads them, measures with a
-public method, and signs the result so a third party can verify it offline.
-Next: `git blame -w -M -C` and per-commit caps in the audit; Agent Trace and
-`Assisted-by:` readers; the audit result as a Seal. Done: a PNX witness mode
-in the proxy that proves what an agent session did *not* send to the model.
+`Assisted-by:` trailers, Entire checkpoints). It reads the metadata they
+leave, measures with a public method, and signs the result so a third party
+can verify it offline.
+
+Done in the published binary 0.5.0, method v6 (2026-10-21), and in this
+source: `git blame -w -M -C`, the per-commit cap, the v4 git-ai rule, the
+audit seal, the HEAD-tree reading and `git log --numstat -M -z` of v5,
+`coverage.copy_capped_lines`, signed `coverage.notes_oid` and
+`coverage.ignore_revs_sha256`, `re audit --diff` on one axis, and the v6
+rule that blames only the paths numstat counted, so binary blobs are in
+neither count. Done in the proxy: a PNX witness
+mode. For the request bodies it saw, a proof can show that named assets
+shared no 47-byte substring with that traffic. It does not prove the
+session made no other connection.
+
+Next: an Agent Trace reader, and a release whose package version and method
+are the same pair.
+
 Phases and exit criteria: [`ROADMAP.md`](ROADMAP.md).
 
 ## Family
 
 Causari is part of [Crovia](https://croviatrust.com), one grammar in three
 tenses: **TACET** proves that a model's public card carried no training-data
-disclosure in the hours it was observed, **PNX** proves an agent's egress
-carried no protected bytes, **Causari** records why a line of code exists and
-measures whether it is still there. Same rules everywhere: reproducible
-numbers, no verdicts, verification without our servers, limits stated first.
+disclosure in the hours it was observed, **PNX** shows that named assets
+shared no long substring with request bodies a witness saw (not that the job
+made no other connection), **Causari** records what a runtime declared and
+measures whether lines from AI-tagged commits are still at HEAD. Same rules
+everywhere: reproducible numbers, no verdicts, verification without our
+servers, limits stated first.
 
-Role in the Crovia canon — Sibling product: proof of cause for AI-written code
-(audit + local ledger); Seal issuer for agent completions and audit results.
+Role in the Crovia canon — Sibling product: a git-metadata audit and a local
+ledger. A Seal authenticates bytes for a commit and a method; it does not
+authenticate truth or who typed a line. Seal issuer for agent completions
+and audit results.
 
 ## License
 

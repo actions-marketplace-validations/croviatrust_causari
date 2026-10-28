@@ -339,10 +339,67 @@ class ListFileTests(unittest.TestCase):
             by = {r["repo"]: r for r in j["repositories"]}
             self.assertEqual(by["x/one"]["discovered_at"], "2026-10-01T04:23:00Z")
             self.assertEqual(by["y/two"]["discovered_at"], "2026-11-01T04:23:00Z")
-            # a repository that fell out of the search is not carried over
-            j = run(FakeGitHub({}), s, now="2026-12-01T04:23:00Z")
+            # a repository that fell out of the sample is counted again repository-wide;
+            # with nothing left to count it falls below the floor and leaves, on the record
+            gh = FakeGitHub({})
+            j = run(gh, s, now="2026-12-01T04:23:00Z")
             self.assertEqual(discovered(j), [])
             self.assertIn("0 repositories", s.list_text())
+            self.assertEqual(j["dropped"]["left_list"], ["x/one", "y/two"])
+            self.assertEqual(j["previously_discovered"], 2)
+            self.assertEqual(j["retained"], [])
+            self.assertEqual(sum(1 for u in gh.urls if "q=repo%3A" in u), 2)  # one count each, the signal it was found with
+        finally:
+            s.close()
+
+    def test_previously_discovered_repository_missed_by_the_sample_is_retained(self) -> None:
+        # Week 1: steady/flow is sampled (2 hits) and counted (400 commits). Week 2 the
+        # sample is all bursty/one; steady/flow is re-counted with its own signal and stays.
+        counts = {("steady/flow", SIGNALS[CLAUDE]): 400}
+        s = Scratch()
+        try:
+            j = run(FakeGitHub({SIGNALS[CLAUDE]: commits("steady/flow", 2)}, counts=counts), s, now="2026-10-01T04:23:00Z")
+            self.assertEqual(discovered(j), ["steady/flow"])
+            self.assertNotIn("retained", j["repositories"][-1])
+            gh = FakeGitHub({SIGNALS[CLAUDE]: commits("bursty/one", 30)}, counts=counts)
+            j = run(gh, s, now="2026-10-08T04:23:00Z")
+            self.assertEqual(discovered(j), ["bursty/one", "steady/flow"])
+            by = {r["repo"]: r for r in j["repositories"]}
+            self.assertTrue(by["steady/flow"]["retained"])
+            self.assertEqual(by["steady/flow"]["sampled"], 0)
+            self.assertEqual(by["steady/flow"]["commits"], 400)
+            self.assertEqual(by["steady/flow"]["counts"], "repository-wide")
+            self.assertEqual(by["steady/flow"]["discovered_at"], "2026-10-01T04:23:00Z")
+            self.assertNotIn("retained", by["bursty/one"])
+            self.assertEqual(j["retained"], ["steady/flow"])
+            self.assertEqual(j["dropped"]["left_list"], [])
+            # counted with the one signal it was found with, not all of them
+            self.assertEqual([u for u in gh.urls if "q=repo%3Asteady" in u.replace("%2F", "/")].__len__(), 1)
+            self.assertIn("retained from earlier weeks: 1", sd.summary(j | {"_list_text": ""}))
+            # week 3: the sample finds it again, it is a plain candidate, still on the record once
+            gh = FakeGitHub({SIGNALS[CLAUDE]: commits("steady/flow", 3)}, counts=counts)
+            j = run(gh, s, now="2026-10-15T04:23:00Z")
+            self.assertEqual(discovered(j), ["steady/flow"])
+            self.assertNotIn("retained", {r["repo"]: r for r in j["repositories"]}["steady/flow"])
+            self.assertEqual(j["dropped"]["left_list"], ["bursty/one"])
+            # --no-verify cannot re-count, so it does not retain
+            j = run(FakeGitHub({SIGNALS[CLAUDE]: commits("bursty/one", 30)}), s, now="2026-10-22T04:23:00Z", verify=False)
+            self.assertEqual(discovered(j), ["bursty/one"])
+            self.assertEqual(j["dropped"]["left_list"], ["steady/flow"])
+        finally:
+            s.close()
+
+    def test_retained_repository_that_fell_below_the_floors_leaves_and_is_named(self) -> None:
+        counts = {("fading/repo", SIGNALS[CLAUDE]): 40}
+        s = Scratch()
+        try:
+            run(FakeGitHub({SIGNALS[CLAUDE]: commits("fading/repo", 2)}, counts=counts), s, now="2026-10-01T04:23:00Z")
+            # its repository-wide count is now 3 (< floor 5): it leaves
+            j = run(FakeGitHub({}, counts={("fading/repo", SIGNALS[CLAUDE]): 3}), s, now="2026-10-08T04:23:00Z")
+            self.assertEqual(discovered(j), [])
+            self.assertEqual(j["dropped"]["below_floor"], 1)
+            self.assertEqual(j["dropped"]["left_list"], ["fading/repo"])
+            self.assertIn("left the list: fading/repo", sd.summary(j | {"_list_text": ""}))
         finally:
             s.close()
 
@@ -443,6 +500,59 @@ class ClientTests(unittest.TestCase):
                        "AI-Tool", "AI-Assisted: yes", "Assisted-by", "noreply@anthropic.com", "devin-ai-integration", "openhands",
                        "cursoragent", "google-labs-jules", "aider"):
             self.assertIn(needle, joined, needle)
+
+
+class StarGateTests(unittest.TestCase):
+    def test_repositories_under_the_star_floor_are_not_search_counted(self) -> None:
+        samples = {SIGNALS[CLAUDE]: commits("bot/graph-painter", 20) + commits("real/project", 12)}
+        details = {"bot/graph-painter": {"stars": 43}, "real/project": {"stars": 2400}}
+        s = Scratch()
+        try:
+            gh = FakeGitHub(samples, details)
+            j = run(gh, s, min_stars=100)
+            self.assertEqual(discovered(j), ["real/project"])
+            self.assertEqual(j["dropped"]["below_stars"], ["bot/graph-painter"])
+            self.assertEqual(j["search_counted"], 1)
+            count_urls = [u for u in gh.urls if "q=repo%3A" in u]
+            self.assertEqual(len(count_urls), 1)
+            self.assertIn("real", count_urls[0])
+            self.assertNotIn("graph-painter", count_urls[0])
+        finally:
+            s.close()
+
+    def test_a_long_rate_limit_sleep_stops_at_the_deadline(self) -> None:
+        sleeps: list[float] = []
+
+        def fetch(_url: str):
+            return 403, {"retry-after": "9999", "x-ratelimit-remaining": "0"}, b"{}"
+
+        client = sd.Client(fetch, sleep=lambda s: sleeps.append(s), log=lambda _s: None)
+        client.deadline_at = time.monotonic() + 0.4
+        status, data = client.get_json("https://api.github.com/search/commits?q=x", pace=True)
+        self.assertEqual((status, data), (0, None))
+        self.assertEqual(client.stopped_stage, "request")
+        self.assertLess(sum(sleeps), 2.0)
+
+    def test_deadline_leaves_the_list_and_records_the_attempt(self) -> None:
+        s = Scratch()
+        try:
+            before = s.list_text()
+            gh = FakeGitHub({SIGNALS[CLAUDE]: commits("real/project", 12)})
+            client = sd.Client(gh.fetch, sleep=gh.sleep, log=lambda _s: None)
+            client.deadline_at = time.monotonic() - 1
+            result = sd.discover(client, s.root, signals=SIGNALS, now=NOW, min_stars=100)
+            self.assertFalse(result["_replace_list"])
+            self.assertEqual(result["run"]["reason"], "deadline")
+            self.assertEqual(s.list_text(), before)
+            sd.record_unfinished(result, s.root)
+            self.assertEqual(s.list_text(), before)
+            attempt = s.json()["last_attempt"]
+            self.assertFalse(attempt["finished"])
+            self.assertFalse(attempt["list_replaced"])
+            self.assertEqual(attempt["reason"], "deadline")
+            self.assertTrue(attempt["stage"])
+        finally:
+            s.close()
 
 
 if __name__ == "__main__":

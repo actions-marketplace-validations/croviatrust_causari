@@ -1,6 +1,6 @@
 ---
 name: causari
-description: Use when the user asks why a line or file exists, who or what wrote it, which prompt produced a change, whether an AI edit survived, or how much AI-written code is still alive in a repository. Also use before repeating a task this repository has already tried.
+description: Use when the user asks why a line or file exists, who or what wrote it, which prompt produced a change, whether an AI edit survived, or how many lines from AI-tagged commits are still at HEAD. Also use before repeating a task this repository has already tried. Report the evidence class; do not treat declared as proven or untagged as human.
 ---
 
 # Causari: the causes behind code
@@ -31,6 +31,13 @@ which commit; Causari says which prompt. Everything is local, in `.causari/`.
 - Causari records what happened; it does not judge quality. Never call a
   survival number "healthy" or a repository "high churn".
 - An `observed` event has no known cause. Say "cause unknown".
+- `proven` is not awarded. `verified` on a skill is a declared signal frozen
+  at distill (a caller-supplied exit code 0, or the declared write paths
+  still exist). It is not an observed success, and the Ed25519 signature
+  does not certify the content. A 2× rank weight is that declared signal,
+  not measured reliability. A legacy recall count is not an execution. That
+  rank is not a cryptographic proof, and it is not the audit field
+  `verified` (metadata matched).
 - If `re` is not installed the hooks do nothing. Suggest
   `curl -fsSL https://causari.dev/install.sh | sh` (or
   `brew install croviatrust/tap/causari`) and `re init` in the project.

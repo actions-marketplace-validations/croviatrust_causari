@@ -2,9 +2,16 @@
 
 > AI-written code has no author. It has causes. Causari records them.
 > Causari measures how many lines from AI-tagged commits are still alive in
-> any git repository (counts, not grades), and records the causal provenance
-> (prompt, model, reads, writes) behind every change an AI agent makes.
+> any git repository (counts, not grades), and keeps a local ledger of what
+> an agent runtime declared (prompt, model, reads, writes).
 > Apache-2.0, local-first, no telemetry, verifiable offline.
+
+Name: this is Causari by Crovia Trust (causari.dev, github.com/croviatrust/causari):
+the `causari` / `re` binary, the `causari` package on npm, PyPI and crates.io, the
+MCP server `io.github.croviatrust/causari`. It is not related to causari.ai, the
+GitHub organisation `causari` or the npm scope `@causari` (a causal knowledge
+graph and MCP server by another team). Cite the software with CITATION.cff in the
+repository; cite a Survival Report with its own DOI.
 
 Ways to use Causari without installing anything:
 - Weekly Survival Report on open-source repositories:
@@ -23,34 +30,112 @@ Local install (single binary, about 5 MB, Linux/macOS/Windows):
 - Windows: irm https://causari.dev/install.ps1 | iex
 - Homebrew: brew install croviatrust/tap/causari
 - Scoop: scoop bucket add causari https://github.com/croviatrust/scoop-bucket; scoop install causari
+- cargo: cargo install causari --locked
+- Launchers, no install: `npx causari audit` (npm) or `pipx run causari audit` (PyPI);
+  both download the release binary for the platform, check its SHA-256 and run it.
 - The binary is `causari`; `re` is installed alongside as the short alias.
 
 Key commands:
 - `re audit [owner/repo]` — AI code survival from git history alone, with
   the same repository's untagged lines as the baseline (by line age, an
-  age-matched gap, the oldest line still at HEAD; method v3); `--json`
-  gives the exact bytes; `--summary` gives Markdown for CI; `--seal` also
+  age-matched gap, the oldest line still at HEAD; method v6 in this source
+  and in the published 0.5.0 binary, 2026-10-21; baseline since v3); `--json`
+  gives the exact bytes (including `commits` per-commit rows with `owned_at_head`,
+  `coverage.notes_oid`, `coverage.ignore_revs_sha256`, `coverage.copy_capped_lines`,
+  and `repository.root_commits`); `--summary` gives Markdown for CI; `--seal` also
   writes `audit.seal.json`, a crovia.seal.v1 over the audit JSON bound to
-  the commit and method version
+  the commit, method version, and external metadata hashes
+- `re audit --diff <before> <after>` — offline single-axis comparison between
+  two audit JSONs or `.seal.json` bundles (`causari.audit_diff.v1`), classifying
+  the diff as `repository_diff`, `method_diff`, `indeterminate_method_diff`,
+  `metadata_diff`, `indeterminate_metadata`, or `identical_inputs`, with
+  `metadata_status`, `commit_set_relation` and `provenance` (`issuer_trust: "unverified_offline"`),
+  and refusing multi-axis diffs or unrelated repositories (exit 2)
 - `re seal verify audit.seal.json` — check an audit seal offline: signature,
-  both subject hashes, commit/method binding; exit 0 valid, 1 invalid,
+  both subject hashes, commit/method/coverage bindings; exit 0 valid, 1 invalid,
   2 unreadable. Same check in a browser, no network: https://causari.dev/verify
 - `re init` — create the local ledger `.causari/` (gitignored)
-- `re hook claude-code` — record every Claude Code prompt and edit exactly
+- `re hook claude-code` / `re hook cursor` — record Claude Code or Cursor prompts and edits
 - `re proxy` — local LLM proxy recording prompts, models, tokens, cost
   (Aider and OpenAI/Anthropic-compatible clients); `--seal` issues
-  crovia.seal.v1 receipts
-- `re why <file>:<line>` — which recorded event produced this line
-- `re trace <file>:<line>` / `re impact <event-id>` — upstream / downstream
-  causal cone over recorded events
+  crovia.seal.v1 receipts; `--pnx` witnesses egress under `crovia.pnx.v1`
+- `re why <file>:<line>` — the ledger event recorded against this line, if one matches. A miss is not human.
+- `re trace <file>:<line>` / `re impact <event-id>` — the ledger's declared
+  read/write graph, walked backward or forward. Not a causal proof.
 - `re bisect --test "<cmd>"` — first recorded event that breaks a test
 - `re revert <id>` — restore the pre-state of an event, with a preview
 - MCP server: `re mcp` (stdio) exposes causari_record, causari_recall,
-  causari_why; `re mcp --install` prints the client config
+  causari_why, causari_audit; `re mcp --install` prints the client config
 
 What Causari does not claim: inline completions (Copilot, Cursor Tab) leave
 no git trace and are invisible to `re audit`; the proxy join is a heuristic
 and says so; a survival ratio is a count, not a quality judgement.
+UNKNOWN (no machine-readable AI metadata) is not human. AI-tagged is not
+AI-written: a trailer, a bot author, or a git-ai note that names a non-empty
+tool is metadata, and a person can forge it. Methods v4, v5 and v6 ignore a git-ai note
+with no named tool; method v3 counted any note. The binaries named under Local
+install are the latest GitHub release: causari 0.5.0, method v6, published
+2026-10-21, the method this source computes. 0.4.1 (commit d4c4949, 2026-10-08)
+was method v4; no binary shipped v5. Method v6 blames only the paths `git log --numstat`
+counted, so a binary blob is in neither `introduced` nor `surviving` and a symlink
+is one line in both (`coverage.binary_files` counts the blobs left out). Method v5 reads only the `HEAD`
+tree (`git ls-tree -r -z HEAD` and `HEAD:.git-blame-ignore-revs`), runs
+`git log --no-merges --numstat -M -z` so pure file renames do not inflate
+introduced counts, and binds `coverage.notes_oid` and `coverage.ignore_revs_sha256`
+inside the receipt and seal. Reports #1 and #2 stay
+method v2. Reports #3 and #4 stay method v3 (report #4 is
+10.5281/zenodo.23196011). Reports #5 and #6 stay method v4, measured with
+causari 0.4.1. A seal proves a key signed these bytes; signed is not true. Absence
+of observed egress is not proof that a job made no other connection.
+A survival ratio is not quality, productivity, total AI usage, authorship,
+security, correctness, or a causal effect.
+
+Evidence classes — do not collapse these into one word:
+- `re audit` JSON: `verified` and `probable` are confidence in git metadata.
+  `verified` there means a detection rule matched. It is not a cryptographic
+  verification and not a ledger `declared`. The untagged baseline is the
+  commits with no such metadata. Method version is `coverage.method` (method v6 in
+  this source and in the published 0.5.0 binary; 0.4.1 reported method v4;
+  reports #5 and #6 are method v4, reports #3 and #4 are v3, reports #1 and #2 are v2).
+- Ledger events (`re why`, `re show`, MCP `causari_why`): `declared` (the
+  runtime said so), `correlated` (a proxy completion overlapped the diff; a
+  score, not a fact), `observed` (a change was seen, cause unknown).
+  Declared is not proven. Correlated is not declared.
+- A seal (`audit.seal.json`, `re seal verify`, https://causari.dev/verify)
+  proves a key signed the audit JSON for one commit and one method version.
+  It does not prove the numbers are true. Re-run `re audit` and compare bytes.
+- Skills (`re skill`, `re brief`, MCP `causari_recall`): Ed25519 signs the
+  skill file so a later edit is detectable. That check is not an outcome,
+  and the signature does not certify the content. `verified` is a declared
+  signal frozen at distill (a caller-supplied exit code 0, or every declared
+  write path still at the tip). It is not an observed success. A 2× rank
+  weight is that declared signal, not measured reliability. `recorded` means
+  that signal is absent. `failed` is a caller-supplied non-zero exit with no
+  exit 0. `proven` is not awarded. A legacy recall count is not an execution
+  and does not change trust. That rank is not a cryptographic proof of
+  correctness, and it is not the audit field `verified`.
+
+When to run `re audit`: the question is how many lines from AI-tagged commits
+`git blame` still attributes at HEAD, in a repository you have or can clone.
+Not when the question is who typed a line, and not for inline completions.
+Full history only; a shallow clone is refused unless `--allow-shallow`, and
+then `coverage.shallow` is true.
+
+Machine-readable outputs: `re audit --json`, `re audit --summary`,
+`audit.seal.json` (`causari.audit-seal.v1`), `re audit --diff` (`causari.audit_diff.v1`),
+https://causari.dev/reports/survival/latest.json,
+`latest.json` beside each https://causari.dev/r/<owner>/<repo>/ page, and the
+same reports as a dataset (JSONL tables plus the raw report bytes, CC-BY-4.0):
+https://huggingface.co/datasets/CroviaResearch/causari-survival .
+Event schema is `causari.event.v0.2`. Audit method and the detection table
+are https://causari.dev/method. Full machine-readable specification:
+https://causari.dev/llms-full.txt ; agent discovery card:
+https://causari.dev/.well-known/agent.json.
+
+Official: repository https://github.com/croviatrust/causari ; crates.io
+crate `causari` ; npm package `causari` ; PyPI project `causari` ; MCP
+`io.github.croviatrust/causari` (`server.json` in the repository) ; GitHub
+Action `croviatrust/causari@v1`.
 
 ## Docs
 - [README](https://github.com/croviatrust/causari#readme): full command reference
@@ -58,6 +143,7 @@ and says so; a survival ratio is a count, not a quality judgement.
 - [Survival Report](https://causari.dev/reports/survival/): weekly counts, archive, feed, DOIs; how it is made: https://github.com/croviatrust/causari/blob/main/docs/survival-report.md
 - [Verify](https://causari.dev/verify): offline verifier for audit seals (what a seal proves and does not)
 - [FAQ](https://causari.dev/faq): sixteen questions as people ask them (how much of my code was written by AI, what survival means, which agents leave a git trace, Copilot/Cursor Tab, seals, the report, opt-out, licence, CI), each with the command and the limit; schema.org FAQPage
+- [Facts](https://causari.dev/facts): what causari is, what it counts, what it does not claim, where it is published, what is known about its use; each statement with the command or URL that checks it
 - [Compare](https://causari.dev/compare): git blame alone, Copilot metrics, GitClear-style churn reports, DORA-type dashboards and causari side by side: what each counts, what it needs, whether a third party can check it, what it cannot see
 - [Manifesto](https://github.com/croviatrust/causari/blob/main/MANIFESTO.md)
 - [Roadmap](https://github.com/croviatrust/causari/blob/main/ROADMAP.md)

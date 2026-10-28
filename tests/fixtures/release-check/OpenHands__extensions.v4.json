@@ -1,0 +1,32 @@
+{
+  "schema": "causari.release_check.v1",
+  "note": "Expected counts for one external repository at one commit, as the published binary computed them. A release check installs the latest release on each OS, clones this commit and must reproduce every field in `expect`. Recorded 2026-10-21 with causari 0.4.1 (method v4) on Linux, git 2.43.0; the same numbers are in survival report #6 (2026-10-19). refs/notes/ai is not fetched by a plain clone, so the commit alone fixes the input.",
+  "repository": "OpenHands/extensions",
+  "url": "https://github.com/OpenHands/extensions",
+  "commit": "d05780951082d4d83f785cb1d4c7f2be6d1c14a5",
+  "method": "v4",
+  "recorded_with": {
+    "causari": "0.4.1",
+    "git": "2.43.0",
+    "os": "linux",
+    "date": "2026-10-21"
+  },
+  "expect": {
+    "total_commits": 404,
+    "verified.commits": 321,
+    "verified.introduced": 92214,
+    "verified.surviving": 73514,
+    "verified.cap_lines": 1684,
+    "baseline.untagged.commits": 83,
+    "baseline.untagged.introduced": 25692,
+    "baseline.untagged.surviving": 20940,
+    "coverage.shallow": false,
+    "coverage.ignore_revs_file": false,
+    "coverage.blame_flags": [
+      "-w",
+      "-M",
+      "-C"
+    ],
+    "repository.head": "d05780951082d4d83f785cb1d4c7f2be6d1c14a5"
+  }
+}

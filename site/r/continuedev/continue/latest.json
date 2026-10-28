@@ -5,31 +5,157 @@
  "url": "https://causari.dev/r/continuedev/continue/",
  "badge": "https://causari.dev/r/continuedev/continue/badge.svg",
  "report": {
-  "number": 2,
-  "id": "2026/02",
-  "date": "2026-09-23",
-  "url": "https://causari.dev/reports/survival/2026/02/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v2",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.2.0"
+  "version": "0.5.0"
  },
  "verified": {
   "commits": 228,
   "introduced": 27756,
-  "surviving": 18063,
-  "survival_rate": 0.6507782101167315,
-  "capped_survival_rate": 0.6352955150267496,
-  "median_survival": 0.6809752747252746,
+  "surviving": 17961,
+  "survival_rate": 0.6471033290099438,
+  "capped_survival_rate": 0.6342466499376995,
+  "median_survival": 0.6681547619047619,
   "largest_commit_share": 0.1085531056348177
  },
  "interval_95": null,
+ "baseline": {
+  "untagged": {
+   "commits": 16035,
+   "introduced": 1348090,
+   "surviving": 477177,
+   "survival_rate": 0.35396523970951493,
+   "median_survival": 0.01707317073170732,
+   "capped_survival_rate": 0.33671164377993307,
+   "cap_lines": 303,
+   "largest_commit_share": 0.04547099971070181
+  },
+  "by_age": [
+   {
+    "from_days": 0,
+    "to_days": 30,
+    "tagged": {
+     "commits": 1,
+     "introduced": 4,
+     "surviving": 4,
+     "survival_rate": 1.0
+    },
+    "untagged": {
+     "commits": 1,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    }
+   },
+   {
+    "from_days": 30,
+    "to_days": 90,
+    "tagged": {
+     "commits": 11,
+     "introduced": 417,
+     "surviving": 392,
+     "survival_rate": 0.9400479616306955
+    },
+    "untagged": {
+     "commits": 7,
+     "introduced": 20,
+     "surviving": 11,
+     "survival_rate": 0.55
+    }
+   },
+   {
+    "from_days": 90,
+    "to_days": 180,
+    "tagged": {
+     "commits": 128,
+     "introduced": 15676,
+     "surviving": 13433,
+     "survival_rate": 0.8569150293442205
+    },
+    "untagged": {
+     "commits": 324,
+     "introduced": 19215,
+     "surviving": 12758,
+     "survival_rate": 0.6639604475670049
+    }
+   },
+   {
+    "from_days": 180,
+    "to_days": 365,
+    "tagged": {
+     "commits": 69,
+     "introduced": 7579,
+     "surviving": 3211,
+     "survival_rate": 0.4236706689536878
+    },
+    "untagged": {
+     "commits": 3539,
+     "introduced": 277840,
+     "surviving": 147352,
+     "survival_rate": 0.5303484019579614
+    }
+   },
+   {
+    "from_days": 365,
+    "to_days": 730,
+    "tagged": {
+     "commits": 19,
+     "introduced": 4080,
+     "surviving": 921,
+     "survival_rate": 0.22573529411764706
+    },
+    "untagged": {
+     "commits": 7346,
+     "introduced": 489593,
+     "surviving": 163971,
+     "survival_rate": 0.33491287661384045
+    }
+   },
+   {
+    "from_days": 730,
+    "to_days": null,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 4818,
+     "introduced": 561422,
+     "surviving": 153085,
+     "survival_rate": 0.2726736750608277
+    }
+   }
+  ],
+  "age_matched": {
+   "tagged_rate": 0.6470524646872298,
+   "untagged_rate": 0.5773835777992299,
+   "gap": 0.06966888688799988,
+   "buckets_used": 4,
+   "tagged_lines_covered": 0.99985588701542
+  },
+  "oldest_surviving": {
+   "date": "2023-05-24",
+   "age_days": 1154,
+   "commits_before": 0,
+   "introduced_before": 0,
+   "tagged_commits_before": 0,
+   "tagged_introduced_before": 0,
+   "commits_before_share": 0.0
+  }
+ },
  "probable_commits": 3,
  "total_commits": 16266,
  "aggregated": true,
  "coverage": {
-  "method": "v2",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -40,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 2,
+ "reports": 7,
  "reproduce": "re audit continuedev/continue --json",
- "bytes": "https://causari.dev/reports/survival/2026/02/repos/continuedev__continue.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/continuedev__continue.json",
  "license": "CC-BY-4.0"
 }

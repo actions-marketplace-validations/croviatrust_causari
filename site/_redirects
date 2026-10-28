@@ -34,6 +34,10 @@
 /mcp            /#install                                                            301
 /quickstart     /#install                                                            301
 /features       /#record                                                             301
+/llms           /llms.txt                                                            301
+/agent          /.well-known/agent.json                                              301
+/agent.json     /.well-known/agent.json                                              301
+/security.txt   /.well-known/security.txt                                            301
 /manifesto      https://github.com/croviatrust/causari/blob/main/MANIFESTO.md        302
 /roadmap        https://github.com/croviatrust/causari/blob/main/ROADMAP.md          302
 
@@ -49,8 +53,8 @@
 # survival-report: begin (managed by scripts/survival_report.py)
 /survival             /reports/survival/                 301
 /survival-data.json   /reports/survival/latest.json      301
-/report               /reports/survival/2026/02/   302
-/report/latest        /reports/survival/2026/02/   302
+/report               /reports/survival/2026/07/   302
+/report/latest        /reports/survival/2026/07/   302
 /r/Aider-AI/aider/    /r/aider-ai/aider/   301
 /r/BerriAI/litellm/   /r/berriai/litellm/   301
 /r/crewAIInc/crewAI/  /r/crewaiinc/crewai/   301

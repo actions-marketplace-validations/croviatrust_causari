@@ -1,6 +1,6 @@
 {
   "schema": "causari.canon.v1",
-  "revised": "2026-09-21",
+  "revised": "2026-10-21",
   "identity": {
     "name": "Causari",
     "wordmark": "causari",
@@ -69,7 +69,43 @@
       {
         "path": "packaging/pypi/pyproject.toml",
         "pattern": "^version = \"([0-9]+\\.[0-9]+\\.[0-9]+)\""
+      },
+      {
+        "path": "CITATION.cff",
+        "pattern": "^version: ([0-9]+\\.[0-9]+\\.[0-9]+)$"
+      },
+      {
+        "path": "site/.well-known/agent.json",
+        "pattern": "^  \"version\": \"([0-9]+\\.[0-9]+\\.[0-9]+)\""
       }
+    ]
+  },
+  "distribution": {
+    "rule": "The package version and the audit method are a pair. method_version on the agent card is the method of the latest published release. source_method_version is METHOD_VERSION in src/audit.rs. When those methods differ, every surface in name_both_methods states both, the package version, and the release commit. A new package version without a new latest_release record is a defect. A commit cannot contain its own hash: the commit that carries the tag records latest_release.commit as the pending phrase scripts/audit_surfaces.py accepts offline, and the commit after the tag replaces it with the tagged hash; the live audit fails while it is pending.",
+    "latest_release": {
+      "version": "0.5.0",
+      "method_version": "v6",
+      "commit": "ef505a1910d668c40bd03e5956ad68cc9bbfb87d",
+      "published": "2026-10-21"
+    },
+    "action_tag": {
+      "rule": "`uses: croviatrust/causari@v1` must resolve to latest_release.commit, so the Marketplace action.yml and the installed binary are the same release. release.yml moves the tag; the live audit reads it from the public API.",
+      "name": "v1",
+      "api": "https://api.github.com/repos/croviatrust/causari/git/ref/tags/v1"
+    },
+    "name_both_methods": [
+      "README.md",
+      "SECURITY.md",
+      "CHANGELOG.md",
+      "docs/survival-report.md",
+      "docs/survival-dataset.md",
+      "site/index.html",
+      "site/method.html",
+      "site/llms.txt",
+      "site/llms-full.txt",
+      "site/facts.html",
+      "site/faq.html",
+      "site/.well-known/agent.json"
     ]
   },
   "surfaces": {
@@ -87,14 +123,18 @@
       "site/r/croviatrust/causari/index.html",
       "site/method.html",
       "site/llms.txt",
+      "site/llms-full.txt",
+      "site/.well-known/agent.json",
       "site/README.md",
       "docs/survival-report.md",
+      "docs/survival-dataset.md",
       "site/verify/index.html",
       "packaging/README.md",
       "packaging/npm/README.md",
       "packaging/pypi/README.md",
       "site/faq.html",
-      "site/compare.html"
+      "site/compare.html",
+      "site/facts.html"
     ],
     "html": [
       "site/index.html",
@@ -104,7 +144,8 @@
       "site/method.html",
       "site/verify/index.html",
       "site/faq.html",
-      "site/compare.html"
+      "site/compare.html",
+      "site/facts.html"
     ],
     "required_files": [
       "site/assets/mark.svg",
@@ -112,6 +153,9 @@
       "site/assets/favicon.svg",
       "site/assets/og.png",
       "site/_headers",
+      "site/llms-full.txt",
+      "site/.well-known/agent.json",
+      "site/.well-known/security.txt",
       "site/_redirects",
       "site/llms.txt",
       "site/robots.txt",
@@ -403,6 +447,12 @@
       "leaderboard.html",
       "survival.js",
       "re proof"
-    ]
+    ],
+    "repo_card": {
+      "rule": "The GitHub repository description and homepage are a public surface. The description is identity.one_liner followed by identity.sub_line, nothing else; the homepage is identity.domain. The weekly live audit reads them from the public API and fails on any other text.",
+      "api": "https://api.github.com/repos/croviatrust/causari",
+      "description": "AI-written code has no author. It has causes. Causari records them. How many lines from AI-tagged commits are still alive in your repo? One command, any git repo, no setup. A count, not a grade.",
+      "homepage": "https://causari.dev"
+    }
   }
 }

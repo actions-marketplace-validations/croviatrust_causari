@@ -40,27 +40,48 @@ jobs:
     steps:
       # See survival-report.yml: REPORT_PUSH_TOKEN lets the commit pass the
       # branch protection; without it the run still discovers and uploads.
+      # One retry: the 2026-10-04 run died in this step and wrote nothing.
       - uses: actions/checkout@v7
+        id: checkout
+        continue-on-error: true
         with:
           ref: main
-          token: ${{ secrets.REPORT_PUSH_TOKEN || github.token }}
+          persist-credentials: false
+
+      - uses: actions/checkout@v7
+        if: steps.checkout.outcome == 'failure'
+        with:
+          ref: main
+          persist-credentials: false
 
       - name: unit tests
         run: python3 scripts/tests/test_survival_discover.py
 
-      # A few hundred search requests at 30 per minute: on the order of half
-      # an hour. Rate limits are honoured from the response headers.
+      # Stars are read before the search count, so a run no longer spends
+      # the 30/minute budget on repositories that cannot enter the list.
+      # Exit 2 means the deadline passed: the list is unchanged and
+      # last_attempt is written. The job still goes red, after the commit.
       - name: discover repositories
+        id: discover
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           LIMIT="${{ inputs.limit || 100 }}"
+          extra=()
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            python3 scripts/survival_discover.py --limit "$LIMIT" --dry-run | tee /tmp/discover.txt
+            extra+=(--dry-run)
+          fi
+          python3 scripts/survival_discover.py --limit "$LIMIT" "${extra[@]}" | tee /tmp/discover.txt
+          code="${PIPESTATUS[0]}"
+          if [ "$code" -eq 2 ]; then
+            echo "incomplete=true" >> "$GITHUB_OUTPUT"
+          elif [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
             exit 0
           fi
-          python3 scripts/survival_discover.py --limit "$LIMIT" | tee /tmp/discover.txt
           {
             echo "## survival-discover · $(date -u +%Y-%m-%d)"
             echo
@@ -73,6 +94,8 @@ jobs:
 
       - name: commit the list to main
         if: ${{ !inputs.dry_run }}
+        env:
+          PUSH_TOKEN: ${{ secrets.REPORT_PUSH_TOKEN }}
         run: |
           set -euo pipefail
           git config user.name "causari-report[bot]"
@@ -81,9 +104,21 @@ jobs:
           if git diff --cached --quiet; then echo "no changes"; exit 0; fi
           N="$(grep -Ev '^\s*(#|$)' .github/survival-repos.txt | wc -l)"
           git commit -s -m "survival-repos: $N repositories discovered $(date -u +%Y-%m-%d) via GitHub commit search"
-          git pull --rebase origin main
-          if ! git push origin HEAD:main; then
-            echo "::error title=List not pushed::branch protection rejected the push. Add the secret REPORT_PUSH_TOKEN (admin PAT, Contents: read and write) or apply the artifact by hand."
+          if [ -z "${PUSH_TOKEN}" ] || ! login="$(GH_TOKEN="$PUSH_TOKEN" gh api user --jq .login)"; then
+            echo "::error title=Publication skipped::REPORT_PUSH_TOKEN is missing or rejected. The discovery artifact is unchanged."
+            echo "PUSH_FAILED=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          perm="$(GH_TOKEN="$PUSH_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/collaborators/${login}/permission" --jq .permission)"
+          if [ "$perm" != "admin" ]; then
+            echo "::error title=Publication skipped::token permission is ${perm}."
+            echo "PUSH_FAILED=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)"
+          git -c "http.extraheader=$auth" pull --rebase origin main
+          if ! git -c "http.extraheader=$auth" push origin HEAD:main; then
+            echo "::error title=List not pushed::branch protection rejected the push. Apply the artifact by hand."
             echo "PUSH_FAILED=1" >> "$GITHUB_ENV"
           fi
 
@@ -101,3 +136,9 @@ jobs:
       - name: fail if the push was rejected
         if: ${{ env.PUSH_FAILED == '1' }}
         run: exit 1
+
+      - name: fail if discovery did not finish
+        if: ${{ steps.discover.outputs.incomplete == 'true' }}
+        run: |
+          echo "::error title=Discovery did not finish::The list was not replaced. last_attempt in survival-discovery.json says where it stopped."
+          exit 1

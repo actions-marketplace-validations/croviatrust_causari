@@ -5,31 +5,157 @@
  "url": "https://causari.dev/r/openai/codex/",
  "badge": "https://causari.dev/r/openai/codex/badge.svg",
  "report": {
-  "number": 2,
-  "id": "2026/02",
-  "date": "2026-09-23",
-  "url": "https://causari.dev/reports/survival/2026/02/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v2",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.2.0"
+  "version": "0.5.0"
  },
  "verified": {
   "commits": 364,
   "introduced": 183908,
-  "surviving": 109637,
-  "survival_rate": 0.5961513365378341,
-  "capped_survival_rate": 0.590642936948916,
-  "median_survival": 0.5857863751051303,
+  "surviving": 107867,
+  "survival_rate": 0.5865269591317398,
+  "capped_survival_rate": 0.5815187484843269,
+  "median_survival": 0.5740888719035542,
   "largest_commit_share": 0.06153620288405072
  },
  "interval_95": null,
+ "baseline": {
+  "untagged": {
+   "commits": 12227,
+   "introduced": 3937583,
+   "surviving": 2352898,
+   "survival_rate": 0.5975488008760704,
+   "median_survival": 0.6363636363636364,
+   "capped_survival_rate": 0.6236514862657953,
+   "cap_lines": 1081,
+   "largest_commit_share": 0.03407115481756194
+  },
+  "by_age": [
+   {
+    "from_days": 0,
+    "to_days": 30,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 1323,
+     "introduced": 364788,
+     "surviving": 299024,
+     "survival_rate": 0.8197199469280788
+    }
+   },
+   {
+    "from_days": 30,
+    "to_days": 90,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 2664,
+     "introduced": 1022897,
+     "surviving": 803051,
+     "survival_rate": 0.7850751346420999
+    }
+   },
+   {
+    "from_days": 90,
+    "to_days": 180,
+    "tagged": {
+     "commits": 100,
+     "introduced": 48087,
+     "surviving": 30850,
+     "survival_rate": 0.641545532056481
+    },
+    "untagged": {
+     "commits": 2683,
+     "introduced": 835888,
+     "surviving": 563740,
+     "survival_rate": 0.6744204965258503
+    }
+   },
+   {
+    "from_days": 180,
+    "to_days": 365,
+    "tagged": {
+     "commits": 260,
+     "introduced": 135569,
+     "surviving": 76968,
+     "survival_rate": 0.5677404126312062
+    },
+    "untagged": {
+     "commits": 3881,
+     "introduced": 1392892,
+     "surviving": 621255,
+     "survival_rate": 0.446018068881148
+    }
+   },
+   {
+    "from_days": 365,
+    "to_days": 730,
+    "tagged": {
+     "commits": 4,
+     "introduced": 252,
+     "surviving": 49,
+     "survival_rate": 0.19444444444444445
+    },
+    "untagged": {
+     "commits": 1676,
+     "introduced": 321118,
+     "surviving": 65828,
+     "survival_rate": 0.2049962941971487
+    }
+   },
+   {
+    "from_days": 730,
+    "to_days": null,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    }
+   }
+  ],
+  "age_matched": {
+   "tagged_rate": 0.5870649475105633,
+   "untagged_rate": 0.5058211111893264,
+   "gap": 0.08124383632123688,
+   "buckets_used": 2,
+   "tagged_lines_covered": 0.9986297496574374
+  },
+  "oldest_surviving": {
+   "date": "2025-04-16",
+   "age_days": 555,
+   "commits_before": 0,
+   "introduced_before": 0,
+   "tagged_commits_before": 0,
+   "tagged_introduced_before": 0,
+   "commits_before_share": 0.0
+  }
+ },
  "probable_commits": 0,
- "total_commits": 11292,
+ "total_commits": 12591,
  "aggregated": true,
  "coverage": {
-  "method": "v2",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -40,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 2,
+ "reports": 7,
  "reproduce": "re audit openai/codex --json",
- "bytes": "https://causari.dev/reports/survival/2026/02/repos/openai__codex.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/openai__codex.json",
  "license": "CC-BY-4.0"
 }

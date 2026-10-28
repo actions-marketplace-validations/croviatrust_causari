@@ -5,31 +5,157 @@
  "url": "https://causari.dev/r/mem0ai/mem0/",
  "badge": "https://causari.dev/r/mem0ai/mem0/badge.svg",
  "report": {
-  "number": 2,
-  "id": "2026/02",
-  "date": "2026-09-23",
-  "url": "https://causari.dev/reports/survival/2026/02/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v2",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.2.0"
+  "version": "0.5.0"
  },
  "verified": {
-  "commits": 93,
-  "introduced": 37012,
-  "surviving": 23929,
-  "survival_rate": 0.6465200475521452,
-  "capped_survival_rate": 0.648304719477758,
-  "median_survival": 0.8275485619635596,
-  "largest_commit_share": 0.08591808062250081
+  "commits": 95,
+  "introduced": 37062,
+  "surviving": 23880,
+  "survival_rate": 0.6443257244617128,
+  "capped_survival_rate": 0.6460234397467179,
+  "median_survival": 0.8304597701149425,
+  "largest_commit_share": 0.08580216933786627
  },
  "interval_95": null,
+ "baseline": {
+  "untagged": {
+   "commits": 2554,
+   "introduced": 529728,
+   "surviving": 285152,
+   "survival_rate": 0.5382989005678386,
+   "median_survival": 0.11666666666666667,
+   "capped_survival_rate": 0.5338292231583139,
+   "cap_lines": 804,
+   "largest_commit_share": 0.057516310257339616
+  },
+  "by_age": [
+   {
+    "from_days": 0,
+    "to_days": 30,
+    "tagged": {
+     "commits": 5,
+     "introduced": 3272,
+     "surviving": 3130,
+     "survival_rate": 0.956601466992665
+    },
+    "untagged": {
+     "commits": 29,
+     "introduced": 5560,
+     "surviving": 5400,
+     "survival_rate": 0.9712230215827338
+    }
+   },
+   {
+    "from_days": 30,
+    "to_days": 90,
+    "tagged": {
+     "commits": 2,
+     "introduced": 1094,
+     "surviving": 972,
+     "survival_rate": 0.8884826325411335
+    },
+    "untagged": {
+     "commits": 127,
+     "introduced": 74916,
+     "surviving": 48521,
+     "survival_rate": 0.6476720593731646
+    }
+   },
+   {
+    "from_days": 90,
+    "to_days": 180,
+    "tagged": {
+     "commits": 28,
+     "introduced": 2375,
+     "surviving": 1882,
+     "survival_rate": 0.7924210526315789
+    },
+    "untagged": {
+     "commits": 329,
+     "introduced": 99072,
+     "surviving": 68035,
+     "survival_rate": 0.6867227874677002
+    }
+   },
+   {
+    "from_days": 180,
+    "to_days": 365,
+    "tagged": {
+     "commits": 59,
+     "introduced": 30318,
+     "surviving": 17896,
+     "survival_rate": 0.5902764034566924
+    },
+    "untagged": {
+     "commits": 260,
+     "introduced": 106016,
+     "surviving": 77255,
+     "survival_rate": 0.7287107606399034
+    }
+   },
+   {
+    "from_days": 365,
+    "to_days": 730,
+    "tagged": {
+     "commits": 1,
+     "introduced": 3,
+     "surviving": 0,
+     "survival_rate": 0.0
+    },
+    "untagged": {
+     "commits": 723,
+     "introduced": 155601,
+     "surviving": 73330,
+     "survival_rate": 0.47126946484919763
+    }
+   },
+   {
+    "from_days": 730,
+    "to_days": null,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 1086,
+     "introduced": 88563,
+     "surviving": 12611,
+     "survival_rate": 0.1423958086334022
+    }
+   }
+  ],
+  "age_matched": {
+   "tagged_rate": 0.6369525927985541,
+   "untagged_rate": 0.7480011452227189,
+   "gap": -0.11104855242416478,
+   "buckets_used": 3,
+   "tagged_lines_covered": 0.9704009497598619
+  },
+  "oldest_surviving": {
+   "date": "2023-06-20",
+   "age_days": 1218,
+   "commits_before": 1,
+   "introduced_before": 1,
+   "tagged_commits_before": 0,
+   "tagged_introduced_before": 0,
+   "commits_before_share": 0.00037750094375235937
+  }
+ },
  "probable_commits": 0,
- "total_commits": 2626,
+ "total_commits": 2649,
  "aggregated": true,
  "coverage": {
-  "method": "v2",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -40,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 1,
+ "reports": 6,
  "reproduce": "re audit mem0ai/mem0 --json",
- "bytes": "https://causari.dev/reports/survival/2026/02/repos/mem0ai__mem0.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/mem0ai__mem0.json",
  "license": "CC-BY-4.0"
 }

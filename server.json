@@ -2,19 +2,19 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.croviatrust/causari",
   "title": "Causari",
-  "description": "Records what an AI agent did in a repo (prompt, model, files) and answers why a line exists.",
+  "description": "Records the prompt, model and files an agent declared for a line. It does not prove who typed it.",
   "websiteUrl": "https://causari.dev",
   "repository": {
     "url": "https://github.com/croviatrust/causari",
     "source": "github"
   },
-  "version": "0.3.0",
+  "version": "0.5.0",
   "packages": [
     {
       "registryType": "cargo",
       "registryBaseUrl": "https://crates.io",
       "identifier": "causari",
-      "version": "0.3.0",
+      "version": "0.5.0",
       "transport": {
         "type": "stdio"
       },

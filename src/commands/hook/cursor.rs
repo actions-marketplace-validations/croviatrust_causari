@@ -13,8 +13,9 @@
 //!   to change, so the event's diff is exactly that tool call
 //! - `afterFileEdit` → a Causari event for the written file, joined to
 //!   the conversation's prompt
-//! - `afterShellExecution` → a Causari event for a command that changed
-//!   the tree, the command as its message
+//! - `afterShellExecution` → a Causari event when PreToolUse captured the
+//!   tree, the command as its message. Without that snapshot the command
+//!   is not given every change since the previous event.
 //! - `afterAgentResponse` → the agent's answer, stored as an exchange next
 //!   to its prompt
 //! - `stop` → pre-states the turn never used are dropped
@@ -100,10 +101,10 @@ pub(super) fn install(user: bool, dry_run: bool) -> Result<()> {
         PRE_TOOL_MATCHER
     );
     println!("  afterFileEdit → records the edit as a Causari event, diffed against that snapshot");
-    println!("  afterShellExecution → records a command that changed the tree");
+    println!("  afterShellExecution → records a command when preToolUse captured the tree");
     println!("  afterAgentResponse → keeps the agent's answer next to its prompt");
     println!("  stop → drops the pre-states the turn never used");
-    println!("  sessionStart → injects verified experience into every new conversation");
+    println!("  sessionStart → injects a briefing of past skills (recall counts, not proofs)");
     println!();
     println!("  {}", crate::redact::STORAGE_NOTICE.bright_black());
     println!();
@@ -222,13 +223,11 @@ fn handle_in(repo: &Repo, event: &str, v: &Value) -> Result<Value> {
         // Whatever we return as `additional_context` joins the conversation's
         // initial context: the trust-ranked experience briefing, silent on
         // repositories without experience yet (same as Claude Code's
-        // SessionStart; never bumps recall counters).
-        "sessionStart" => {
-            match crate::commands::brief::render(repo, &[], SESSION_BRIEF_LIMIT, false)? {
-                Some(md) => Ok(json!({ "additional_context": md })),
-                None => Ok(json!({})),
-            }
-        }
+        // SessionStart). A briefing does not write the legacy recall count.
+        "sessionStart" => match crate::commands::brief::render(repo, &[], SESSION_BRIEF_LIMIT)? {
+            Some(md) => Ok(json!({ "additional_context": md })),
+            None => Ok(json!({})),
+        },
         "beforeSubmitPrompt" => {
             if let Some(p) = PromptSubmit::parse(v) {
                 let attachments = p
@@ -274,6 +273,7 @@ fn handle_in(repo: &Repo, event: &str, v: &Value) -> Result<Value> {
                     model: common.model.clone(),
                     reads: Vec::new(),
                     added: Some(edit.added),
+                    edits: edit.edits,
                 },
             )?;
             Ok(json!({}))
@@ -295,6 +295,7 @@ fn handle_in(repo: &Repo, event: &str, v: &Value) -> Result<Value> {
                     model: common.model.clone(),
                     reads: Vec::new(),
                     added: None,
+                    edits: Vec::new(),
                 },
             )?;
             Ok(json!({}))
@@ -393,20 +394,33 @@ struct FileEdit {
     file_path: String,
     /// Every line of every `new_string`, verbatim: what the agent inserted.
     added: Vec<String>,
+    /// Declared replacements, in order. Reversed when no pre-state was captured.
+    edits: Vec<(String, String)>,
 }
 
 impl FileEdit {
     fn parse(v: &Value) -> Option<Self> {
         let file_path = str_field(v, "file_path")?;
-        let added = v
-            .get("edits")
-            .and_then(Value::as_array)
+        let pairs = v.get("edits").and_then(Value::as_array);
+        let edits = pairs
             .into_iter()
             .flatten()
-            .filter_map(|e| e.get("new_string").and_then(Value::as_str))
-            .flat_map(|s| s.lines().map(String::from).collect::<Vec<_>>())
+            .filter_map(|e| {
+                Some((
+                    e.get("old_string").and_then(Value::as_str)?.to_string(),
+                    e.get("new_string").and_then(Value::as_str)?.to_string(),
+                ))
+            })
+            .collect::<Vec<_>>();
+        let added = edits
+            .iter()
+            .flat_map(|(_, new)| new.lines().map(String::from).collect::<Vec<_>>())
             .collect();
-        Some(Self { file_path, added })
+        Some(Self {
+            file_path,
+            added,
+            edits,
+        })
     }
 }
 
@@ -442,6 +456,7 @@ mod tests {
     use super::*;
     use crate::capture::load_unclaimed_exchanges_since;
     use crate::object::{Event, Evidence};
+    use crate::provenance::{chain_to, find_line_origin, line_owners};
     use crate::store::Store;
 
     fn expected_fresh() -> Value {
@@ -616,6 +631,13 @@ mod tests {
                     "}".into(),
                     "  // wired in app.ts".into(),
                 ],
+                edits: vec![
+                    (
+                        "".into(),
+                        "export function health() {\n  return { sha: SHA, uptime: process.uptime() };\n}\n".into(),
+                    ),
+                    ("// TODO".into(), "  // wired in app.ts".into()),
+                ],
             }
         );
         assert!(FileEdit::parse(&common_fields("c")).is_none());
@@ -742,6 +764,483 @@ mod tests {
         let pre = store.read_snapshot(&ev.pre_snapshot).unwrap();
         let post = store.read_snapshot(&ev.post_snapshot).unwrap();
         assert_ne!(pre.tree, post.tree);
+    }
+
+    /// AI writes the file, a human rewrites a line, the file is renamed, a
+    /// formatter reindents, then the agent adds a function. The second event
+    /// owns the function it added. It does not own the human's line or the
+    /// line that survived from the first event. This holds when PreToolUse
+    /// captured the gap, and when it did not: the declared edit is reversed
+    /// onto the file as it sits, so the gap is on both sides of the diff.
+    #[test]
+    fn human_rename_formatter_between_agents_is_not_the_second_agents() {
+        for capture_pre in [true, false] {
+            let tmp = tempfile::tempdir().unwrap();
+            let repo = Repo::init(tmp.path()).unwrap();
+            let original = "def refresh(user):\n    token = rotate(user)\n    return token\n";
+            let first_edit = pre_tool_then_write(&repo, "conv-1", "auth.py", original);
+            handle_in(&repo, "afterFileEdit", &first_edit).unwrap();
+            let first = repo.head_event().unwrap().unwrap();
+
+            std::fs::write(
+                repo.root.join("auth.py"),
+                "def refresh(user):\n    return rotate(user)\n",
+            )
+            .unwrap();
+            std::fs::rename(repo.root.join("auth.py"), repo.root.join("session.py")).unwrap();
+            let formatted = "def refresh(user):\n        return rotate(user)\n";
+            std::fs::write(repo.root.join("session.py"), formatted).unwrap();
+
+            let addition = "\ndef logout(user):\n    return drop(user)\n";
+            let abs = repo.root.join("session.py");
+            if capture_pre {
+                let pre = with(common_fields("conv-1"), json!({ "tool_name": "Write" }));
+                handle_in(&repo, "preToolUse", &pre).unwrap();
+            }
+            std::fs::write(&abs, format!("{formatted}{addition}")).unwrap();
+            let second_edit = with(
+                common_fields("conv-1"),
+                json!({
+                    "file_path": abs.to_string_lossy(),
+                    "edits": [{ "old_string": "", "new_string": addition }]
+                }),
+            );
+            handle_in(&repo, "afterFileEdit", &second_edit).unwrap();
+            let second = repo.head_event().unwrap().unwrap();
+            assert_ne!(first, second);
+
+            let store = Store::new(&repo);
+            let chain = chain_to(&store, Some(&second)).unwrap();
+            let owners = line_owners(&store, &chain, std::path::Path::new("session.py")).unwrap();
+            let text = std::fs::read_to_string(&abs).unwrap();
+            let lines: Vec<&str> = text.lines().collect();
+            assert_eq!(owners.len(), lines.len(), "pre captured: {capture_pre}");
+            for (line, owner) in lines.iter().zip(&owners) {
+                match *line {
+                    "def logout(user):" | "    return drop(user)" => {
+                        assert_eq!(
+                            owner.as_deref(),
+                            Some(second.as_str()),
+                            "{line} / pre {capture_pre}"
+                        );
+                    }
+                    "def refresh(user):" | "        return rotate(user)" => {
+                        assert_ne!(
+                            owner.as_deref(),
+                            Some(second.as_str()),
+                            "{line} was attributed to the second agent (pre captured: {capture_pre})"
+                        );
+                    }
+                    _ => {}
+                }
+            }
+            // The surviving signature is the first agent's. The rename and
+            // the reindent do not move it.
+            let signature = lines
+                .iter()
+                .position(|l| *l == "def refresh(user):")
+                .unwrap();
+            assert_eq!(
+                owners[signature].as_deref(),
+                Some(first.as_str()),
+                "pre captured: {capture_pre}"
+            );
+        }
+    }
+
+    fn origin(repo: &Repo, rel: &str, line: &str) -> Option<crate::provenance::LineOrigin> {
+        let store = Store::new(repo);
+        let head = repo.head_event().unwrap();
+        find_line_origin(&store, head.as_deref(), std::path::Path::new(rel), line)
+            .unwrap()
+            .0
+    }
+
+    fn assert_declared(ev: &Evidence) {
+        assert_eq!(ev.label(), "declared");
+        let described = ev.describe();
+        assert!(described.starts_with("declared by"), "{described}");
+        let lower = described.to_lowercase();
+        assert!(!lower.contains("proven"), "{described}");
+        assert!(!lower.contains("verified"), "{described}");
+        let json = serde_json::to_value(ev).unwrap();
+        assert_eq!(json["class"], "declared");
+    }
+
+    /// Expected, written first. A runtime declares `old_string: ""` and
+    /// `new_string` equal to the whole file, and it skips PreToolUse.
+    /// The file already holds an earlier agent's lines plus a human line.
+    ///
+    /// - `def refresh(user):` stays the first event. Evidence stays declared.
+    /// - `# human` is introduced by no event (UNKNOWN).
+    /// - The lying call records nothing. A declaration is not line ownership.
+    #[test]
+    fn wholesale_declaration_does_not_take_lines_the_ledger_already_has() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let original = "def refresh(user):\n    return token\n";
+        let first = pre_tool_then_write(&repo, "conv-a", "auth.py", original);
+        handle_in(&repo, "afterFileEdit", &first).unwrap();
+        let agent_a = repo.head_event().unwrap().unwrap();
+
+        let human = "def refresh(user):\n    return token\n# human\n";
+        std::fs::write(repo.root.join("auth.py"), human).unwrap();
+        let abs = repo.root.join("auth.py");
+        let lie = with(
+            common_fields("conv-lie"),
+            json!({
+                "file_path": abs.to_string_lossy(),
+                "edits": [{ "old_string": "", "new_string": human }],
+                "timestamp": "1999-01-01T00:00:00Z"
+            }),
+        );
+        assert_eq!(handle_in(&repo, "afterFileEdit", &lie).unwrap(), json!({}));
+        assert_eq!(
+            repo.head_event().unwrap().as_deref(),
+            Some(agent_a.as_str())
+        );
+
+        let kept = origin(&repo, "auth.py", "def refresh(user):").expect("still the first event");
+        assert_eq!(kept.id, agent_a);
+        assert_declared(kept.event.evidence.as_ref().unwrap());
+        assert!(
+            origin(&repo, "auth.py", "# human").is_none(),
+            "the human line must stay unknown"
+        );
+        // The planted timestamp is not the event's clock. The first event
+        // was recorded in this process, not in 1999.
+        assert!(!kept.event.created_at.starts_with("1999"));
+    }
+
+    /// Expected: a path the declaration names, and that the tree does not
+    /// contain, does not become ownership of a different file a human edited.
+    #[test]
+    fn declared_path_that_is_not_in_the_tree_does_not_steal_another_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let original = "def refresh(user):\n    return token\n";
+        let first = pre_tool_then_write(&repo, "conv-a", "auth.py", original);
+        handle_in(&repo, "afterFileEdit", &first).unwrap();
+        let agent_a = repo.head_event().unwrap().unwrap();
+
+        std::fs::write(
+            repo.root.join("auth.py"),
+            "def refresh(user):\n    return token\n# human\n",
+        )
+        .unwrap();
+        let lie = with(
+            common_fields("conv-lie"),
+            json!({
+                "file_path": repo.root.join("other.py").to_string_lossy(),
+                "edits": [{ "old_string": "", "new_string": "print('nope')\n" }]
+            }),
+        );
+        handle_in(&repo, "afterFileEdit", &lie).unwrap();
+        assert_eq!(
+            repo.head_event().unwrap().as_deref(),
+            Some(agent_a.as_str())
+        );
+        assert!(origin(&repo, "auth.py", "# human").is_none());
+        assert_eq!(
+            origin(&repo, "auth.py", "def refresh(user):").unwrap().id,
+            agent_a
+        );
+    }
+
+    /// Expected: the first time the ledger sees a path, a creation
+    /// declaration is recorded. Evidence is declared. Nothing in the ledger
+    /// contradicts it, and that is not a proof a human did not type it first.
+    #[test]
+    fn first_observation_of_a_path_stays_declared() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let body = "def refresh(user):\n    return token\n";
+        let abs = repo.root.join("auth.py");
+        std::fs::write(&abs, body).unwrap();
+        let edit = with(
+            common_fields("conv-a"),
+            json!({
+                "file_path": abs.to_string_lossy(),
+                "edits": [{ "old_string": "", "new_string": body }]
+            }),
+        );
+        handle_in(&repo, "afterFileEdit", &edit).unwrap();
+        let ev = head_event(&repo);
+        assert_declared(ev.evidence.as_ref().unwrap());
+        let id = repo.head_event().unwrap().unwrap();
+        let store = Store::new(&repo);
+        let chain = chain_to(&store, Some(&id)).unwrap();
+        let owners = line_owners(&store, &chain, std::path::Path::new("auth.py")).unwrap();
+        assert!(owners.iter().all(|o| o.as_deref() == Some(id.as_str())));
+    }
+
+    /// Expected attribution of `final.py` after
+    /// AI-A → human line → AI-B → two renames → formatter → AI-C
+    /// (AI-C has no PreToolUse; its edit is the appended function only):
+    ///
+    /// - `def refresh(user):` → AI-A
+    /// - `        return token` → UNKNOWN (the formatter changed the indent)
+    /// - `# human` → UNKNOWN
+    /// - `def ping():` / `    return 1` → AI-B
+    /// - `def logout(user):` / `    return drop(user)` → AI-C
+    ///
+    /// AI-C owns none of the earlier lines. A shell is not in this chain:
+    /// a shell that declares no edit still falls back to the previous
+    /// snapshot, and that result is not asserted as correct.
+    #[test]
+    fn two_renames_and_a_formatter_between_three_agents_keep_each_edit() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let original = "def refresh(user):\n    return token\n";
+        let a = pre_tool_then_write(&repo, "conv-a", "auth.py", original);
+        handle_in(&repo, "afterFileEdit", &a).unwrap();
+        let agent_a = repo.head_event().unwrap().unwrap();
+
+        let with_human = "def refresh(user):\n    return token\n# human\n";
+        std::fs::write(repo.root.join("auth.py"), with_human).unwrap();
+
+        let ping = "def ping():\n    return 1\n";
+        let with_b = format!("{with_human}{ping}");
+        let abs = repo.root.join("auth.py");
+        handle_in(
+            &repo,
+            "preToolUse",
+            &with(common_fields("conv-b"), json!({ "tool_name": "Write" })),
+        )
+        .unwrap();
+        std::fs::write(&abs, &with_b).unwrap();
+        handle_in(
+            &repo,
+            "afterFileEdit",
+            &with(
+                common_fields("conv-b"),
+                json!({
+                    "file_path": abs.to_string_lossy(),
+                    "edits": [{ "old_string": "", "new_string": ping }]
+                }),
+            ),
+        )
+        .unwrap();
+        let agent_b = repo.head_event().unwrap().unwrap();
+
+        std::fs::rename(repo.root.join("auth.py"), repo.root.join("mid.py")).unwrap();
+        std::fs::rename(repo.root.join("mid.py"), repo.root.join("final.py")).unwrap();
+        let formatted =
+            "def refresh(user):\n        return token\n# human\ndef ping():\n    return 1\n";
+        std::fs::write(repo.root.join("final.py"), formatted).unwrap();
+
+        let logout = "def logout(user):\n    return drop(user)\n";
+        let final_abs = repo.root.join("final.py");
+        std::fs::write(&final_abs, format!("{formatted}{logout}")).unwrap();
+        handle_in(
+            &repo,
+            "afterFileEdit",
+            &with(
+                common_fields("conv-c"),
+                json!({
+                    "file_path": final_abs.to_string_lossy(),
+                    "edits": [{ "old_string": "", "new_string": logout }]
+                }),
+            ),
+        )
+        .unwrap();
+        let agent_c = repo.head_event().unwrap().unwrap();
+
+        let store = Store::new(&repo);
+        let chain = chain_to(&store, Some(&agent_c)).unwrap();
+        let owners = line_owners(&store, &chain, std::path::Path::new("final.py")).unwrap();
+        let text = std::fs::read_to_string(&final_abs).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(owners.len(), lines.len());
+        for (line, owner) in lines.iter().zip(&owners) {
+            let want: Option<&str> = match *line {
+                "def refresh(user):" => Some(agent_a.as_str()),
+                "        return token" | "# human" => None,
+                "def ping():" | "    return 1" => Some(agent_b.as_str()),
+                "def logout(user):" | "    return drop(user)" => Some(agent_c.as_str()),
+                _ => panic!("unexpected line {line:?}"),
+            };
+            assert_eq!(owner.as_deref(), want, "{line}");
+        }
+        let c_ev = store.read_event(&agent_c).unwrap();
+        assert_declared(c_ev.evidence.as_ref().unwrap());
+    }
+
+    /// Expected: two conversations, one file, each with PreToolUse.
+    /// Each owns the function it appended. Neither owns the other's lines.
+    #[test]
+    fn two_agents_on_one_file_keep_their_own_lines() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let alpha = "def alpha():\n    return 1\n";
+        let first = pre_tool_then_write(&repo, "conv-1", "auth.py", alpha);
+        handle_in(&repo, "afterFileEdit", &first).unwrap();
+        let agent_a = repo.head_event().unwrap().unwrap();
+
+        let beta = "def beta():\n    return 2\n";
+        let abs = repo.root.join("auth.py");
+        handle_in(
+            &repo,
+            "preToolUse",
+            &with(common_fields("conv-2"), json!({ "tool_name": "Write" })),
+        )
+        .unwrap();
+        std::fs::write(&abs, format!("{alpha}{beta}")).unwrap();
+        handle_in(
+            &repo,
+            "afterFileEdit",
+            &with(
+                common_fields("conv-2"),
+                json!({
+                    "file_path": abs.to_string_lossy(),
+                    "edits": [{ "old_string": "", "new_string": beta }]
+                }),
+            ),
+        )
+        .unwrap();
+        let agent_b = repo.head_event().unwrap().unwrap();
+        let store = Store::new(&repo);
+        let chain = chain_to(&store, Some(&agent_b)).unwrap();
+        let owners = line_owners(&store, &chain, std::path::Path::new("auth.py")).unwrap();
+        let text = std::fs::read_to_string(&abs).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        for (line, owner) in lines.iter().zip(&owners) {
+            let want = if line.contains("alpha") || *line == "    return 1" {
+                Some(agent_a.as_str())
+            } else if line.contains("beta") || *line == "    return 2" {
+                Some(agent_b.as_str())
+            } else {
+                panic!("{line}");
+            };
+            assert_eq!(owner.as_deref(), want, "{line}");
+        }
+    }
+
+    /// Expected: a copy, a split and a merge that no hook observed are
+    /// unknown on the new path. Delete-and-recreate of the same bytes is
+    /// not observed either, so the earlier event still answers for that
+    /// text. That is a limit of an unobserved delete, not continuous authorship.
+    #[test]
+    fn unobserved_copy_split_merge_and_recreate_are_not_invented() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let body = "def refresh(user):\n    return token\n";
+        let first = pre_tool_then_write(&repo, "conv-a", "auth.py", body);
+        handle_in(&repo, "afterFileEdit", &first).unwrap();
+        let agent_a = repo.head_event().unwrap().unwrap();
+
+        std::fs::copy(repo.root.join("auth.py"), repo.root.join("copy.py")).unwrap();
+        assert!(origin(&repo, "copy.py", "def refresh(user):").is_none());
+
+        std::fs::write(repo.root.join("left.py"), "def refresh(user):\n").unwrap();
+        std::fs::write(repo.root.join("right.py"), "    return token\n").unwrap();
+        assert!(origin(&repo, "left.py", "def refresh(user):").is_none());
+        assert!(origin(&repo, "right.py", "    return token").is_none());
+
+        std::fs::write(
+            repo.root.join("merged.py"),
+            "def refresh(user):\n    return token\n",
+        )
+        .unwrap();
+        assert!(origin(&repo, "merged.py", "def refresh(user):").is_none());
+
+        std::fs::remove_file(repo.root.join("auth.py")).unwrap();
+        std::fs::write(repo.root.join("auth.py"), body).unwrap();
+        let again = origin(&repo, "auth.py", "def refresh(user):").unwrap();
+        assert_eq!(again.id, agent_a);
+        assert_declared(again.event.evidence.as_ref().unwrap());
+    }
+
+    /// Expected, written first. A shell declares a command and no edit.
+    /// PreToolUse did not leave a snapshot (the pending pre was discarded).
+    /// The file already holds an earlier agent's line plus a human rewrite.
+    ///
+    /// - `def refresh(user):` stays the first event.
+    /// - `    return rewritten` is introduced by no event (UNKNOWN).
+    /// - No shell event is recorded. Inheriting the previous snapshot would
+    ///   turn the gap into the shell's diff, and the command string is not
+    ///   evidence of which lines the command wrote.
+    #[test]
+    fn shell_without_a_captured_pre_does_not_inherit_the_gap() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let original = "def refresh(user):\n    return token\n";
+        let first = pre_tool_then_write(&repo, "conv-a", "auth.py", original);
+        handle_in(&repo, "afterFileEdit", &first).unwrap();
+        let agent_a = repo.head_event().unwrap().unwrap();
+
+        std::fs::write(
+            repo.root.join("auth.py"),
+            "def refresh(user):\n    return rewritten\n",
+        )
+        .unwrap();
+        pre_tool_shell(&repo, "conv-sh");
+        let pending = repo.dir.join("capture").join("pending-pre.jsonl");
+        if pending.exists() {
+            std::fs::remove_file(&pending).unwrap();
+        }
+        let generated = with(
+            common_fields("conv-sh"),
+            json!({ "command": "rewrite auth.py", "output": "", "duration": 4, "sandbox": false }),
+        );
+        handle_in(&repo, "afterShellExecution", &generated).unwrap();
+
+        assert_eq!(
+            repo.head_event().unwrap().as_deref(),
+            Some(agent_a.as_str())
+        );
+        let kept = origin(&repo, "auth.py", "def refresh(user):").unwrap();
+        assert_eq!(kept.id, agent_a);
+        assert_declared(kept.event.evidence.as_ref().unwrap());
+        assert!(
+            origin(&repo, "auth.py", "    return rewritten").is_none(),
+            "the rewritten line must stay unknown"
+        );
+    }
+
+    /// Expected: PreToolUse ran after the human rewrite and before the shell
+    /// appended one line. The shell owns that line. It does not own the
+    /// human rewrite, and it does not own the first agent's signature.
+    #[test]
+    fn shell_with_a_captured_pre_owns_only_the_change_after_the_snapshot() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = Repo::init(tmp.path()).unwrap();
+        let original = "def refresh(user):\n    return token\n";
+        let first = pre_tool_then_write(&repo, "conv-a", "auth.py", original);
+        handle_in(&repo, "afterFileEdit", &first).unwrap();
+        let agent_a = repo.head_event().unwrap().unwrap();
+
+        let rewritten = "def refresh(user):\n    return rewritten\n";
+        std::fs::write(repo.root.join("auth.py"), rewritten).unwrap();
+        pre_tool_shell(&repo, "conv-sh");
+        let after = "def refresh(user):\n    return rewritten\ndef ping():\n    return 1\n";
+        std::fs::write(repo.root.join("auth.py"), after).unwrap();
+        let generated = with(
+            common_fields("conv-sh"),
+            json!({ "command": "printf ping >> auth.py", "output": "", "duration": 4, "sandbox": false }),
+        );
+        handle_in(&repo, "afterShellExecution", &generated).unwrap();
+        let shell = repo.head_event().unwrap().unwrap();
+        assert_ne!(shell, agent_a);
+        let ev = head_event(&repo);
+        assert_eq!(ev.tool.as_deref(), Some("Shell"));
+        assert_declared(ev.evidence.as_ref().unwrap());
+
+        let store = Store::new(&repo);
+        let chain = chain_to(&store, Some(&shell)).unwrap();
+        let owners = line_owners(&store, &chain, std::path::Path::new("auth.py")).unwrap();
+        let text = std::fs::read_to_string(repo.root.join("auth.py")).unwrap();
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(owners.len(), lines.len());
+        for (line, owner) in lines.iter().zip(&owners) {
+            let want = match *line {
+                "def refresh(user):" => Some(agent_a.as_str()),
+                "    return rewritten" => None,
+                "def ping():" | "    return 1" => Some(shell.as_str()),
+                _ => panic!("unexpected line {line:?}"),
+            };
+            assert_eq!(owner.as_deref(), want, "{line}");
+        }
     }
 
     #[test]

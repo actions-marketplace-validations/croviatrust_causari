@@ -8,15 +8,35 @@ name: survival-report
 #   re audit <owner/repo> --json
 # Maintainers opt out with one line in .github/survival-optout.txt.
 #
-# Method v2 refuses shallow clones, so every repository is cloned in full
-# before it is measured. The list (up to 100 repositories, filled weekly by
-# survival-discover.yml) is audited by a matrix of SHARDS jobs: shard k
-# takes every repository whose index in the list is k mod SHARDS, uploads
-# its results as an artifact, and the report job merges the shards, builds
-# the report and commits it to main, append-only.
+# The method (v2 and later) refuses shallow clones, so every repository is
+# cloned in full before it is measured. The list (up to 100 repositories,
+# filled weekly by survival-discover.yml) is audited by a matrix of SHARDS
+# jobs: shard k takes every repository whose index in the list is k mod
+# SHARDS, uploads its results as an artifact, and the report job merges the
+# shards, builds the report and commits it to main, append-only.
+#
+# Where the measurement connected is part of the report. Each audit shard
+# points git at an egress witness (scripts/egress_witness.py, a CONNECT
+# proxy under .github/egress-policy.json: github.com:443 and nothing else).
+# A destination outside that list is refused and written down, for the
+# connections that go through the witness. The sheet proves the logs that
+# were uploaded, not the rest of the job: checkout, tool install, artifact
+# upload, a shard that uploaded no log, and any connection that did not go
+# through the witness are outside it. The report job turns the uploaded logs
+# into one signed PNX run sheet (crovia.pnx.v1 with a reach record), verifies
+# it against the policy and publishes sheet, policy and verdict next to the
+# report. A reader checks it offline:
+# `tacet-pnx verify reach.sheet.json --policy egress-policy.json`.
+#
+# GitHub starts scheduled runs late on quiet repositories: report #3 was
+# scheduled for 05:17 UTC and started at 11:42. The schedule is therefore a
+# floor, not a clock. An operator may fire the run on time from an external
+# cron with `gh workflow run survival-report.yml` (Actions: write); the gate
+# job below keeps a late schedule from producing a second report in the
+# same week.
 on:
   schedule:
-    - cron: "17 5 * * 1" # every Monday, 05:17 UTC
+    - cron: "17 5 * * 1" # every Monday, 05:17 UTC (started 6 h late on 2026-09-28)
   workflow_dispatch:
     inputs:
       deposit:
@@ -24,9 +44,13 @@ on:
         type: boolean
         default: true
       deposit_only:
-        description: "Skip the measurement: deposit the latest published report (for a report built before ZENODO_TOKEN existed)"
+        description: "Skip the measurement: deposit one already published report. Requires deposit_report_id."
         type: boolean
         default: false
+      deposit_report_id:
+        description: "Report id to deposit when deposit_only is true, for example 2026/04. Refuses latest.json when it differs. No default."
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -46,13 +70,41 @@ env:
   AUDIT_TIMEOUT_S: 10800
 
 jobs:
+  # One report per week. A scheduled run that finds a report less than six
+  # days old (an operator fired the run on time, or the schedule fired twice)
+  # does nothing, and says so. Manual runs are never gated: the operator
+  # decides.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - id: gate
+        run: |
+          set -euo pipefail
+          LAST="$(jq -r '.date // empty' site/reports/survival/latest.json 2>/dev/null || true)"
+          if [ "${{ github.event_name }}" = "schedule" ] && [ -n "$LAST" ]; then
+            AGE_DAYS=$(( ( $(date -u +%s) - $(date -u -d "$LAST" +%s) ) / 86400 ))
+            if [ "$AGE_DAYS" -lt 6 ]; then
+              echo "::notice title=No report this run::the latest report is dated $LAST ($AGE_DAYS days ago); one report per week."
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
   # One job per shard (up to five repositories each at a 100-repository
   # list). A repository that fails to clone or to audit is recorded in the
   # shard's `failed` list and never fails the job; a shard that hits its own
   # timeout leaves its remaining repositories unreported, and the merge
   # records those as failed too.
   audit:
-    if: ${{ !inputs.deposit_only }}
+    needs: gate
+    if: ${{ needs.gate.outputs.run == 'true' && !inputs.deposit_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 350
     strategy:
@@ -104,6 +156,18 @@ jobs:
             if $skip; then echo "opt-out: $r"; OPTED+=("$r"); else REPOS+=("$r"); fi
           done
           echo "shard $K of $N: ${#REPOS[@]} repositories (${#OPTED[@]} opted out) of ${#ALL[@]} listed"
+          # From here to the end of the loop every connection goes through
+          # the egress witness: git honours https_proxy, nothing else in the
+          # loop speaks to the network, and LFS content is not fetched (blame
+          # reads committed pointers; the objects would be a second
+          # destination the policy does not name). Each attempt is one line
+          # of reach-shard-K.jsonl, uploaded with the shard.
+          python3 scripts/egress_witness.py --listen 127.0.0.1:3128 --policy .github/egress-policy.json \
+            --log "$RUN/reach-shard-$K.jsonl" 2>"$RUN/reach-shard-$K.err" &
+          WITNESS=$!
+          sleep 1
+          kill -0 "$WITNESS" 2>/dev/null || { echo "egress witness did not start:"; cat "$RUN/reach-shard-$K.err"; exit 1; }
+          export https_proxy=http://127.0.0.1:3128 http_proxy=http://127.0.0.1:3128 GIT_LFS_SKIP_SMUDGE=1
           NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           FAILED=()
           for repo in "${REPOS[@]:-}"; do
@@ -136,11 +200,21 @@ jobs:
             rm -rf "$CLONE"
             echo "::endgroup::"
           done
-          jq -n --arg now "$NOW" --arg ver "$(re --version | awk '{print $2}')" --argjson shard "$K" \
+          unset https_proxy http_proxy
+          kill -TERM "$WITNESS" 2>/dev/null || true
+          wait "$WITNESS" 2>/dev/null || true
+          echo "reach: $(wc -l < "$RUN/reach-shard-$K.jsonl") connection attempt(s) recorded by the egress witness"
+          grep -E 'blocked|failed' "$RUN/reach-shard-$K.err" || true
+          rm -f "$RUN/reach-shard-$K.err"
+          # The method version is what the binary says (coverage.method of any
+          # audit), never a constant written here: report #3 was method v3
+          # while this file still said v2.
+          METHOD="$(jq -rn 'first(inputs | .coverage.method // empty)' "$RUN"/*__*.json 2>/dev/null || true)"
+          jq -n --arg now "$NOW" --arg ver "$(re --version | awk '{print $2}')" --argjson shard "$K" --arg method "${METHOD:-}" \
             --argjson repos "$(printf '%s\n' "${REPOS[@]:-}" | grep -v '^$' | jq -R . | jq -s .)" \
             --argjson failed "$(printf '%s\n' "${FAILED[@]:-}" | grep -v '^$' | jq -R . | jq -s .)" \
             --argjson opted "$(printf '%s\n' "${OPTED[@]:-}" | grep -v '^$' | jq -R . | jq -s .)" \
-            '{generated_at: $now, tool: "causari", tool_version: $ver, method: "v2",
+            '{generated_at: $now, tool: "causari", tool_version: $ver, method: (if $method == "" then null else $method end),
               command: "re audit <owner/repo> --json", repos: $repos, failed: $failed, opted_out: $opted, shard: $shard}' \
             > "$RUN/run-shard-$K.json"
           cat "$RUN/run-shard-$K.json"
@@ -157,10 +231,10 @@ jobs:
           retention-days: 14
 
   report:
-    needs: audit
+    needs: [gate, audit]
     # Runs whether or not every shard succeeded, and when the matrix was
-    # skipped for deposit_only.
-    if: ${{ always() }}
+    # skipped for deposit_only; never when the gate said no.
+    if: ${{ always() && needs.gate.outputs.run == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -173,7 +247,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: main
-          token: ${{ secrets.REPORT_PUSH_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: python dependencies (card.png)
         if: ${{ !inputs.deposit_only }}
@@ -181,7 +255,7 @@ jobs:
 
       - name: download the shards
         if: ${{ !inputs.deposit_only }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: run-shard-*
           path: /tmp/run
@@ -198,6 +272,48 @@ jobs:
           jq '{generated_at, tool_version, repos: (.repos | length), failed, opted_out: (.opted_out | length), shards}' /tmp/run/run.json
           ls /tmp/run/*__*.json | wc -l
 
+      # The shards' connection logs become one signed run sheet with a reach
+      # record, verified against the policy before the build. The build
+      # refuses a sheet without a passing verification; a verdict of
+      # outside-policy (exit 1) is a verified sheet and is published as such,
+      # said plainly. Without PNX_WITNESS_SEED the sheet is signed with a key
+      # made for this run: valid, but a new witness identity every week.
+      - name: install the PNX reference (crovia-tacet)
+        if: ${{ !inputs.deposit_only }}
+        # Install the published TACET reference implementation from PyPI.
+        run: python3 -m pip install --quiet "crovia-tacet>=0.5.0"
+
+      - name: reach record — sign and verify where the shards connected
+        if: ${{ !inputs.deposit_only }}
+        env:
+          PNX_WITNESS_SEED: ${{ secrets.PNX_WITNESS_SEED }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          LOGS=(/tmp/run/reach-shard-*.jsonl)
+          if [ "${#LOGS[@]}" -eq 0 ]; then
+            echo "::warning title=No reach record::no shard uploaded a connection log; the report is published without a reach receipt."
+            exit 0
+          fi
+          cat "${LOGS[@]}" > /tmp/run/reach.jsonl
+          echo "${#LOGS[@]} shard log(s), $(wc -l < /tmp/run/reach.jsonl) connection attempt(s)"
+          mkdir -p /tmp/empty
+          if [ -n "${PNX_WITNESS_SEED:-}" ]; then
+            KEY=(--key-env PNX_WITNESS_SEED --key-id urn:causari:survival-report:witness)
+          else
+            echo "::notice title=Per-run witness key::PNX_WITNESS_SEED is not set, so this sheet is signed with a key made for this run (its public half is in the sheet). Add the secret (32 random bytes as 64 hex characters) to keep one witness identity across reports."
+            tacet-pnx keygen --id "urn:causari:survival-report:witness:run-$GITHUB_RUN_ID" --out /tmp/witness.key.json
+            KEY=(--key /tmp/witness.key.json)
+          fi
+          tacet-pnx witness /tmp/empty --run-id "survival-report-gh-$GITHUB_RUN_ID" "${KEY[@]}" \
+            --reach /tmp/run/reach.jsonl --policy .github/egress-policy.json --reach-mode enforce \
+            --sheet /tmp/run/reach.sheet.json --state /tmp/witness.state.json
+          rm -f /tmp/witness.key.json /tmp/witness.state.json
+          rc=0
+          tacet-pnx verify /tmp/run/reach.sheet.json --policy .github/egress-policy.json --json > /tmp/run/reach.verify.json || rc=$?
+          if [ "$rc" -gt 1 ]; then cat /tmp/run/reach.verify.json; exit "$rc"; fi
+          tacet-pnx verify /tmp/run/reach.sheet.json --policy .github/egress-policy.json || true
+
       # Report number = existing report directories + 1; the generator refuses
       # to overwrite a directory that already holds a different report.
       - name: build the report
@@ -211,6 +327,7 @@ jobs:
             echo "## $(jq -r .title "$DIR/report.json") · $(jq -r .date "$DIR/report.json")"
             echo
             sed -n '/^## Aggregate/,/^## Repositories/p' "$DIR/report.md" | sed '$d'
+            sed -n '/^## Where this measurement connected/,/^## Method/p' "$DIR/report.md" | sed '$d'
           } >> "$GITHUB_STEP_SUMMARY"
 
       # The report to publish and deposit: the one latest.json names, whether
@@ -224,31 +341,67 @@ jobs:
       # GitHub Actions app to bypass it or use a PAT in secrets.
       - name: commit the report to main
         if: ${{ !inputs.deposit_only }}
+        env:
+          PUSH_TOKEN: ${{ secrets.REPORT_PUSH_TOKEN }}
         run: |
           set -euo pipefail
           git config user.name "causari-report[bot]"
           git config user.email "noreply@causari.dev"
           git add site/reports/survival site/r site/_redirects site/sitemap.xml
           if git diff --cached --quiet; then echo "no changes"; exit 0; fi
-          git commit -s -m "report: $(jq -r .title "${{ steps.build.outputs.dir }}/report.json") ($(jq -r .date "${{ steps.build.outputs.dir }}/report.json"), method v2)"
-          git pull --rebase origin main
-          if ! git push origin HEAD:main; then
-            echo "::error title=Report not pushed::branch protection rejected the push. Add the secret REPORT_PUSH_TOKEN (admin PAT, Contents: read and write) or push the artifact by hand."
+          git commit -s -m "report: $(jq -r .title "${{ steps.build.outputs.dir }}/report.json") ($(jq -r .date "${{ steps.build.outputs.dir }}/report.json"), method $(jq -r .method.version "${{ steps.build.outputs.dir }}/report.json"))"
+          if [ -z "${PUSH_TOKEN}" ] || ! login="$(GH_TOKEN="$PUSH_TOKEN" gh api user --jq .login)"; then
+            echo "::error title=Publication skipped::REPORT_PUSH_TOKEN is missing or rejected. The assembled report remains in the artifact."
+            echo "PUSH_FAILED=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          perm="$(GH_TOKEN="$PUSH_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/collaborators/${login}/permission" --jq .permission)"
+          if [ "$perm" != "admin" ]; then
+            echo "::error title=Publication skipped::token permission is ${perm}. The assembled report remains in the artifact."
+            echo "PUSH_FAILED=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)"
+          git -c "http.extraheader=$auth" pull --rebase origin main
+          if ! git -c "http.extraheader=$auth" push origin HEAD:main; then
+            echo "::error title=Report not pushed::branch protection rejected the push. The assembled report remains in the artifact."
             echo "PUSH_FAILED=1" >> "$GITHUB_ENV"
           fi
 
       - name: deposit on Zenodo
-        if: ${{ github.event_name == 'schedule' || inputs.deposit }}
+        if: ${{ (github.event_name == 'schedule' || inputs.deposit || inputs.deposit_only) && env.PUSH_FAILED != '1' }}
         env:
           ZENODO_TOKEN: ${{ secrets.ZENODO_TOKEN }}
           ZENODO_SANDBOX: ${{ vars.ZENODO_SANDBOX }}
+          PUSH_TOKEN: ${{ secrets.REPORT_PUSH_TOKEN }}
         run: |
           set -euo pipefail
+          if [ "${PUSH_FAILED:-}" = "1" ]; then
+            echo "::error title=Deposit refused::the report push was rejected. Zenodo was not called."
+            exit 1
+          fi
+          if [ "${{ inputs.deposit_only }}" = "true" ]; then
+            want="${{ inputs.deposit_report_id }}"
+            got="$(jq -r .id site/reports/survival/latest.json)"
+            if [ -z "$want" ] || [ "$got" != "$want" ]; then
+              echo "::error title=Deposit refused::deposit_only requires deposit_report_id and latest.json is ${got}."
+              exit 1
+            fi
+          fi
           if [ -z "${ZENODO_TOKEN:-}" ]; then
             echo "::notice title=Zenodo deposit skipped::ZENODO_TOKEN is not set. Add it under Settings → Secrets to mint a DOI for each report; the report itself is published without it."
             python3 scripts/zenodo_deposit.py --dry-run "${{ steps.build.outputs.dir }}" > /tmp/zenodo-dry.json
             jq '{report, version, files: (.files | length), title: .metadata.title}' /tmp/zenodo-dry.json
             exit 0
+          fi
+          if [ -z "${PUSH_TOKEN}" ] || ! login="$(GH_TOKEN="$PUSH_TOKEN" gh api user --jq .login)"; then
+            echo "::error title=Deposit refused::REPORT_PUSH_TOKEN is missing or rejected. Zenodo was not called."
+            exit 1
+          fi
+          perm="$(GH_TOKEN="$PUSH_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/collaborators/${login}/permission" --jq .permission)"
+          if [ "$perm" != "admin" ]; then
+            echo "::error title=Deposit refused::token permission is ${perm}. Zenodo was not called."
+            exit 1
           fi
           python3 scripts/zenodo_deposit.py "${{ steps.build.outputs.dir }}" | tee /tmp/zenodo.log
           git config user.name "causari-report[bot]"
@@ -256,11 +409,34 @@ jobs:
           git add site/reports/survival site/r site/_redirects site/sitemap.xml
           if git diff --cached --quiet; then echo "nothing to write back"; exit 0; fi
           git commit -s -m "report: DOI $(jq -r '.doi // "n/a"' /tmp/zenodo.log) for $(jq -r .title "${{ steps.build.outputs.dir }}/report.json")"
-          git pull --rebase origin main
-          if ! git push origin HEAD:main; then
-            echo "::error title=DOI write-back not pushed::the DOI is minted ($(jq -r '.doi // "n/a"' /tmp/zenodo.log)); branch protection rejected the push. Add REPORT_PUSH_TOKEN or apply the artifact by hand."
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)"
+          git -c "http.extraheader=$auth" pull --rebase origin main
+          if ! git -c "http.extraheader=$auth" push origin HEAD:main; then
+            echo "::error title=DOI write-back not pushed::the DOI is minted ($(jq -r '.doi // "n/a"' /tmp/zenodo.log)); branch protection rejected the push. Apply the artifact by hand."
             echo "PUSH_FAILED=1" >> "$GITHUB_ENV"
           fi
+
+      # The same bytes, as a dataset: three JSONL tables plus the raw report
+      # tree, under CroviaResearch/causari-survival. Built from the report tree
+      # that was just pushed (with its DOI when Zenodo wrote one back).
+      - name: publish the dataset on Hugging Face
+        if: ${{ (github.event_name == 'schedule' || inputs.deposit || inputs.deposit_only) && env.PUSH_FAILED != '1' }}
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${PUSH_FAILED:-}" = "1" ]; then
+            echo "::error title=Dataset publish refused::a push was rejected. The dataset would not match main. Hugging Face was not called."
+            exit 1
+          fi
+          python3 scripts/survival_dataset.py build /tmp/hf-dataset
+          if [ -z "${HF_TOKEN:-}" ]; then
+            echo "::notice title=Hugging Face publish skipped::HF_TOKEN is not set. Add it under Settings → Secrets (write token for the CroviaResearch org) to publish the dataset each week."
+            python3 scripts/survival_dataset.py push --dry-run /tmp/hf-dataset
+            exit 0
+          fi
+          python3 -m pip install --quiet "huggingface_hub>=0.25"
+          python3 scripts/survival_dataset.py push /tmp/hf-dataset
 
       # Whatever happened to the pushes, the bytes are not lost.
       - name: upload the report tree

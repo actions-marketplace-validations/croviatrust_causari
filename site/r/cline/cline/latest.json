@@ -5,31 +5,157 @@
  "url": "https://causari.dev/r/cline/cline/",
  "badge": "https://causari.dev/r/cline/cline/badge.svg",
  "report": {
-  "number": 2,
-  "id": "2026/02",
-  "date": "2026-09-23",
-  "url": "https://causari.dev/reports/survival/2026/02/"
+  "number": 7,
+  "id": "2026/07",
+  "date": "2026-10-26",
+  "url": "https://causari.dev/reports/survival/2026/07/"
  },
- "method": "v2",
+ "method": "v6",
  "tool": {
   "name": "causari",
-  "version": "0.2.0"
+  "version": "0.5.0"
  },
  "verified": {
-  "commits": 155,
-  "introduced": 95924,
-  "surviving": 63615,
-  "survival_rate": 0.6631812685042325,
-  "capped_survival_rate": 0.6799077212465641,
-  "median_survival": 0.7266187050359713,
-  "largest_commit_share": 0.1182290146365873
+  "commits": 164,
+  "introduced": 118250,
+  "surviving": 84218,
+  "survival_rate": 0.7122029598308668,
+  "capped_survival_rate": 0.7110053639253938,
+  "median_survival": 0.7354214182044371,
+  "largest_commit_share": 0.11525581395348837
  },
  "interval_95": null,
+ "baseline": {
+  "untagged": {
+   "commits": 7444,
+   "introduced": 2045990,
+   "surviving": 864961,
+   "survival_rate": 0.42275915327054386,
+   "median_survival": 0.2222222222222222,
+   "capped_survival_rate": 0.4977330240562959,
+   "cap_lines": 879,
+   "largest_commit_share": 0.17680780453472403
+  },
+  "by_age": [
+   {
+    "from_days": 0,
+    "to_days": 30,
+    "tagged": {
+     "commits": 9,
+     "introduced": 22326,
+     "surviving": 20759,
+     "survival_rate": 0.9298127743438144
+    },
+    "untagged": {
+     "commits": 246,
+     "introduced": 75180,
+     "surviving": 63802,
+     "survival_rate": 0.848656557595105
+    }
+   },
+   {
+    "from_days": 30,
+    "to_days": 90,
+    "tagged": {
+     "commits": 43,
+     "introduced": 29220,
+     "surviving": 25201,
+     "survival_rate": 0.8624572210814511
+    },
+    "untagged": {
+     "commits": 739,
+     "introduced": 247684,
+     "surviving": 203449,
+     "survival_rate": 0.8214055005571615
+    }
+   },
+   {
+    "from_days": 90,
+    "to_days": 180,
+    "tagged": {
+     "commits": 29,
+     "introduced": 11505,
+     "surviving": 9544,
+     "survival_rate": 0.8295523685354194
+    },
+    "untagged": {
+     "commits": 980,
+     "introduced": 347708,
+     "surviving": 273963,
+     "survival_rate": 0.7879111208255203
+    }
+   },
+   {
+    "from_days": 180,
+    "to_days": 365,
+    "tagged": {
+     "commits": 64,
+     "introduced": 42203,
+     "surviving": 27766,
+     "survival_rate": 0.6579153140771983
+    },
+    "untagged": {
+     "commits": 1692,
+     "introduced": 990332,
+     "surviving": 247441,
+     "survival_rate": 0.24985661374165433
+    }
+   },
+   {
+    "from_days": 365,
+    "to_days": 730,
+    "tagged": {
+     "commits": 19,
+     "introduced": 12996,
+     "surviving": 948,
+     "survival_rate": 0.0729455216989843
+    },
+    "untagged": {
+     "commits": 2895,
+     "introduced": 340835,
+     "surviving": 71394,
+     "survival_rate": 0.20946792436222805
+    }
+   },
+   {
+    "from_days": 730,
+    "to_days": null,
+    "tagged": {
+     "commits": 0,
+     "introduced": 0,
+     "surviving": 0,
+     "survival_rate": null
+    },
+    "untagged": {
+     "commits": 892,
+     "introduced": 44251,
+     "surviving": 4912,
+     "survival_rate": 0.11100314117195091
+    }
+   }
+  ],
+  "age_matched": {
+   "tagged_rate": 0.7122029598308668,
+   "untagged_rate": 0.5520544295221712,
+   "gap": 0.16014853030869558,
+   "buckets_used": 5,
+   "tagged_lines_covered": 1.0
+  },
+  "oldest_surviving": {
+   "date": "2024-07-06",
+   "age_days": 842,
+   "commits_before": 0,
+   "introduced_before": 0,
+   "tagged_commits_before": 0,
+   "tagged_introduced_before": 0,
+   "commits_before_share": 0.0
+  }
+ },
  "probable_commits": 0,
- "total_commits": 7311,
+ "total_commits": 7608,
  "aggregated": true,
  "coverage": {
-  "method": "v2",
+  "method": "v6",
   "blame_flags": [
    "-w",
    "-M",
@@ -40,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 2,
+ "reports": 7,
  "reproduce": "re audit cline/cline --json",
- "bytes": "https://causari.dev/reports/survival/2026/02/repos/cline__cline.json",
+ "bytes": "https://causari.dev/reports/survival/2026/07/repos/cline__cline.json",
  "license": "CC-BY-4.0"
 }
