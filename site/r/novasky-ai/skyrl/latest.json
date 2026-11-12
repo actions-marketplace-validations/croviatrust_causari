@@ -5,10 +5,10 @@
  "url": "https://causari.dev/r/novasky-ai/skyrl/",
  "badge": "https://causari.dev/r/novasky-ai/skyrl/badge.svg",
  "report": {
-  "number": 7,
-  "id": "2026/07",
-  "date": "2026-10-26",
-  "url": "https://causari.dev/reports/survival/2026/07/"
+  "number": 9,
+  "id": "2026/09",
+  "date": "2026-11-09",
+  "url": "https://causari.dev/reports/survival/2026/09/"
  },
  "method": "v6",
  "tool": {
@@ -16,25 +16,25 @@
   "version": "0.5.0"
  },
  "verified": {
-  "commits": 444,
-  "introduced": 155748,
-  "surviving": 125267,
-  "survival_rate": 0.8042928320106839,
-  "capped_survival_rate": 0.7852910190310501,
-  "median_survival": 0.8272727272727273,
-  "largest_commit_share": 0.035557438939825874
+  "commits": 499,
+  "introduced": 186872,
+  "surviving": 151616,
+  "survival_rate": 0.811336101716683,
+  "capped_survival_rate": 0.8015178018644583,
+  "median_survival": 0.8459630477087671,
+  "largest_commit_share": 0.029635258358662615
  },
  "interval_95": null,
  "baseline": {
   "untagged": {
-   "commits": 950,
-   "introduced": 417277,
-   "surviving": 134051,
-   "survival_rate": 0.32125183031894883,
-   "median_survival": 0.5195965638901672,
-   "capped_survival_rate": 0.5782498634313377,
-   "cap_lines": 963,
-   "largest_commit_share": 0.19066711081607662
+   "commits": 956,
+   "introduced": 419147,
+   "surviving": 135567,
+   "survival_rate": 0.3234354534328052,
+   "median_survival": 0.5177672955974844,
+   "capped_survival_rate": 0.5812994309460747,
+   "cap_lines": 982,
+   "largest_commit_share": 0.18981646057349807
   },
   "by_age": [
    {
@@ -42,79 +42,79 @@
     "to_days": 30,
     "tagged": {
      "commits": 88,
-     "introduced": 44527,
-     "surviving": 42402,
-     "survival_rate": 0.9522761470568419
+     "introduced": 44169,
+     "surviving": 40913,
+     "survival_rate": 0.9262831397586543
     },
     "untagged": {
-     "commits": 28,
-     "introduced": 4719,
-     "surviving": 4320,
-     "survival_rate": 0.9154481881754609
+     "commits": 14,
+     "introduced": 2051,
+     "surviving": 1960,
+     "survival_rate": 0.9556313993174061
     }
    },
    {
     "from_days": 30,
     "to_days": 90,
     "tagged": {
-     "commits": 73,
-     "introduced": 24727,
-     "surviving": 20972,
-     "survival_rate": 0.8481417074453027
+     "commits": 114,
+     "introduced": 52527,
+     "surviving": 46764,
+     "survival_rate": 0.8902849962876235
     },
     "untagged": {
-     "commits": 62,
-     "introduced": 29984,
-     "surviving": 24904,
-     "survival_rate": 0.8305763073639274
+     "commits": 68,
+     "introduced": 28347,
+     "surviving": 23608,
+     "survival_rate": 0.83282181535965
     }
    },
    {
     "from_days": 90,
     "to_days": 180,
     "tagged": {
-     "commits": 74,
-     "introduced": 39623,
-     "surviving": 35116,
-     "survival_rate": 0.8862529339020266
+     "commits": 81,
+     "introduced": 37916,
+     "surviving": 32214,
+     "survival_rate": 0.8496149382846292
     },
     "untagged": {
-     "commits": 127,
-     "introduced": 21198,
-     "surviving": 16876,
-     "survival_rate": 0.796112840834041
+     "commits": 116,
+     "introduced": 24677,
+     "surviving": 20110,
+     "survival_rate": 0.8149288811443854
     }
    },
    {
     "from_days": 180,
     "to_days": 365,
     "tagged": {
-     "commits": 167,
-     "introduced": 39009,
-     "surviving": 22249,
-     "survival_rate": 0.5703555589735702
+     "commits": 164,
+     "introduced": 43357,
+     "surviving": 26775,
+     "survival_rate": 0.617547339529949
     },
     "untagged": {
-     "commits": 418,
-     "introduced": 225429,
-     "surviving": 42569,
-     "survival_rate": 0.18883550918471004
+     "commits": 404,
+     "introduced": 225407,
+     "surviving": 43690,
+     "survival_rate": 0.19382716597088823
     }
    },
    {
     "from_days": 365,
     "to_days": 730,
     "tagged": {
-     "commits": 42,
-     "introduced": 7862,
-     "surviving": 4528,
-     "survival_rate": 0.5759348766217247
+     "commits": 52,
+     "introduced": 8903,
+     "surviving": 4950,
+     "survival_rate": 0.5559923621251264
     },
     "untagged": {
-     "commits": 315,
-     "introduced": 135947,
-     "surviving": 45382,
-     "survival_rate": 0.3338212685826094
+     "commits": 354,
+     "introduced": 138665,
+     "surviving": 46199,
+     "survival_rate": 0.3331698698301662
     }
    },
    {
@@ -135,15 +135,15 @@
    }
   ],
   "age_matched": {
-   "tagged_rate": 0.8042928320106839,
-   "untagged_rate": 0.6602652240210252,
-   "gap": 0.14402760798965875,
+   "tagged_rate": 0.811336101716683,
+   "untagged_rate": 0.6861580869012753,
+   "gap": 0.1251780148154077,
    "buckets_used": 5,
    "tagged_lines_covered": 1.0
   },
   "oldest_surviving": {
    "date": "2025-05-07",
-   "age_days": 534,
+   "age_days": 548,
    "commits_before": 0,
    "introduced_before": 0,
    "tagged_commits_before": 0,
@@ -151,8 +151,8 @@
    "commits_before_share": 0.0
   }
  },
- "probable_commits": 4,
- "total_commits": 1398,
+ "probable_commits": 5,
+ "total_commits": 1460,
  "aggregated": true,
  "coverage": {
   "method": "v6",
@@ -166,8 +166,8 @@
   "sample_floor": 5,
   "small_sample": false
  },
- "reports": 5,
+ "reports": 7,
  "reproduce": "re audit NovaSky-AI/SkyRL --json",
- "bytes": "https://causari.dev/reports/survival/2026/07/repos/NovaSky-AI__SkyRL.json",
+ "bytes": "https://causari.dev/reports/survival/2026/09/repos/NovaSky-AI__SkyRL.json",
  "license": "CC-BY-4.0"
 }
